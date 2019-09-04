@@ -1,5 +1,5 @@
 # Squirrel Programming Language
-Let's make a compiler in Rust called squirrel.
+Let's make a compiler in Rust called Squirrel.
 This is my project in the course Compiler construction and formal languages (D7050E).
 I literally saw a squirrel outside right as I created this repository, that is why I called it sqrrl.
 
