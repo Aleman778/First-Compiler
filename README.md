@@ -1,7 +1,7 @@
 # Squirrel Programming Language
 Let's make a compiler in Rust called squirrel.
 This is my project in the course Compiler construction and formal languages (D7050E).
-I literally saw a squirrel outside right as I created this repository, that is why i called it sqrrl.
+I literally saw a squirrel outside right as I created this repository, that is why I called it sqrrl.
 
 ## The plan (based on the course contents)
 1. Create a parser that can parse rust-like (probably simplified) syntax. And create an Abstract Syntax Tree (AST) representation of the program.
