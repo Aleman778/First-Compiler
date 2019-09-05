@@ -1,5 +1,16 @@
 extern crate nom;
 
+/***************************************************************************
+ * Notes:
+ * - use enum for storing different types of Operations e.g. Op::Add
+ * - inherit Debug and PartialEq
+ * - VerboseError stack erros give context for each parser, int, expr etc.
+ * - Possibly use nom_locate to provide more debug information
+ *     * Found at: https://github.com/fflorent/nom_locate
+ ***************************************************************************/
+
+
+
 
 /**
  * Require from standard library.
@@ -170,7 +181,7 @@ fn parse(input: &str) -> Result<Box<BTree>> {
  * Main method, program starts here.
  */
 fn main() {
-    let result = parse("5 + 7 + 13");
+    let result = parse("   1   +     2        + 15      ");
     match result {
         Ok(n) => println!("Ok: Calculated value: {}\n    Resulting Tree:\n    {:?}", calculate(&n), n),
         Err(e) => println!("Error: {}", e),
