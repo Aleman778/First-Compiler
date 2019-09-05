@@ -1,5 +1,5 @@
 [package]
-name = "first"
+name = "a01_addition"
 version = "0.1.0"
 authors = ["Aleman778 <alexander.mennborg@gmail.com>"]
 edition = "2018"
