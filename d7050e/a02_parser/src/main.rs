@@ -1,7 +1,7 @@
 extern crate nom;
 
 /***************************************************************************
- * Second assignment parse a subset of the rust syntax and construct
+ * Second assignment is to parse a subset of the rust syntax and construct
  * a data structure formally an Abstract Syntax Tree (or AST). The 
  * parser should support:
  * - Functions with arguments and return values
@@ -15,6 +15,7 @@ extern crate nom;
  * - use enum for storing different types of Operations e.g. Op::Add
  * - inherit Debug and PartialEq
  * - VerboseError stack erros give context for each parser, int, expr etc.
+ * - Test the AST not the calculted value (new)
  * - Possibly use nom_locate to provide more debug information
  *     * Found at: https://github.com/fflorent/nom_locate
  ***************************************************************************/
@@ -60,6 +61,7 @@ type Result<T> = std::result::Result<T, SyntaxError>;
 #[derive(Debug, Clone)]
 enum SyntaxError {
     InvalidExpression,    // When the entire input wasn't parsed.
+    InvalidOperator,      // The given operator is not valid.
     Parse(ParseIntError), // When string failed to be parsed into int.
 }
 
@@ -72,6 +74,8 @@ impl fmt::Display for SyntaxError {
         match *self {
             SyntaxError::InvalidExpression =>
                 write!(f, "invalid expression"),
+            SyntaxError::InvalidOperator =>
+                write!(f, "invalid operator"),
             SyntaxError::Parse(ref e) => e.fmt(f),
         }
     }
@@ -99,24 +103,72 @@ impl From<ParseIntError> for SyntaxError {
 
 
 /***************************************************************************
- * Binary tree data structure
+ * Abstract Syntax Tree (AST)
  ***************************************************************************/
 
 
 /**
  * Required BTree functions
  */
-use crate::BTree::{Op, Val};
+use crate::Expr::{BinOp, UnOp, Val};
+
+
+// enum AbstractSynta
+
+#[derive(Debug, PartialEq)]
+enum Op {
+    Equal,      // ==
+    NotEq,      // !=
+    LessThan,   // <
+    LessEq,     // <=
+    LargerThan, // >
+    LargerEq,   // >=
+    And,        // &&
+    Or,         // ||
+    Add,        // +
+    Sub,        // -
+    Mul,        // *
+    Div,        // /
+    Mod,        // %
+    Not,        // !
+}
+
+
+impl FromStr for Op {
+    fn from_str(s: &str) -> Result<Op, ()> {
+        match s {
+            "==" => Ok(Op::Equal),
+            "!=" => Ok(Op::NotEq),
+            "<"  => Ok(Op::LessThan),
+            "<=" => Ok(Op::LessEq),
+            ">"  => Ok(Op::LargerThan),
+            ">=" => Ok(Op::LargerEq),
+            "&&" => Ok(Op::And),
+            "||" => Ok(Op::Or),
+            "+"  => Ok(Op::Add),
+            "-"  => Ok(Op::Sub),
+            "*"  => Ok(Op::Mul),
+            "/"  => Ok(Op::Div),
+            "%"  => Ok(Op::Mod),
+            "!"  => Ok(Op::Not),
+            _ => Err(SyntaxError::InvalidOperator),
+        }
+    }
+}
 
 
 /**
- * Binary tree, branches are operators and leaves are operands.
+ * Expressions can either be a binary operation (two operands),
+ * unary operation (single operand)
  */
-#[derive(Debug, Clone)]
-enum BTree {
-    Op(char, Box<BTree>, Box<BTree>),
+#[derive(Debug, PartialEq)]
+enum Expr {
+    BinOp(Box<Expr>, Op, Box<Expr>),
+    UnOp(Op, Box<Expr>),
     Val(i32)
 }
+
+
 
 
 /***************************************************************************
@@ -128,7 +180,7 @@ enum BTree {
  * Converts string containing a number into Box::Value.
  */
 fn from_number(input: &str) -> Result<Box<BTree>> {
-    Ok(Box::new(Val(i32::from_str(input.trim()).unwrap())))
+    Ok(Box::new(Val(i32::from_str(input).unwrap())))
 }
 
 
@@ -205,12 +257,18 @@ fn main() {
  * Recursively calculates the resulting value of the binary tree.
  * Currently only supports addition.
  */
-fn calculate(value: &Box<BTree>) -> i32 {
+fn calculate_int(value: &Box<Expr>) -> i32 {
     match &**value {
-        BTree::Val(val) => return *val,
-        BTree::Op(op, left, right) => {
+        Expr::Num(num) => return *num,
+        Expr::BinOp(left, op, right) => {
             if *op == '+' {
-                return calculate(&left) + calculate(&right);
+                return calculate_int(&left) + calculate_int(&right);
+            }
+            return 0;
+        }
+        Expr::UnOp(op, right) => {
+            if (*op == '-') {
+                return -calculate_int(&right);
             }
             return 0;
         }
@@ -223,10 +281,10 @@ fn calculate(value: &Box<BTree>) -> i32 {
  */
 #[test]
 fn number_test() {
-    assert_eq!(calculate(&parse("6").unwrap()),         6);
-    assert_eq!(calculate(&parse(" 56").unwrap()),       56);
-    assert_eq!(calculate(&parse("432    ").unwrap()),   432);
-    assert_eq!(calculate(&parse("  4234   ").unwrap()), 4234);
+    assert_eq!(calculate_int(&parse("6").unwrap()),         6);
+    assert_eq!(calculate_int(&parse(" 56").unwrap()),       56);
+    assert_eq!(calculate_int(&parse("432    ").unwrap()),   432);
+    assert_eq!(calculate_int(&parse("  4234   ").unwrap()), 4234);
 }
 
 
@@ -238,16 +296,16 @@ fn number_test() {
 #[test]
 fn expr_test() {
     // Simple calculations
-    assert_eq!(calculate(&parse("1+2").unwrap()),           3);
-    assert_eq!(calculate(&parse("10+20+30").unwrap()),      60);
-    assert_eq!(calculate(&parse("1+1+1+1+1+1+1").unwrap()), 7);
-    assert_eq!(calculate(&parse("50000+50000").unwrap()),   100000);
+    assert_eq!(calculate_int(&parse("1+2").unwrap()),           3);
+    assert_eq!(calculate_int(&parse("10+20+30").unwrap()),      60);
+    assert_eq!(calculate_int(&parse("1+1+1+1+1+1+1").unwrap()), 7);
+    assert_eq!(calculate_int(&parse("50000+50000").unwrap()),   100000);
 
     // Parseessions including weird, but correct formatting
-    assert_eq!(calculate(&parse("1 + 2 + 3").unwrap()),           6);
-    assert_eq!(calculate(&parse("    1    +    2    ").unwrap()), 3);
-    assert_eq!(calculate(&parse("1 \t + \t 2").unwrap()),         3);
-    assert_eq!(calculate(&parse("\t  1+2  \t").unwrap()),         3);
+    assert_eq!(calculate_int(&parse("1 + 2 + 3").unwrap()),           6);
+    assert_eq!(calculate_int(&parse("    1    +    2    ").unwrap()), 3);
+    assert_eq!(calculate_int(&parse("1 \t + \t 2").unwrap()),         3);
+    assert_eq!(calculate_int(&parse("\t  1+2  \t").unwrap()),         3);
 
     // Invalid expressions (should return Syntax Error)
     assert!(parse("   +2   ").is_err());
