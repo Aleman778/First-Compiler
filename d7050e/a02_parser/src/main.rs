@@ -36,7 +36,8 @@ use std::{
  */
 use nom::{
     IResult,
-    character::complete::{char, digit1, space0},
+    bytes::complete::tag,
+    character::complete::{digit1, space0},
     combinator::{map_res},
     multi::fold_many0,
     sequence::{pair, delimited}
@@ -89,6 +90,7 @@ impl error::Error for SyntaxError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
             SyntaxError::InvalidExpression => None,
+            SyntaxError::InvalidOperator => None,
             SyntaxError::Parse(ref e) => Some(e),
         }
     }
@@ -108,14 +110,14 @@ impl From<ParseIntError> for SyntaxError {
 
 
 /**
- * Required BTree functions
+ * Required Expr functions
  */
-use crate::Expr::{BinOp, UnOp, Val};
+use crate::Expr::{BinOp, UnOp, Num};
 
 
 // enum AbstractSynta
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum Op {
     Equal,      // ==
     NotEq,      // !=
@@ -135,7 +137,9 @@ enum Op {
 
 
 impl FromStr for Op {
-    fn from_str(s: &str) -> Result<Op, ()> {
+    type Err = SyntaxError;
+    
+    fn from_str(s: &str) -> Result<Op> {
         match s {
             "==" => Ok(Op::Equal),
             "!=" => Ok(Op::NotEq),
@@ -161,11 +165,12 @@ impl FromStr for Op {
  * Expressions can either be a binary operation (two operands),
  * unary operation (single operand)
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum Expr {
     BinOp(Box<Expr>, Op, Box<Expr>),
     UnOp(Op, Box<Expr>),
-    Val(i32)
+    Num(i32),
+    Bool(bool),
 }
 
 
@@ -173,50 +178,69 @@ enum Expr {
 
 /***************************************************************************
  * Addition arithmetic expression parser.
+ * Note: operator precedence is considered for this assignment.
  ***************************************************************************/
 
 
 /**
  * Converts string containing a number into Box::Value.
  */
-fn from_number(input: &str) -> Result<Box<BTree>> {
-    Ok(Box::new(Val(i32::from_str(input).unwrap())))
+fn from_number(input: &str) -> Result<Expr> {
+    Num(i32::from_str(input).unwrap())
 }
 
 
 /**
- * Parses a simple number including blankspaces.
- * e.g. matches "   x   " and creates a box BTree::Val(x).
+ * Parse literal, can be either of type bool or i32.
  */
-fn number(input: &str) -> IResult<&str, Box<BTree>> {
-    map_res(                               // Maps number to the resulting BTree::Val.
-        delimited(space0, digit1, space0), // Matches numbers between possible whitespace characters
-        from_number                        // Converts str to BTree::Val.
-    )(input)
+fn parse_literal(input: &str) -> IResult<&str, Expr> {
+    context(
+        "parse_literal",
+        alt((
+            map(tag("true"), |s: &str| Bool(true)),
+            map(tag("false"), |s: &str| Bool(false)),
+            map((digit1), |s: &str|))
+        )
+    )(input)        
+}
+
+
+fn parse_operator(input: &str) -> IResult<&str, Op> {
+    context(
+        "parse_operator",
+        
+    )
 }
 
 
 /**
  * Parses a simple arithmetic expression, only supports addition.
  */
-fn expr(input: &str) -> IResult<&str, Box<BTree>> {
-    let (input, left) = number(input)?;
-    
-    fold_many0(
-        pair(char('+'), number),
-        left,
-        |mut left: Box<BTree>, (op, right): (char, Box<BTree>)| {
-            left = Box::new(Op(op, left, right));
-            left
-        }
-    )(input)
+fn parse_expr(input: &str) -> IResult<&str, Expr> {
+    context(
+        "parse_expr",
+        preceded(
+            multispace0,
+            alt((
+                //Binary operation e.g. 4 + 5
+                map(tuple((parse_literal, preceded(multispace0, parse_operator), parse_expr)),
+                    |(left, op, right)| Expr::BinOp(Box::new(left), op, Box::new(right))),
+                
+                //Unary operation e.g. -5
+                map(tuple((parse_operator, parse_expr)),
+                    |(op, right)| Expr::UnOp(op, Box::new(right))),
+
+                //Literal
+                parse_literal,
+            ))
+        )
 }
 
 
 /**
  * Prases the given input expression and returns a abstract syntax tree.
  */
-fn parse(input: &str) -> Result<Box<BTree>> {
+fn parse(input: &str) -> Result<Box<Expr>> {
     let result = expr(input);
     if result.is_err() {
         return Err(SyntaxError::InvalidExpression);
@@ -240,9 +264,9 @@ fn parse(input: &str) -> Result<Box<BTree>> {
  * Main method, program starts here.
  */
 fn main() {
-    let result = parse("   1   +     2        + 15      ");
+    let result = parse("   -1   +     6        / 15      ");
     match result {
-        Ok(n) => println!("Ok: Calculated value: {}\n    Resulting Tree:\n    {:?}", calculate(&n), n),
+        Ok(n) => println!("Ok: Calculated value: {}\n    Resulting Tree:\n    {:?}", calculate_int(&n), n),
         Err(e) => println!("Error: {}", e),
     }
 }
@@ -261,13 +285,13 @@ fn calculate_int(value: &Box<Expr>) -> i32 {
     match &**value {
         Expr::Num(num) => return *num,
         Expr::BinOp(left, op, right) => {
-            if *op == '+' {
+            if *op == Op::Add {
                 return calculate_int(&left) + calculate_int(&right);
             }
             return 0;
         }
         Expr::UnOp(op, right) => {
-            if (*op == '-') {
+            if *op == Op::Sub {
                 return -calculate_int(&right);
             }
             return 0;
