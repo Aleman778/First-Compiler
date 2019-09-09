@@ -20,86 +20,64 @@ extern crate nom;
  *     * Found at: https://github.com/fflorent/nom_locate
  ***************************************************************************/
 
-/**
- * Require from standard library.
- */
-use std::{
-    error,
-    fmt,
-    num::ParseIntError,
-    str::FromStr
-};
-
 
 /**
  * Required nom features for this parser.
  */
 use nom::{
-    IResult,
     bytes::complete::tag,
-    character::complete::{digit1, space0},
-    combinator::{map_res},
-    multi::fold_many0,
-    sequence::{pair, delimited}
+    character::complete::{digit1, multispace0},
+    combinator::map,
+    branch::alt,
+    sequence::{tuple, preceded},
+    error,
+    Err,
 };
 
 
-/***************************************************************************
- * Setup syntax error
- ***************************************************************************/
+/**
+ * Require LocatedSpan from crate nom_locate.
+ */
+use nom_locate::LocatedSpan;
 
 
 /**
- * Type aliases Result to include syntax error by default.
+ * Type alias of LocatedSpan for convenience.
  */
-type Result<T> = std::result::Result<T, SyntaxError>;
+type Span<'a> = LocatedSpan<&'a str>;
 
 
 /**
- * Syntax error struct, contains different type of suberrors.
- * e.g. invalid expression or int parser error etc.
+ * Error struct, defines the original span and optional local
+ * span that is being parsed, with the error kind.
  */
-#[derive(Debug, Clone)]
-enum SyntaxError {
-    InvalidExpression,    // When the entire input wasn't parsed.
-    InvalidOperator,      // The given operator is not valid.
-    Parse(ParseIntError), // When string failed to be parsed into int.
+#[derive(Debug)]
+pub struct Error<'a>(Span<'a>, Option<Span<'a>>, ErrorKind);
+
+
+/**
+ * Type aliased IResult from std::Result.
+ */
+type IResult<'a, I, O, E = Error<'a>> = Result<(I, O), Err<E>>;
+
+
+/**
+ * Defines the different kinds of errors to expect.
+ */
+#[derive(Debug)]
+enum ErrorKind {
+    ParseIntError(std::num::ParseIntError),
+    Nom(error::ErrorKind),
 }
 
 
-/**
- * Format message generated for syntax error.
- */
-impl fmt::Display for SyntaxError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            SyntaxError::InvalidExpression =>
-                write!(f, "invalid expression"),
-            SyntaxError::InvalidOperator =>
-                write!(f, "invalid operator"),
-            SyntaxError::Parse(ref e) => e.fmt(f),
-        }
+impl<'a> error::ParseError<Span<'a>> for Error<'a> {
+    fn from_error_kind(input: Span<'a>, kind: error::ErrorKind) -> Self {
+        Error(input, None, ErrorKind::Nom(kind))
     }
-}
 
-
-/**
- * Implement syntax error as an actual error.
- */
-impl error::Error for SyntaxError {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-        match *self {
-            SyntaxError::InvalidExpression => None,
-            SyntaxError::InvalidOperator => None,
-            SyntaxError::Parse(ref e) => Some(e),
-        }
-    }
-}
-
-
-impl From<ParseIntError> for SyntaxError {
-    fn from(err: ParseIntError) -> SyntaxError {
-        SyntaxError::Parse(err)
+    fn append(_: Span<'a>, _: error::ErrorKind, other: Self) -> Self {
+        other
     }
 }
 
@@ -110,15 +88,11 @@ impl From<ParseIntError> for SyntaxError {
 
 
 /**
- * Required Expr functions
+ * The different kinds of operators used by
+ * both the binary and unary operations.
  */
-use crate::Expr::{BinOp, UnOp, Num};
-
-
-// enum AbstractSynta
-
 #[derive(Debug, Clone, PartialEq)]
-enum Op {
+pub enum Op {
     Equal,      // ==
     NotEq,      // !=
     LessThan,   // <
@@ -136,44 +110,29 @@ enum Op {
 }
 
 
-impl FromStr for Op {
-    type Err = SyntaxError;
-    
-    fn from_str(s: &str) -> Result<Op> {
-        match s {
-            "==" => Ok(Op::Equal),
-            "!=" => Ok(Op::NotEq),
-            "<"  => Ok(Op::LessThan),
-            "<=" => Ok(Op::LessEq),
-            ">"  => Ok(Op::LargerThan),
-            ">=" => Ok(Op::LargerEq),
-            "&&" => Ok(Op::And),
-            "||" => Ok(Op::Or),
-            "+"  => Ok(Op::Add),
-            "-"  => Ok(Op::Sub),
-            "*"  => Ok(Op::Mul),
-            "/"  => Ok(Op::Div),
-            "%"  => Ok(Op::Mod),
-            "!"  => Ok(Op::Not),
-            _ => Err(SyntaxError::InvalidOperator),
-        }
-    }
-}
+/**
+ * Type alias operators to include span.
+ */
+type SpanOp<'a> = (Span<'a>, Op);
 
 
 /**
- * Expressions can either be a binary operation (two operands),
- * unary operation (single operand)
+ * Expressions can be a binary operation (two operands),
+ * unary operation (single operand) or a literal.
  */
 #[derive(Debug, Clone, PartialEq)]
-enum Expr {
-    BinOp(Box<Expr>, Op, Box<Expr>),
-    UnOp(Op, Box<Expr>),
+pub enum Expr<'a> {
+    BinOp(Box<SpanExpr<'a>>, SpanOp<'a>, Box<SpanExpr<'a>>),
+    UnOp(SpanOp<'a>, Box<SpanExpr<'a>>),
     Num(i32),
     Bool(bool),
 }
 
 
+/**
+ * Type alias expressions to include span.
+ */
+type SpanExpr<'a> = (Span<'a>, Expr<'a>);
 
 
 /***************************************************************************
@@ -183,75 +142,94 @@ enum Expr {
 
 
 /**
- * Converts string containing a number into Box::Value.
+ * Parse a binary operator.
  */
-fn from_number(input: &str) -> Result<Expr> {
-    Num(i32::from_str(input).unwrap())
+fn parse_binoperator(input: Span) -> IResult<Span, SpanOp> {
+    alt((
+        map(tag("=="), |s| (s, Op::Equal)),
+        map(tag("!="), |s| (s, Op::NotEq)),
+        map(tag("<"),  |s| (s, Op::LessThan)),
+        map(tag("<="), |s| (s, Op::LessEq)),
+        map(tag(">"),  |s| (s, Op::LargerThan)),
+        map(tag(">="), |s| (s, Op::LargerEq)),
+        map(tag("&&"), |s| (s, Op::And)),
+        map(tag("||"), |s| (s, Op::Or)),
+        map(tag("+"),  |s| (s, Op::Add)),
+        map(tag("-"),  |s| (s, Op::Sub)),
+        map(tag("*"),  |s| (s, Op::Mul)),
+        map(tag("/"),  |s| (s, Op::Div)),
+        map(tag("%"),  |s| (s, Op::Mod)),
+    ))(input)
+}
+
+
+/**
+ * Parse an unary operator.
+ */
+fn parse_unoperator(input: Span) -> IResult<Span, SpanOp> {
+    alt((
+        map(tag("-"),  |s| (s, Op::Sub)),
+        map(tag("!"),  |s| (s, Op::Not)),
+    ))(input)
+}
+
+
+/**
+ * Parses a 32-bit signed integer.
+ * Also handles errors this is not a valid i32 number.
+ * Note: taken from the instructors example code.
+ */
+pub fn parse_i32<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
+    let (input, digits) = digit1(input)?;
+    match digits.fragment.parse() {
+        Ok(n) => Ok((input, (digits, Expr::Num(n)))),
+        Err(e) => Err(Err::Error(Error(
+            input,
+            Some(digits),
+            ErrorKind::ParseIntError(e),
+        ))),
+    }
 }
 
 
 /**
  * Parse literal, can be either of type bool or i32.
+ * In this assignment we do not need to consider them as separate types
+ * so the result can always an ambigoius expression type.
  */
-fn parse_literal(input: &str) -> IResult<&str, Expr> {
-    context(
-        "parse_literal",
-        alt((
-            map(tag("true"), |s: &str| Bool(true)),
-            map(tag("false"), |s: &str| Bool(false)),
-            map((digit1), |s: &str|))
-        )
-    )(input)        
-}
-
-
-fn parse_operator(input: &str) -> IResult<&str, Op> {
-    context(
-        "parse_operator",
-        
-    )
+pub fn parse_literal<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
+    alt((
+        parse_i32,
+        map(tag("true"), |s| (s, Expr::Bool(true))),
+        map(tag("false"), |s| (s, Expr::Bool(false))),
+    ))(input)
 }
 
 
 /**
  * Parses a simple arithmetic expression, only supports addition.
  */
-fn parse_expr(input: &str) -> IResult<&str, Expr> {
-    context(
-        "parse_expr",
-        preceded(
-            multispace0,
-            alt((
-                //Binary operation e.g. 4 + 5
-                map(tuple((parse_literal, preceded(multispace0, parse_operator), parse_expr)),
-                    |(left, op, right)| Expr::BinOp(Box::new(left), op, Box::new(right))),
-                
-                //Unary operation e.g. -5
-                map(tuple((parse_operator, parse_expr)),
-                    |(op, right)| Expr::UnOp(op, Box::new(right))),
+fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
+    alt((
+        //Binary operation e.g. 4 + 5
+        map(tuple((parse_literal, preceded(multispace0, parse_binoperator), parse_expr_ms)),
+            |(left, op, right)| (input, Expr::BinOp(Box::new(left), op, Box::new(right)))),
+        
+        //Unary operation e.g. -5
+        map(tuple((parse_unoperator, parse_expr_ms)),
+            |(op, right)| (input, Expr::UnOp(op, Box::new(right)))),
 
-                //Literal
-                parse_literal,
-            ))
-        )
+        //Literal
+        parse_literal,
+    ))(input)
 }
 
 
 /**
- * Prases the given input expression and returns a abstract syntax tree.
+ * Parses an expression with preceded by spaces.
  */
-fn parse(input: &str) -> Result<Box<Expr>> {
-    let result = expr(input);
-    if result.is_err() {
-        return Err(SyntaxError::InvalidExpression);
-    }
-    
-    let (input, tree) = result.unwrap();
-    if !input.is_empty() {
-        return Err(SyntaxError::InvalidExpression);
-    }
-    
-    return Ok(tree);
+fn parse_expr_ms(input: Span) -> IResult<Span, SpanExpr> {
+    preceded(multispace0, parse_expr)(input)
 }
 
 
@@ -264,10 +242,12 @@ fn parse(input: &str) -> Result<Box<Expr>> {
  * Main method, program starts here.
  */
 fn main() {
-    let result = parse("   -1   +     6        / 15      ");
+    let input = "   -1   +     6        / 15      ";
+    let result = parse_expr_ms(Span::new(input));
+    
     match result {
-        Ok(n) => println!("Ok: Calculated value: {}\n    Resulting Tree:\n    {:?}", calculate_int(&n), n),
-        Err(e) => println!("Error: {}", e),
+        Ok(n) => println!("Ok: Resulting Tree:\n    {:#?}", n),
+        Err(e) => println!("Error: {:#?}", e),
     }
 }
 
@@ -277,38 +257,25 @@ fn main() {
  ***************************************************************************/
 
 
-/**
- * Recursively calculates the resulting value of the binary tree.
- * Currently only supports addition.
- */
-fn calculate_int(value: &Box<Expr>) -> i32 {
-    match &**value {
-        Expr::Num(num) => return *num,
-        Expr::BinOp(left, op, right) => {
-            if *op == Op::Add {
-                return calculate_int(&left) + calculate_int(&right);
-            }
-            return 0;
-        }
-        Expr::UnOp(op, right) => {
-            if *op == Op::Sub {
-                return -calculate_int(&right);
-            }
-            return 0;
-        }
-    }
-}
-
     
 /**
  * Testing simple digit values, including whitespaces.
  */
 #[test]
-fn number_test() {
-    assert_eq!(calculate_int(&parse("6").unwrap()),         6);
-    assert_eq!(calculate_int(&parse(" 56").unwrap()),       56);
-    assert_eq!(calculate_int(&parse("432    ").unwrap()),   432);
-    assert_eq!(calculate_int(&parse("  4234   ").unwrap()), 4234);
+fn test_parse_literal() {
+    // 32-bit signed integer literals
+    assert_eq!(parse_literal("4235"),     Ok(("", Expr::Num(4235))));
+    assert_eq!(parse_literal("4235 + 2"), Ok((" + 2", Expr::Num(4235))));
+    assert_eq!(parse_literal("4235abcs"), Ok(("abcs", Expr::Num(4235))));
+    assert!(parse_literal("abcs4235").is_err());
+    assert!(parse_literal("111111111111111111").is_err());
+
+    // Boolean literals
+    assert_eq!(parse_literal("true"),  Ok(("", Expr::Bool(true))));
+    assert_eq!(parse_literal("false"), Ok(("", Expr::Bool(false))));
+    assert_eq!(parse_literal("truefalse"), Ok(("false", Expr::Bool(true))));
+    assert_eq!(parse_literal("falsetrue"), Ok(("true", Expr::Bool(false))));
+    assert!(parse_literal("hello").is_err());
 }
 
 
@@ -319,21 +286,8 @@ fn number_test() {
  */
 #[test]
 fn expr_test() {
-    // Simple calculations
-    assert_eq!(calculate_int(&parse("1+2").unwrap()),           3);
-    assert_eq!(calculate_int(&parse("10+20+30").unwrap()),      60);
-    assert_eq!(calculate_int(&parse("1+1+1+1+1+1+1").unwrap()), 7);
-    assert_eq!(calculate_int(&parse("50000+50000").unwrap()),   100000);
-
-    // Parseessions including weird, but correct formatting
-    assert_eq!(calculate_int(&parse("1 + 2 + 3").unwrap()),           6);
-    assert_eq!(calculate_int(&parse("    1    +    2    ").unwrap()), 3);
-    assert_eq!(calculate_int(&parse("1 \t + \t 2").unwrap()),         3);
-    assert_eq!(calculate_int(&parse("\t  1+2  \t").unwrap()),         3);
-
-    // Invalid expressions (should return Syntax Error)
-    assert!(parse("   +2   ").is_err());
-    assert!(parse("  1+2+  ").is_err());
-    assert!(parse(" 1 ++ 2 ").is_err());
-    assert!(parse("   +    ").is_err());
+    // Simple expressions
+    let expected = Expr::BinOp(Box::new(Expr::Num(1)), Op::Add, Box::new(Expr::Num(2)));
+    assert_eq!(parse_expr("1+2"), Ok(("", expected)));
+    assert_eq!(parse_expr("1+2+1"), Ok(("+1", expected)));
 }

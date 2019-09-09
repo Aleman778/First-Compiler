@@ -13,4 +13,5 @@ members = [
 ]
 
 [dependencies]
-nom = "5.0.1"
+nom = "5"
+nom_locate = "1"
