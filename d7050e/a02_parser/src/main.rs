@@ -25,11 +25,12 @@ extern crate nom;
  * Required nom features for this parser.
  */
 use nom::{
-    bytes::complete::tag,
-    character::complete::{digit1, multispace0},
-    combinator::map,
+    bytes::complete::{tag, take_while, take_while1},
+    character::complete::{digit1, alpha1, multispace0, multispace1},
+    character::{is_alphabetic, is_alphanumeric},
+    combinator::{map, map_parser, peek},
     branch::alt,
-    sequence::{tuple, preceded},
+    sequence::{pair, tuple, preceded},
     error,
     Err,
 };
@@ -111,7 +112,7 @@ pub enum Op {
 
 
 /**
- * Type alias operators to include span.
+ * Type alias of operator to include span.
  */
 type SpanOp<'a> = (Span<'a>, Op);
 
@@ -130,9 +131,51 @@ pub enum Expr<'a> {
 
 
 /**
- * Type alias expressions to include span.
+ * Type alias of expressions to include span.
  */
 type SpanExpr<'a> = (Span<'a>, Expr<'a>);
+
+
+/**
+ * The different kinds of supported types.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
+    Int32,
+    Bool,
+}
+
+
+/**
+ * Type alias of type enum to include span.
+ */
+type SpanType<'a> = (Span<'a>, Type);
+
+
+/**
+ * Identifier struct
+ */
+#[derive(Debug)]
+pub struct Ident<'a>(&'a str);
+
+
+/**
+ * Type alias of identifier struct to include span.
+ */
+type SpanIdent<'a> = (Span<'a>, Ident<'a>);
+
+
+/**
+ * Structure for storing assignments.
+ */
+#[derive(Debug)]
+pub struct Assign<'a>(SpanIdent<'a>, SpanType<'a>, Box<SpanExpr<'a>>);
+
+
+/**
+ * Type alias of assignment struct to include span.
+ */
+type SpanAssign<'a> = (Span<'a>, Assign<'a>);
 
 
 /***************************************************************************
@@ -233,6 +276,50 @@ fn parse_expr_ms(input: Span) -> IResult<Span, SpanExpr> {
 }
 
 
+/**
+ * Parse a type, e.g. i32 or bool.
+ */
+fn parse_type(input: Span) -> IResult<Span, SpanType> {
+    alt((
+        map(tag("i32"),  |s| (s, Type::Int32)),
+        map(tag("bool"),  |s| (s, Type::Bool)),
+    ))(input)
+}
+
+
+/**
+ * Parses an identifier, has to start with an alphabetic character.
+ * e.g. to_string, testVar, hello30.
+ */
+fn parse_identifier(input: Span) -> IResult<Span, SpanIdent> {
+    peek(alpha1)(input)?;
+    map(take_while(|c: char| is_alphanumeric(c as u8)),
+        |s: Span| (s, Ident(s.fragment))
+    )(input)
+}
+
+
+/**
+ * Parse assignments of local variables
+ * e.g. let a: i32 = 5 + 7;
+ */
+fn parse_assign(input: Span) -> IResult<Span, SpanAssign> {
+    preceded(
+        tag("let"),
+        map(tuple((
+            preceded(multispace1, parse_identifier),
+            preceded(multispace0, tag(":")),
+            preceded(multispace0, parse_type),
+            preceded(multispace0, tag("=")),
+            preceded(multispace0, parse_expr),
+            preceded(multispace0, tag(";")),
+        )),
+        |(ident, _, ty, _, expr, _)| (input, Assign(ident, ty, Box::new(expr))))
+    )(input)
+}
+
+
+
 /***************************************************************************
  * Main method
  ***************************************************************************/
@@ -242,8 +329,8 @@ fn parse_expr_ms(input: Span) -> IResult<Span, SpanExpr> {
  * Main method, program starts here.
  */
 fn main() {
-    let input = "   -1   +     6        / 15      ";
-    let result = parse_expr_ms(Span::new(input));
+    let input = "let hello30: i32 = 1 + 2;";
+    let result = parse_assign(Span::new(input));
     
     match result {
         Ok(n) => println!("Ok: Resulting Tree:\n    {:#?}", n),
@@ -286,6 +373,7 @@ fn test_parse_literal() {
  */
 #[test]
 fn expr_test() {
+        
     // Simple expressions
     let expected = Expr::BinOp(Box::new(Expr::Num(1)), Op::Add, Box::new(Expr::Num(2)));
     assert_eq!(parse_expr("1+2"), Ok(("", expected)));
