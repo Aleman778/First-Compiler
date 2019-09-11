@@ -25,13 +25,13 @@ extern crate nom;
  * Required nom features for this parser.
  */
 use nom::{
-    bytes::complete::{tag, take_while},
+    bytes::complete::{tag, take_while1},
     character::complete::{digit1, alpha1, multispace0, multispace1},
     character::{is_alphanumeric},
     combinator::{map, peek, opt},
     branch::alt,
     multi::fold_many0,
-    sequence::{tuple, preceded},
+    sequence::{tuple, preceded, delimited},
     error,
     Err,
 };
@@ -190,6 +190,53 @@ pub struct Block<'a>(Vec<Expr<'a>>);
 
 
 /**
+ * Parses a simple arithmetic expression, only supports addition.
+ */
+fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
+    alt((
+        // Binary operation e.g. 4 + 5
+        map(tuple((parse_operand_ms, preceded(multispace0, parse_binoperator), parse_expr_ms)),
+            |(left, op, right)| (input, Expr::BinOp(Box::new(left), op, Box::new(right)))),
+        
+        // Unary operation e.g. -5
+        map(tuple((preceded(multispace0, parse_binoperator), parse_operand_ms)),
+            |(op, right)| (input, Expr::UnOp(op, Box::new(right)))),
+
+        // Local variable declaration e.g. let a: i32 = 5;
+        parse_local,
+
+        // Parse an operand (literal, function call or identifier)
+        parse_operand,
+    ))(input)
+}
+
+
+/**
+ * Parses an operand can either be a literal, identifier or function call.
+ */
+fn parse_operand(input: Span) -> IResult<Span, SpanExpr> {
+    alt((
+        // Literal e.g. false
+        parse_literal,
+
+        // Function calls e.g. min(a + 25, 30);
+        parse_fn_call,        
+
+        // Parse an identifier e.g. a
+        parse_identifier,
+    ))(input)
+}
+
+
+/**
+ * Parses an operand with possible multispaces before.
+ */
+fn parse_operand_ms(input: Span) -> IResult<Span, SpanExpr> {
+    preceded(multispace0, parse_operand)(input)
+}
+
+
+/**
  * Parse a binary operator.
  */
 fn parse_binoperator(input: Span) -> IResult<Span, SpanOp> {
@@ -255,28 +302,6 @@ pub fn parse_literal<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
 
 
 /**
- * Parses a simple arithmetic expression, only supports addition.
- */
-fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
-    alt((
-        // Binary operation e.g. 4 + 5
-        map(tuple((parse_literal, preceded(multispace0, parse_binoperator), parse_expr_ms)),
-            |(left, op, right)| (input, Expr::BinOp(Box::new(left), op, Box::new(right)))),
-        
-        // Unary operation e.g. -5
-        map(tuple((parse_unoperator, parse_expr_ms)),
-            |(op, right)| (input, Expr::UnOp(op, Box::new(right)))),
-
-        // Local variable declaration e.g. let a: i32 = 5
-        parse_local,
-        
-        // Literal
-        parse_literal,
-    ))(input)
-}
-
-
-/**
  * Parses an expression with preceded by spaces.
  */
 fn parse_expr_ms(input: Span) -> IResult<Span, SpanExpr> {
@@ -301,8 +326,11 @@ fn parse_type(input: Span) -> IResult<Span, SpanType> {
  */
 fn parse_identifier(input: Span) -> IResult<Span, SpanExpr> {
     peek(alpha1)(input)?;
-    map(take_while(|c: char| is_alphanumeric(c as u8)),
-        |s: Span| (s, Expr::Ident(s.fragment))
+    map(take_while1(|c: char| is_alphanumeric(c as u8) || c == '_'),
+        |s: Span| {
+            println!("-> {:?}", s);
+            (s, Expr::Ident(s.fragment))
+        }
     )(input)
 }
 
@@ -316,15 +344,33 @@ fn parse_fn_call(input: Span) -> IResult<Span, SpanExpr> {
         preceded(multispace0, tag("(")),
         opt(preceded(multispace0, parse_expr)),
         fold_many0(
-            preceded(delimited(multispace0, tag(","), multispace0), parse_expr)
+            preceded(delimited(multispace0, tag(","), multispace0), parse_expr),
+            Vec::new(),
+            |mut args: Vec<_>, item| {
+                println!("-> {:?}", item);
+                args.push(item);
+                args
+            }
         ),
         preceded(multispace0, tag(")")),
-        preceded(multispace0, tag("{")),
-        parse_block,
-        preceded(multispace0, tag("}"))
+        preceded(multispace0, tag(";")),
     )),
-        |(ident, _, arg0, arg_rest, )|
+        |(ident, _, arg0, mut args, _, _)| {
+            if arg0.is_some() {
+                args.insert(0, arg0.unwrap());
+            }
+            (input, Expr::Call(Box::new(ident), args))
+        }
+    )(input)
 }
+
+
+// fn parse_block(input: Span) -> IResult<Span, SpanBlock> {
+//     map(fold_many_0(
+//         preceded(multispace0, terminated(parse_expr, ))
+//     ),
+//     )(input)
+// }
 
 
 /**
@@ -371,12 +417,12 @@ fn parse_local(input: Span) -> IResult<Span, SpanExpr> {
  * Main method, program starts here.
  */
 fn main() {
-    println!("{}", 2 - 3 * 5 + 11);
-    let input = "let hello30: i32 = 1 + 2;";
-    let result = parse_local(Span::new(input));
+    // let input = "let hello30: i32 = 1 + 2;";
+    let input = "min(a + 25, 40);";
+    let result = parse_expr(Span::new(input));
     
     match result {
-        Ok(n) => println!("Ok: Resulting Tree:\n    {:#?}", n),
+        Ok(n) => println!("Ok: \nInput: {}\nResulting Tree:\n    {:#?}", input, n),
         Err(e) => println!("Error: {:#?}", e),
     }
 }
