@@ -31,7 +31,7 @@ use nom::{
     combinator::{map, peek, opt},
     branch::alt,
     multi::fold_many0,
-    sequence::{tuple, preceded, delimited},
+    sequence::{pair, tuple, preceded, terminated, delimited},
     error,
     Err,
 };
@@ -102,7 +102,7 @@ pub enum Expr<'a> {
     UnOp(SpanOp<'a>, Box<SpanExpr<'a>>),
 
     // Local variable declaration
-    Local(Box<SpanExpr<'a>>, SpanType<'a>, Box<SpanExpr<'a>>),
+    Local(bool, Box<SpanExpr<'a>>, SpanType<'a>, Box<SpanExpr<'a>>),
 
     // Assignment of mutable local variable
     Assign(Box<SpanExpr<'a>>, Box<SpanExpr<'a>>),
@@ -110,9 +110,24 @@ pub enum Expr<'a> {
     // Function call
     Call(Box<SpanExpr<'a>>, Vec<SpanExpr<'a>>),
 
-    // Return expression
-    Return(Box<SpanExpr<'a>>),
+    // Block of expressions
+    Block(Vec<SpanExpr<'a>>),
 
+    // If statement with optional else statement
+    If(Box<SpanExpr<'a>>, Box<SpanExpr<'a>>, Box<Option<SpanExpr<'a>>>),
+
+    // While loop
+    While(Box<SpanExpr<'a>>, Box<SpanExpr<'a>>),
+
+    // Break loop
+    Break(),
+
+    // Continue next loop cycle
+    Continue(),
+        
+    // Return expression
+    Return(Box<Option<SpanExpr<'a>>>),
+    
     // Identifier
     Ident(&'a str),
 
@@ -128,6 +143,12 @@ pub enum Expr<'a> {
  * Type alias of expressions to include span.
  */
 type SpanExpr<'a> = (Span<'a>, Expr<'a>);
+
+
+struct Argument<'a> = (SpanExpr<'a>, SpanType);
+
+
+struct Function<'a> = (Vec<>, Option<SpanType<'a>>)
 
 
 /**
@@ -170,17 +191,9 @@ pub enum Type {
 
 
 /**
- * Type alias of type enum to include span.
+ * Type alias of the type enum to include span.
  */
 type SpanType<'a> = (Span<'a>, Type);
-
-
-/**
- * Define block as a vector statements.
- */
-#[derive(Debug)]
-pub struct Block<'a>(Vec<Expr<'a>>);
-
 
 
 /***************************************************************************
@@ -204,6 +217,21 @@ fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
 
         // Local variable declaration e.g. let a: i32 = 5;
         parse_local,
+
+        // Assignment of local variables.
+        parse_assign,
+
+        // Parse if statement e.g. if <expr> { <then-body> } else { <else-body> }
+        parse_if,
+
+        // Parse while loops e.g. while <expr> { <body> }
+        parse_while,
+
+        // Parse a block of expressions e.g. { <stmt_1>; ... <stmt_n> }
+        parse_block,
+
+        // Parse keywords i.e. return, continue and break
+        parse_keywords,
 
         // Parse an operand (literal, function call or identifier)
         parse_operand,
@@ -327,16 +355,13 @@ fn parse_type(input: Span) -> IResult<Span, SpanType> {
 fn parse_identifier(input: Span) -> IResult<Span, SpanExpr> {
     peek(alpha1)(input)?;
     map(take_while1(|c: char| is_alphanumeric(c as u8) || c == '_'),
-        |s: Span| {
-            println!("-> {:?}", s);
-            (s, Expr::Ident(s.fragment))
-        }
+        |s: Span| (s, Expr::Ident(s.fragment))
     )(input)
 }
 
 
 /**
- * Parse a function call. e.g. min(a + 5, 30).
+ * Parse a function call. E.g. min(a + 5, 30).
  */
 fn parse_fn_call(input: Span) -> IResult<Span, SpanExpr> {
     map(tuple((
@@ -347,13 +372,12 @@ fn parse_fn_call(input: Span) -> IResult<Span, SpanExpr> {
             preceded(delimited(multispace0, tag(","), multispace0), parse_expr),
             Vec::new(),
             |mut args: Vec<_>, item| {
-                println!("-> {:?}", item);
                 args.push(item);
                 args
             }
         ),
         preceded(multispace0, tag(")")),
-        preceded(multispace0, tag(";")),
+        peek(preceded(multispace0, tag(";"))),
     )),
         |(ident, _, arg0, mut args, _, _)| {
             if arg0.is_some() {
@@ -365,12 +389,68 @@ fn parse_fn_call(input: Span) -> IResult<Span, SpanExpr> {
 }
 
 
-// fn parse_block(input: Span) -> IResult<Span, SpanBlock> {
-//     map(fold_many_0(
-//         preceded(multispace0, terminated(parse_expr, ))
-//     ),
-//     )(input)
-// }
+/**
+ * Parse a function declaration. E.g. fn min(a: i32, b: i32) -> i32 <parse_block>.
+ */
+fn parse_func_decl(input: Span) -> IResult<Span, SpanExpr> {
+    preceded(
+        tag("fn"),
+        map(tuple((
+            preceded(multispace0, parse_identifier),
+            preceded(multispace0, tag("(")),
+            opt(preceded(multispace0, parse_expr)),
+            fold_many0(
+                preceded(delimited(multispace0, tag(","), multispace0), parse_expr),
+                Vec::new(),
+                |mut args: Vec<_>, item| {
+                    args.push(item);
+                    args
+                }
+            ),
+            preceded(multispace0, tag(")")),
+            opt(preceded(
+                pair(multisapce0, tag("->")),
+                parse_type
+            ),
+            preceded(multispace0, parse_block),
+        )),
+            |(ident, _, arg0, mut args, _, _)| {
+                if arg0.is_some() {
+                    args.insert(0, arg0.unwrap());
+                }
+                (input, Expr::Call(Box::new(ident), args))
+            }
+        )
+    )(input)
+}
+
+
+/**
+ * Parses a block containing multiple expressions.
+ * E.g.  {
+ *           let mut a: i32 = 5;
+ *           let b: i32 = 8;
+ *           a = add(a + b);
+ *       }
+ * Blocks can also be recusive e.g. { { <expr1> } { <expr2> } }
+ */
+fn parse_block(input: Span) -> IResult<Span, SpanExpr> {
+    preceded(
+        tag("{"),
+        map(tuple((
+            fold_many0(
+                preceded(multispace0, terminated(parse_expr, preceded(multispace0, tag(";")))),
+                Vec::new(),
+                |mut stmts: Vec<_>, expr| {
+                    stmts.push(expr);
+                    stmts
+                }
+            ),
+            preceded(multispace0, tag("}")),
+        )),
+        |(stmts, _)| (input, Expr::Block(stmts)))
+    )(input)
+}
 
 
 /**
@@ -381,7 +461,7 @@ fn parse_assign(input: Span) -> IResult<Span, SpanExpr> {
         parse_identifier,
         preceded(multispace0, tag("=")),
         preceded(multispace0, parse_expr),
-        preceded(multispace0, tag(";")),
+        peek(preceded(multispace0, tag(";"))),
     )),
         |(ident, _, expr, _)| (input, Expr::Assign(Box::new(ident), Box::new(expr)))
     )(input)
@@ -396,15 +476,73 @@ fn parse_local(input: Span) -> IResult<Span, SpanExpr> {
     preceded(
         tag("let"),
         map(tuple((
+            opt(preceded(multispace1, tag("mut"))),
             preceded(multispace1, parse_identifier),
             preceded(multispace0, tag(":")),
             preceded(multispace0, parse_type),
             preceded(multispace0, tag("=")),
             preceded(multispace0, parse_expr),
-            preceded(multispace0, tag(";")),
+            peek(preceded(multispace0, tag(";"))),
         )),
-            |(ident, _, ty, _, expr, _)| (input, Expr::Local(Box::new(ident), ty, Box::new(expr))))
+            |(mutable, ident, _, ty, _, expr, _)| {
+                (input, Expr::Local(mutable.is_some(), Box::new(ident), ty, Box::new(expr)))
+            }
+        )
     )(input)
+}
+
+
+/**
+ * Parse if statement with optional else statement
+ * e.g. if a > 10 { then-statements; } else { else-statements; }
+ */
+fn parse_if(input: Span) -> IResult<Span, SpanExpr> {
+    preceded(
+        tag("if"),
+        map(tuple((
+            preceded(multispace1, parse_expr),
+            preceded(multispace0, parse_block),
+            opt(preceded(
+                pair(multispace0, tag("else")),
+                preceded(multispace0, parse_block))
+            ),
+        )),
+            |(cond, then_body, else_body)| {
+                (input, Expr::If(Box::new(cond), Box::new(then_body), Box::new(else_body)))
+            }
+        )
+    )(input)
+}
+
+
+/**
+ * Parse while statement. E.g. while i < 10 { foo(); i = i + 1; }
+ * Supports keywords break and continue.
+ */
+fn parse_while(input: Span) -> IResult<Span, SpanExpr> {
+    preceded(
+        tag("while"),
+        map(tuple((
+            preceded(multispace1, parse_expr),
+            preceded(multispace0, parse_block),
+        )),
+            |(cond, body)| {
+                (input, Expr::While(Box::new(cond), Box::new(body)))
+            }
+        )
+    )(input)
+}
+
+
+/**
+ * Parse simple keywords such as return, continue and break.
+ */
+fn parse_keywords(input: Span) -> IResult<Span, SpanExpr> {
+    alt((
+        map(preceded(tag("return"), opt(parse_expr)), |expr| (input, Expr::Return(Box::new(expr)))),
+        map(tag("break"), |_| (input, Expr::Break())),
+        map(tag("continue"), |_| (input, Expr::Continue())),
+    ))(input)
 }
 
 
@@ -417,8 +555,11 @@ fn parse_local(input: Span) -> IResult<Span, SpanExpr> {
  * Main method, program starts here.
  */
 fn main() {
-    // let input = "let hello30: i32 = 1 + 2;";
-    let input = "min(a + 25, 40);";
+    // let input = "let hello30: i32 = 1 + 2   ;";
+    // let input = "min(a + 25, 40 - -b);";
+    // let input = "{ let mut a:i32 = 5; let b:i32 = 3; a = a + 5; min(a + b, a - b * a + a * b); }";
+    // let input = "if a > 5 { a = a + 2; } else { a = a - 2; }";
+    let input = "while i < 10 { foo(); i = i + 1; }";
     let result = parse_expr(Span::new(input));
     
     match result {
