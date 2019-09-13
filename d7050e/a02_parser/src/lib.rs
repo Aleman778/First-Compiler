@@ -164,7 +164,7 @@ type SpanArg<'a> = (Span<'a>, Argument<'a>);
  * and the block containing the function implementation.
  */
 #[derive(Debug, Clone, PartialEq)]
-struct Function<'a>(Box<SpanExpr<'a>>, Vec<SpanArg<'a>>, Option<SpanType<'a>>, Box<SpanExpr<'a>>);
+pub struct Function<'a>(Box<SpanExpr<'a>>, Vec<SpanArg<'a>>, Option<SpanType<'a>>, Box<SpanExpr<'a>>);
 
 
 /**
@@ -350,7 +350,7 @@ pub fn parse_i32<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
  * In this assignment we do not need to consider them as separate types
  * so the result can always an ambigoius expression type.
  */
-pub fn parse_literal<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
+fn parse_literal<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
     alt((
         parse_i32,
         map(tag("true"), |s| (s, Expr::Bool(true))),
@@ -590,6 +590,20 @@ fn parse_keywords(input: Span) -> IResult<Span, SpanExpr> {
 }
 
 
+fn parse(input: &str) -> Result<AST> {
+    
+}
+
+
+/***************************************************************************
+ * Abstract Sytax Tree Representation without span information
+ ***************************************************************************/
+
+enum AST {
+    Function()
+}
+
+
 /***************************************************************************
  * Main method
  ***************************************************************************/
@@ -611,46 +625,4 @@ fn main() {
         Ok(n) => println!("Ok: \nInput: {}\nResulting Tree:\n    {:#?}", input, n),
         Err(e) => println!("Error: {:#?}", e),
     }
-}
-
-
-/***************************************************************************
- * Test cases
- ***************************************************************************/
-
-
-    
-/**
- * Testing simple digit values, including whitespaces.
- */
-#[test]
-fn test_parse_literal() {
-    // 32-bit signed integer literals
-    assert_eq!(parse_literal("4235"),     Ok(("", Expr::Num(4235))));
-    assert_eq!(parse_literal("4235 + 2"), Ok((" + 2", Expr::Num(4235))));
-    assert_eq!(parse_literal("4235abcs"), Ok(("abcs", Expr::Num(4235))));
-    assert!(parse_literal("abcs4235").is_err());
-    assert!(parse_literal("111111111111111111").is_err());
-
-    // Boolean literals
-    assert_eq!(parse_literal("true"),  Ok(("", Expr::Bool(true))));
-    assert_eq!(parse_literal("false"), Ok(("", Expr::Bool(false))));
-    assert_eq!(parse_literal("truefalse"), Ok(("false", Expr::Bool(true))));
-    assert_eq!(parse_literal("falsetrue"), Ok(("true", Expr::Bool(false))));
-    assert!(parse_literal("hello").is_err());
-}
-
-
-/**
- * Testing different arithmetic expressions, only for addition.
- * Including different formatting types and also checks for
- * invalid expressions that should panic.
- */
-#[test]
-fn expr_test() {
-        
-    // Simple expressions
-    let expected = Expr::BinOp(Box::new(Expr::Num(1)), Op::Add, Box::new(Expr::Num(2)));
-    assert_eq!(parse_expr("1+2"), Ok(("", expected)));
-    assert_eq!(parse_expr("1+2+1"), Ok(("+1", expected)));
 }
