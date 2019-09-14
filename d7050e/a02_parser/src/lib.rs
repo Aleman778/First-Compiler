@@ -149,7 +149,7 @@ type SpanExpr<'a> = (Span<'a>, Expr<'a>);
  * Argument struct defines an identifier with a type
  */
 #[derive(Debug, Clone, PartialEq)]
-struct Argument<'a>(SpanExpr<'a>, SpanType<'a>);
+pub struct Argument<'a>(SpanExpr<'a>, SpanType<'a>);
 
 
 /**
@@ -171,6 +171,14 @@ pub struct Function<'a>(Box<SpanExpr<'a>>, Vec<SpanArg<'a>>, Option<SpanType<'a>
  * Type alias of function to include span.
  */
 type SpanFn<'a> = (Span<'a>, Function<'a>);
+
+
+/**
+ * Root of the Abstract Syntax Tree, contains different itesm
+ * currently I only support functions. So this defines a vector
+ * of functions defined in a source file.
+ */
+pub struct AST<'a>(Vec<SpanFn<'a>>);
 
 
 /**
@@ -227,14 +235,14 @@ type SpanType<'a> = (Span<'a>, Type);
 /**
  * Parses a simple arithmetic expression, only supports addition.
  */
-fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
     alt((
         // Binary operation e.g. 4 + 5
-        map(tuple((parse_operand_ms, preceded(multispace0, parse_binoperator), parse_expr_ms)),
+        map(tuple((parse_atom_ms, preceded(multispace0, parse_binoperator), parse_expr_ms)),
             |(left, op, right)| (input, Expr::BinOp(Box::new(left), op, Box::new(right)))),
         
         // Unary operation e.g. -5
-        map(tuple((preceded(multispace0, parse_binoperator), parse_operand_ms)),
+        map(tuple((preceded(multispace0, parse_binoperator), parse_expr_ms)),
             |(op, right)| (input, Expr::UnOp(op, Box::new(right)))),
 
         // Local variable declaration e.g. let a: i32 = 5;
@@ -256,7 +264,7 @@ fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
         parse_keywords,
 
         // Parse an operand (literal, function call or identifier)
-        parse_operand,
+        parse_atom,
     ))(input)
 }
 
@@ -264,7 +272,7 @@ fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
 /**
  * Parses an expression with preceded by spaces.
  */
-fn parse_expr_ms(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_expr_ms(input: Span) -> IResult<Span, SpanExpr> {
     preceded(multispace0, parse_expr)(input)
 }
 
@@ -272,7 +280,7 @@ fn parse_expr_ms(input: Span) -> IResult<Span, SpanExpr> {
 /**
  * Parses an operand can either be a literal, identifier or function call.
  */
-fn parse_operand(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_atom(input: Span) -> IResult<Span, SpanExpr> {
     alt((
         // Literal e.g. false
         parse_literal,
@@ -289,15 +297,15 @@ fn parse_operand(input: Span) -> IResult<Span, SpanExpr> {
 /**
  * Parses an operand with possible multispaces before.
  */
-fn parse_operand_ms(input: Span) -> IResult<Span, SpanExpr> {
-    preceded(multispace0, parse_operand)(input)
+pub fn parse_atom_ms(input: Span) -> IResult<Span, SpanExpr> {
+    preceded(multispace0, parse_atom)(input)
 }
 
 
 /**
  * Parse a binary operator.
  */
-fn parse_binoperator(input: Span) -> IResult<Span, SpanOp> {
+pub fn parse_binoperator(input: Span) -> IResult<Span, SpanOp> {
     alt((
         map(tag("=="), |s| (s, Op::Equal)),
         map(tag("!="), |s| (s, Op::NotEq)),
@@ -319,7 +327,7 @@ fn parse_binoperator(input: Span) -> IResult<Span, SpanOp> {
 /**
  * Parse an unary operator.
  */
-fn parse_unoperator(input: Span) -> IResult<Span, SpanOp> {
+pub fn parse_unoperator(input: Span) -> IResult<Span, SpanOp> {
     alt((
         map(tag("-"),  |s| (s, Op::Sub)),
         map(tag("!"),  |s| (s, Op::Not)),
@@ -350,7 +358,7 @@ pub fn parse_i32<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
  * In this assignment we do not need to consider them as separate types
  * so the result can always an ambigoius expression type.
  */
-fn parse_literal<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
+pub fn parse_literal<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
     alt((
         parse_i32,
         map(tag("true"), |s| (s, Expr::Bool(true))),
@@ -362,7 +370,7 @@ fn parse_literal<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
 /**
  * Parse a type, e.g. i32 or bool.
  */
-fn parse_type(input: Span) -> IResult<Span, SpanType> {
+pub fn parse_type(input: Span) -> IResult<Span, SpanType> {
     alt((
         map(tag("i32"),  |s| (s, Type::Int32)),
         map(tag("bool"),  |s| (s, Type::Bool)),
@@ -374,7 +382,7 @@ fn parse_type(input: Span) -> IResult<Span, SpanType> {
  * Parses an identifier, has to start with an alphabetic character.
  * e.g. to_string, testVar, hello30.
  */
-fn parse_identifier(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_identifier(input: Span) -> IResult<Span, SpanExpr> {
     peek(alpha1)(input)?;
     map(take_while1(|c: char| is_alphanumeric(c as u8) || c == '_'),
         |s: Span| (s, Expr::Ident(s.fragment))
@@ -385,7 +393,7 @@ fn parse_identifier(input: Span) -> IResult<Span, SpanExpr> {
 /**
  * Parse a function call. E.g. min(a + 5, 30).
  */
-fn parse_fn_call(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_fn_call(input: Span) -> IResult<Span, SpanExpr> {
     map(tuple((
         parse_identifier,
         preceded(multispace0, tag("(")),
@@ -414,7 +422,7 @@ fn parse_fn_call(input: Span) -> IResult<Span, SpanExpr> {
 /**
  * Parse a function declaration. E.g. fn min(a: i32, b: i32) -> i32 <parse_block>.
  */
-fn parse_func_decl(input: Span) -> IResult<Span, SpanFn> {
+pub fn parse_func_decl(input: Span) -> IResult<Span, SpanFn> {
     preceded(
         tag("fn"),
         map(tuple((
@@ -447,7 +455,7 @@ fn parse_func_decl(input: Span) -> IResult<Span, SpanFn> {
 /**
  * Parse a function argument, e.g. var: i32.
  */
-fn parse_func_arg(input: Span) -> IResult<Span, SpanArg> {
+pub fn parse_func_arg(input: Span) -> IResult<Span, SpanArg> {
     map(tuple((
         parse_identifier,
         preceded(multispace0, tag(":")),
@@ -461,7 +469,7 @@ fn parse_func_arg(input: Span) -> IResult<Span, SpanArg> {
 /**
  * Parse assignment of mutable local variables
  */
-fn parse_assign(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_assign(input: Span) -> IResult<Span, SpanExpr> {
     map(tuple((
         parse_identifier,
         preceded(multispace0, tag("=")),
@@ -477,7 +485,7 @@ fn parse_assign(input: Span) -> IResult<Span, SpanExpr> {
  * Parse declarations of local variables
  * e.g. let a: i32 = 5 + 7;
  */
-fn parse_local(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_local(input: Span) -> IResult<Span, SpanExpr> {
     preceded(
         tag("let"),
         map(tuple((
@@ -506,7 +514,7 @@ fn parse_local(input: Span) -> IResult<Span, SpanExpr> {
  *       }
  * Blocks can also be recusive e.g. { { <expr1> } { <expr2> } }
  */
-fn parse_block(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_block(input: Span) -> IResult<Span, SpanExpr> {
     preceded(
         tag("{"),
         map(tuple((
@@ -540,7 +548,7 @@ fn parse_block(input: Span) -> IResult<Span, SpanExpr> {
  * Parse if statement with optional else statement
  * e.g. if a > 10 { then-statements; } else { else-statements; }
  */
-fn parse_if(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_if(input: Span) -> IResult<Span, SpanExpr> {
     preceded(
         tag("if"),
         map(tuple((
@@ -563,7 +571,7 @@ fn parse_if(input: Span) -> IResult<Span, SpanExpr> {
  * Parse while statement. E.g. while i < 10 { foo(); i = i + 1; }
  * Supports keywords break and continue.
  */
-fn parse_while(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_while(input: Span) -> IResult<Span, SpanExpr> {
     preceded(
         tag("while"),
         map(tuple((
@@ -581,7 +589,7 @@ fn parse_while(input: Span) -> IResult<Span, SpanExpr> {
 /**
  * Parse simple keywords such as return, continue and break.
  */
-fn parse_keywords(input: Span) -> IResult<Span, SpanExpr> {
+pub fn parse_keywords(input: Span) -> IResult<Span, SpanExpr> {
     alt((
         map(preceded(pair(tag("return"), multispace1), opt(parse_expr)), |expr| (input, Expr::Return(Box::new(expr)))),
         map(tag("break"), |_| (input, Expr::Break())),
@@ -590,39 +598,12 @@ fn parse_keywords(input: Span) -> IResult<Span, SpanExpr> {
 }
 
 
-fn parse(input: &str) -> Result<AST> {
-    
-}
-
-
-/***************************************************************************
- * Abstract Sytax Tree Representation without span information
- ***************************************************************************/
-
-enum AST {
-    Function()
-}
-
-
-/***************************************************************************
- * Main method
- ***************************************************************************/
-
-
 /**
- * Main method, program starts here.
+ * Parses the input string and produces an AST.
  */
-fn main() {
-    // let input = "let hello30: i32 = 1 + 2   ;";
-    // let input = "min(a + 25, 40 - -b);";
-    // let input = "{ let mut a:i32 = 5; let b:i32 = 3; a = a + 5; min(a + b, a - b * a + a * b); }";
-    // let input = "if a > 5 { a = a + 2; } else { a = a - 2; }";
-    // let input = "while i < 10 { foo(); i = i + 1; }";
-    let input = "fn min(a: i32, b: i32) -> i32 { if a < b { return a; } else { return b; } }";
-    let result = parse_func_decl(Span::new(input));
-    
-    match result {
-        Ok(n) => println!("Ok: \nInput: {}\nResulting Tree:\n    {:#?}", input, n),
-        Err(e) => println!("Error: {:#?}", e),
+pub fn parse(input: str) -> Result<AST>{
+    match many0(parse_func_decl)(input) {
+        Ok(a) => Ok(a),
+        Err(e) => 
     }
 }

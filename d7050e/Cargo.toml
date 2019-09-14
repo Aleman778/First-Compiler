@@ -11,9 +11,10 @@ members = [
     "a01_addition",
     "a02_parser",
     "a03_grammar",
-    "a04_interpreter"
+    "a04_interpreter",
 ]
 
 [dependencies]
 nom = "5"
 nom_locate = "1"
+a02_parser = { path = "a02_parser" }

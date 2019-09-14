@@ -1,4 +1,16 @@
-extern crate a02_parser;
+
+/**
+ * Include parser functions from assignment 2
+ */
+use a02_parser::{
+    parse_literal,
+    
+}
+
+
+fn span<'a>(input: &'a str) -> Span<'a> {
+    
+}
 
     
 /**
