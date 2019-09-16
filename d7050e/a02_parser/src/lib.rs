@@ -30,7 +30,7 @@ use nom::{
     character::{is_alphanumeric},
     combinator::{map, peek, opt},
     branch::alt,
-    multi::fold_many0,
+    multi::{fold_many0},
     sequence::{pair, tuple, preceded, terminated, delimited},
     error,
     Err,
@@ -69,7 +69,9 @@ type IResult<'a, I, O, E = Error<'a>> = Result<(I, O), Err<E>>;
 #[derive(Debug)]
 enum ErrorKind {
     ParseIntError(std::num::ParseIntError),
+    IOError(std::io::Error),
     Nom(error::ErrorKind),
+    SyntaxError,
 }
 
 
@@ -178,6 +180,7 @@ type SpanFn<'a> = (Span<'a>, Function<'a>);
  * currently I only support functions. So this defines a vector
  * of functions defined in a source file.
  */
+#[derive(Debug)]
 pub struct AST<'a>(Vec<SpanFn<'a>>);
 
 
@@ -601,9 +604,22 @@ pub fn parse_keywords(input: Span) -> IResult<Span, SpanExpr> {
 /**
  * Parses the input string and produces an AST.
  */
-pub fn parse(input: str) -> Result<AST>{
-    match many0(parse_func_decl)(input) {
-        Ok(a) => Ok(a),
-        Err(e) => 
+pub fn parse<'a>(input: &'a str) -> Result<AST<'a>, Err<Error<'a>>>{
+    let span = Span::new(input);
+    let parser = fold_many0(
+        preceded(multispace0, parse_func_decl),
+        Vec::new(),
+        |mut functions: Vec<_>, function| {
+            functions.push(function);
+            functions
+        }
+    );
+    match parser(span) {
+        Ok(a) => Ok(AST(a.1)),
+        Err(_e) => Err(Err::Error(Error(
+            span,
+            None,
+            ErrorKind::SyntaxError,
+        ))),
     }
 }
