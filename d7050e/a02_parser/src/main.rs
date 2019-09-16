@@ -16,7 +16,7 @@ fn main() {
     // let input = "fn min(a: i32, b: i32) -> i32 { if a < b { return a; } else { return b; } }
     // fn max(a: i32, b: i32) -> i32 { if a > b { return a; } else { return b; } }";
     
-    let input = fs::read_to_string()
+    let input = fs::read_to_string("test.sq")
         .expect("Error reading the file");
     let result = a02_parser::parse(input.as_str());
     

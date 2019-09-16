@@ -15,3 +15,7 @@ fn max(a: i32, b: i32) -> i32
         return b;
     }
 }
+
+fn test() {
+   return 2 * (5 + 3);
+}

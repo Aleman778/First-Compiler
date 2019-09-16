@@ -69,12 +69,14 @@ type IResult<'a, I, O, E = Error<'a>> = Result<(I, O), Err<E>>;
 #[derive(Debug)]
 enum ErrorKind {
     ParseIntError(std::num::ParseIntError),
-    IOError(std::io::Error),
     Nom(error::ErrorKind),
     SyntaxError,
 }
 
 
+/**
+ * Implement nom parse error functions for Error.
+ */
 impl<'a> error::ParseError<Span<'a>> for Error<'a> {
     fn from_error_kind(input: Span<'a>, kind: error::ErrorKind) -> Self {
         Error(input, None, ErrorKind::Nom(kind))
@@ -103,6 +105,9 @@ pub enum Expr<'a> {
     // Unary operator
     UnOp(SpanOp<'a>, Box<SpanExpr<'a>>),
 
+    // Parentheses
+    Paren(Box<SpanExpr<'a>>),
+    
     // Local variable declaration
     Local(bool, Box<SpanExpr<'a>>, SpanType<'a>, Box<SpanExpr<'a>>),
 
@@ -123,7 +128,7 @@ pub enum Expr<'a> {
 
     // Break loop
     Break(),
-
+    
     // Continue next loop cycle
     Continue(),
         
@@ -248,6 +253,9 @@ pub fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
         map(tuple((preceded(multispace0, parse_binoperator), parse_expr_ms)),
             |(op, right)| (input, Expr::UnOp(op, Box::new(right)))),
 
+        // Parentheses
+        parse_paren,
+        
         // Local variable declaration e.g. let a: i32 = 5;
         parse_local,
 
@@ -335,6 +343,20 @@ pub fn parse_unoperator(input: Span) -> IResult<Span, SpanOp> {
         map(tag("-"),  |s| (s, Op::Sub)),
         map(tag("!"),  |s| (s, Op::Not)),
     ))(input)
+}
+
+
+/**
+ * Parse parentheses e.g. (2 * (3 + 5))
+ */
+pub fn parse_paren(input: Span) -> IResult<Span, SpanExpr> {
+    map(tuple((
+        tag("("),
+        parse_expr,
+        tag(")"),
+    )),
+        |(_, expr, _)| (input, Expr::Paren(Box::new(expr)))
+    )(input)
 }
 
 
