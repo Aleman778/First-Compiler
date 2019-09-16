@@ -1,0 +1,26 @@
+grammar;
+
+use std::str::FromStr;
+
+use crate::{
+    expr::{Expr, Op, Type},
+};
+
+pub Term: i32 = {
+    <n:Num> => n,
+    "(" <t:Term> ")" => t,
+};
+
+Var = Ident;
+
+Num: i32 = <s:r"[0-9]+"> => i32::from_str(s).unwrap();
+
+Bool: bool = {
+    "true" => true,
+    "false" => false,
+}
+
+Ident: String = r"[a-zA-Z_][a-zA-Z0-9_]*" => <>.to_string();
+
+
+
