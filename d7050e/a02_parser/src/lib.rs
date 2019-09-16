@@ -352,8 +352,8 @@ pub fn parse_unoperator(input: Span) -> IResult<Span, SpanOp> {
 pub fn parse_paren(input: Span) -> IResult<Span, SpanExpr> {
     map(tuple((
         tag("("),
-        parse_expr,
-        tag(")"),
+        preceded(multispace0, parse_expr),
+        preceded(multispace0, tag(")")),
     )),
         |(_, expr, _)| (input, Expr::Paren(Box::new(expr)))
     )(input)
