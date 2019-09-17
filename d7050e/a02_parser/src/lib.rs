@@ -28,10 +28,10 @@ use nom::{
     bytes::complete::{tag, take_while1},
     character::complete::{digit1, alpha1, multispace0, multispace1},
     character::{is_alphanumeric},
-    combinator::{map, peek, opt},
+    combinator::{map, peek, opt, cut},
     branch::alt,
-    multi::{fold_many0},
-    sequence::{pair, tuple, preceded, terminated, delimited},
+    multi::{fold_many0, separated_list},
+    sequence::{pair, tuple, preceded, terminated},
     error,
     Err,
 };
@@ -422,22 +422,14 @@ pub fn parse_fn_call(input: Span) -> IResult<Span, SpanExpr> {
     map(tuple((
         parse_identifier,
         preceded(multispace0, tag("(")),
-        opt(preceded(multispace0, parse_expr)),
-        fold_many0(
-            preceded(delimited(multispace0, tag(","), multispace0), parse_expr),
-            Vec::new(),
-            |mut args: Vec<_>, item| {
-                args.push(item);
-                args
-            }
+        separated_list(
+            preceded(multispace0, tag(",")),
+            preceded(multispace0, parse_expr)
         ),
-        preceded(multispace0, tag(")")),
+        preceded(multispace0, cut(tag(")"))),
         peek(preceded(multispace0, tag(";"))),
     )),
-        |(ident, _, arg0, mut args, _, _)| {
-            if arg0.is_some() {
-                args.insert(0, arg0.unwrap());
-            }
+        |(ident, _, args, _, _)| {
             (input, Expr::Call(Box::new(ident), args))
         }
     )(input)
@@ -453,23 +445,15 @@ pub fn parse_func_decl(input: Span) -> IResult<Span, SpanFn> {
         map(tuple((
             preceded(multispace0, parse_identifier),
             preceded(multispace0, tag("(")),
-            opt(preceded(multispace0, parse_func_arg)),
-            fold_many0(
-                preceded(delimited(multispace0, tag(","), multispace0), parse_func_arg),
-                Vec::new(),
-                |mut args: Vec<_>, item| {
-                    args.push(item);
-                    args
-                }
+            separated_list(
+                preceded(multispace0, tag(",")),
+                preceded(multispace0, parse_func_arg)
             ),
-            preceded(multispace0, tag(")")),
+            preceded(multispace0, cut(tag(")"))),
             opt(preceded(pair(multispace0, tag("->")), preceded(multispace0, parse_type))),
             preceded(multispace0, parse_block),
         )),
-            |(ident, _, arg0, mut args, _, ret_type, block)| {
-                if arg0.is_some() {
-                    args.insert(0, arg0.unwrap());
-                }
+            |(ident, _, args, _, ret_type, block)| {
                 (input, Function(Box::new(ident), args, ret_type, Box::new(block)))
             }
         )

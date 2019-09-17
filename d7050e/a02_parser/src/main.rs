@@ -24,4 +24,5 @@ fn main() {
         Ok(n) => println!("Ok: \nInput: {}\nResulting Tree:\n    {:#?}", input, n),
         Err(e) => println!("Error: {:#?}", e),
     }
+    
 }
