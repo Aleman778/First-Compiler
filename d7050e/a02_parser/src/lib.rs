@@ -46,7 +46,7 @@ use nom_locate::LocatedSpan;
 /**
  * Type alias of LocatedSpan for convenience.
  */
-type Span<'a> = LocatedSpan<&'a str>;
+pub type Span<'a> = LocatedSpan<&'a str>;
 
 
 /**
@@ -149,7 +149,7 @@ pub enum Expr<'a> {
 /**
  * Type alias of expressions to include span.
  */
-type SpanExpr<'a> = (Span<'a>, Expr<'a>);
+pub type SpanExpr<'a> = (Span<'a>, Expr<'a>);
 
 
 /**
@@ -162,7 +162,7 @@ pub struct Argument<'a>(SpanExpr<'a>, SpanType<'a>);
 /**
  * Type alias of argument to include span.
  */
-type SpanArg<'a> = (Span<'a>, Argument<'a>);
+pub type SpanArg<'a> = (Span<'a>, Argument<'a>);
 
     
 /**
@@ -177,7 +177,7 @@ pub struct Function<'a>(Box<SpanExpr<'a>>, Vec<SpanArg<'a>>, Option<SpanType<'a>
 /**
  * Type alias of function to include span.
  */
-type SpanFn<'a> = (Span<'a>, Function<'a>);
+pub type SpanFn<'a> = (Span<'a>, Function<'a>);
 
 
 /**
@@ -215,7 +215,7 @@ pub enum Op {
 /**
  * Type alias of operator to include span.
  */
-type SpanOp<'a> = (Span<'a>, Op);
+pub type SpanOp<'a> = (Span<'a>, Op);
 
 
 /**
