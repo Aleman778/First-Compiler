@@ -252,9 +252,6 @@ pub fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
         // Unary operation e.g. -5
         map(tuple((preceded(multispace0, parse_binoperator), parse_expr_ms)),
             |(op, right)| (input, Expr::UnOp(op, Box::new(right)))),
-
-        // Parentheses
-        parse_paren,
         
         // Local variable declaration e.g. let a: i32 = 5;
         parse_local,
@@ -293,6 +290,9 @@ pub fn parse_expr_ms(input: Span) -> IResult<Span, SpanExpr> {
  */
 pub fn parse_atom(input: Span) -> IResult<Span, SpanExpr> {
     alt((
+        // Parentheses
+        parse_paren,
+        
         // Literal e.g. false
         parse_literal,
 

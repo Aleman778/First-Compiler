@@ -1,6 +1,6 @@
 mod interpreter;
 
-use a02_parser::{parse};
+// use a02_parser::{parse};
 
 use nom_locate::LocatedSpan;
 
@@ -8,11 +8,13 @@ type Span<'a> = LocatedSpan<&'a str>;
 
 use interpreter::interpret_expr;
 
-use std::fs;
+// use std::fs;
 
 fn main() {
+    // let input = "true == 5";
     let input = "(10  +  15) - ((5 + 3) * 2)";
     let expr = a02_parser::parse_expr(Span::new(input));
+    
     // println!("{:#?}", (expr.unwrap().1).1);
     println!("{:?}", interpret_expr(expr.unwrap().1));
     

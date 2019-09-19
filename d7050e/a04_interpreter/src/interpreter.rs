@@ -6,11 +6,11 @@ use a02_parser::{
     Span,
     SpanOp,
     SpanExpr,
-    SpanFn,
-    SpanArg,
+    // SpanFn,
+    // SpanArg,
     Expr,
-    Function,
-    Argument
+    // Function,
+    // Argument
 };
 
 
@@ -50,8 +50,8 @@ impl<'a> fmt::Display for RuntimeError<'a> {
 impl<'a> error::Error for RuntimeError<'a> {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
-            RuntimeError::TypeError(reason, span) => None,
-            RuntimeError::InvalidExpression(reason) => None,
+            RuntimeError::TypeError(_reason, _span) => None,
+            RuntimeError::InvalidExpression(_reason) => None,
         }
     }
 }
@@ -59,14 +59,25 @@ impl<'a> error::Error for RuntimeError<'a> {
 
 /**
  * Interpret an expression returns a simplified expression,
- * e.g. 5 + 2 gives the reuslt 7.
+ * e.g. ast for 5 + 2 gives the result Num(7).
  */
 pub fn interpret_expr<'a>(expr: SpanExpr<'a>) -> Result<SpanExpr<'a>, RuntimeError<'a>> {
     match expr.1 {
-        Expr::BinOp(left, op, right) => Ok((expr.0, compute(interpret_expr(*left).unwrap(), op,
-                                                            interpret_expr(*right).unwrap()).unwrap())),
-        Expr::Paren(inl_expr) => Ok(*inl_expr),
+        Expr::BinOp(left, op, right) => map_res(expr.0, compute(interpret_expr(*left).unwrap(), op,
+                                                                interpret_expr(*right).unwrap())),
+        Expr::Paren(inl_expr) => interpret_expr(*inl_expr),
         _ => Ok(expr),
+    }
+}
+
+
+/**
+ * Convinence function for mapping the expr result onto the span expr result.
+ */
+pub fn map_res<'a>(span: Span<'a>, res: Result<Expr<'a>, RuntimeError<'a>>) -> Result<SpanExpr<'a>, RuntimeError<'a>>{
+    match res {
+        Ok(expr) => Ok((span, expr)),
+        Err(err) => Err(err),
     }
 }
 
@@ -75,7 +86,7 @@ pub fn interpret_expr<'a>(expr: SpanExpr<'a>) -> Result<SpanExpr<'a>, RuntimeErr
  * Get the integer value of an expression.
  * Returns a type error if expression is not an i32 number.
  */
-pub fn get_int<'a>(expr: SpanExpr<'a>) -> Result<i32, RuntimeError<'a>> {
+pub fn get_int<'a>(expr: &SpanExpr<'a>) -> Result<i32, RuntimeError<'a>> {
     match expr.1 {
         Expr::Num(val) => Ok(val),
         _ => Err(RuntimeError::TypeError("expected type i32", expr.0)),
@@ -87,7 +98,7 @@ pub fn get_int<'a>(expr: SpanExpr<'a>) -> Result<i32, RuntimeError<'a>> {
  * Get the boolean value of an expression.
  * Returns type error if the expression is not a boolean.
  */
-pub fn get_bool<'a>(expr: SpanExpr<'a>) -> Result<bool, RuntimeError<'a>> {
+pub fn get_bool<'a>(expr: &SpanExpr<'a>) -> Result<bool, RuntimeError<'a>> {
     match expr.1 {
         Expr::Bool(b) => Ok(b),
         _ => Err(RuntimeError::TypeError("expected type bool", expr.0)),
@@ -101,22 +112,50 @@ pub fn get_bool<'a>(expr: SpanExpr<'a>) -> Result<bool, RuntimeError<'a>> {
 fn compute<'a>(left: SpanExpr<'a>, op: SpanOp<'a>, right: SpanExpr<'a>) -> Result<Expr<'a>, RuntimeError<'a>> {
     match op.1 {
         // Boolean operators
-        Op::Equal      => Ok(Expr::Bool(get_bool(left).unwrap() == get_bool(right).unwrap())),
-        Op::NotEq      => Ok(Expr::Bool(get_bool(left).unwrap() != get_bool(right).unwrap())),
-        Op::LessThan   => Ok(Expr::Bool(get_bool(left).unwrap() <  get_bool(right).unwrap())),
-        Op::LessEq     => Ok(Expr::Bool(get_bool(left).unwrap() <= get_bool(right).unwrap())),
-        Op::LargerThan => Ok(Expr::Bool(get_bool(left).unwrap() >  get_bool(right).unwrap())),
-        Op::LargerEq   => Ok(Expr::Bool(get_bool(left).unwrap() >= get_bool(right).unwrap())),
-        Op::And        => Ok(Expr::Bool(get_bool(left).unwrap() && get_bool(right).unwrap())),
-        Op::Or         => Ok(Expr::Bool(get_bool(left).unwrap() || get_bool(right).unwrap())),
+        Op::And   => Ok(Expr::Bool(get_bool(&left).unwrap() && get_bool(&right).unwrap())),
+        Op::Or    => Ok(Expr::Bool(get_bool(&left).unwrap() || get_bool(&right).unwrap())),
         
         // Numerical operators
-        Op::Add => Ok(Expr::Num(get_int(left).unwrap() + get_int(right).unwrap())),
-        Op::Sub => Ok(Expr::Num(get_int(left).unwrap() - get_int(right).unwrap())),
-        Op::Mul => Ok(Expr::Num(get_int(left).unwrap() * get_int(right).unwrap())),
-        Op::Div => Ok(Expr::Num(get_int(left).unwrap() / get_int(right).unwrap())),
-        Op::Mod => Ok(Expr::Num(get_int(left).unwrap() % get_int(right).unwrap())),
-        _ => return Err(RuntimeError::InvalidExpression("not a valid binary operator")),
+        Op::LessThan   => Ok(Expr::Bool(get_int(&left).unwrap() <  get_int(&right).unwrap())),
+        Op::LessEq     => Ok(Expr::Bool(get_int(&left).unwrap() <= get_int(&right).unwrap())),
+        Op::LargerThan => Ok(Expr::Bool(get_int(&left).unwrap() >  get_int(&right).unwrap())),
+        Op::LargerEq   => Ok(Expr::Bool(get_int(&left).unwrap() >= get_int(&right).unwrap())),
+        Op::Add        => Ok(Expr::Num(get_int(&left).unwrap() + get_int(&right).unwrap())),
+        Op::Sub        => Ok(Expr::Num(get_int(&left).unwrap() - get_int(&right).unwrap())),
+        Op::Mul        => Ok(Expr::Num(get_int(&left).unwrap() * get_int(&right).unwrap())),
+        Op::Div        => Ok(Expr::Num(get_int(&left).unwrap() / get_int(&right).unwrap())),
+        Op::Mod        => Ok(Expr::Num(get_int(&left).unwrap() % get_int(&right).unwrap())),
+
+        // Both boolean and numerical
+        Op::Equal => {
+            let bl = get_bool(&left);
+            let br = get_bool(&right);
+            let il = get_int(&left);
+            let ir = get_int(&right);
+            if bl.is_ok() && br.is_ok() {
+                return Ok(Expr::Bool(bl.unwrap() == br.unwrap()));
+            } else if il.is_ok() && ir.is_ok() {
+                return Ok(Expr::Bool(il.unwrap() == ir.unwrap()));
+            } else {
+                return Err(RuntimeError::TypeError("incompatible types", right.0));
+            }
+        },
+        Op::NotEq => {
+            let bl = get_bool(&left);
+            let br = get_bool(&right);
+            let il = get_int(&left);
+            let ir = get_int(&right);
+            if bl.is_ok() && br.is_ok() {
+                return Ok(Expr::Bool(bl.unwrap() != br.unwrap()));
+            } else if il.is_ok() && ir.is_ok() {
+                return Ok(Expr::Bool(il.unwrap() != ir.unwrap()));
+            } else {
+                return Err(RuntimeError::TypeError("incompatible types ", right.0));
+            }
+        },
+
+        // Unsupported binary operators e.g. NOT, "!"
+        _ => Err(RuntimeError::InvalidExpression("not a valid binary operator")),
     }
 }
 
