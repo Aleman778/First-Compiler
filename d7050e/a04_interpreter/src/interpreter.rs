@@ -61,8 +61,9 @@ impl<'a> error::Error for RuntimeError<'a> {
  */
 pub fn eval_expr<'a>(expr: SpanExpr<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
     match expr.1 {
-        Expr::BinOp(left, op, right) => map_res(expr.0, compute(eval_expr(*left).unwrap(), op,
-                                                                eval_expr(*right).unwrap())),
+        Expr::BinOp(left, op, right) => map_res(expr.0, compute_binop(eval_expr(*left).unwrap(), op,
+                                                                      eval_expr(*right).unwrap())),
+        Expr::UnOp(op, right) => map_res(expr.0, compute_unop(op, eval_expr(*right).unwrap())),
         Expr::Paren(inl_expr) => eval_expr(*inl_expr),
         Expr::Val(val) => Ok((expr.0, val)),
         _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
@@ -108,7 +109,7 @@ pub fn get_bool<'a>(value: &SpanVal<'a>) -> Result<bool, RuntimeError<'a>> {
 /**
  * Computes the value of a binary operation.
  */
-fn compute<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> Result<Val, RuntimeError<'a>> {
+fn compute_binop<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> Result<Val, RuntimeError<'a>> {
     match op.1 {
         // Boolean operators
         Op::And   => Ok(Val::Bool(get_bool(&left).unwrap() && get_bool(&right).unwrap())),
@@ -136,7 +137,13 @@ fn compute<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> Result<
             } else if il.is_ok() && ir.is_ok() {
                 return Ok(Val::Bool(il.unwrap() == ir.unwrap()));
             } else {
-                return Err(RuntimeError::TypeError("incompatible types", right.0));
+                if bl.is_ok() {
+                    return Err(RuntimeError::TypeError("expected type bool got i32", right.0));
+                } else if il.is_ok() {
+                    return Err(RuntimeError::TypeError("expected type i32 got bool", right.0));
+                } else {
+                    return Err(RuntimeError::TypeError("incompatible type", right.0));
+                }
             }
         },
         Op::NotEq => {
@@ -149,7 +156,13 @@ fn compute<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> Result<
             } else if il.is_ok() && ir.is_ok() {
                 return Ok(Val::Bool(il.unwrap() != ir.unwrap()));
             } else {
-                return Err(RuntimeError::TypeError("incompatible types ", right.0));
+                if bl.is_ok() {
+                    return Err(RuntimeError::TypeError("expected type bool got i32", right.0));
+                } else if il.is_ok() {
+                    return Err(RuntimeError::TypeError("expected type i32 got bool", right.0));
+                } else {
+                    return Err(RuntimeError::TypeError("incompatible type", right.0));
+                }
             }
         },
 
@@ -158,3 +171,14 @@ fn compute<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> Result<
     }
 }
 
+
+/**
+ * Computes the value of an unary operation.
+ */
+fn compute_unop<'a>(op: SpanOp<'a>, right: SpanVal<'a>) -> Result<Val, RuntimeError<'a>> {
+    match op.1 {
+        Op::Sub => Ok(Val::Num(-get_int(&right).unwrap())),
+        Op::Not => Ok(Val::Bool(!get_bool(&right).unwrap())),
+        _ => Err(RuntimeError::InvalidExpression("not a valid unary operator", op.0)),
+    }
+}

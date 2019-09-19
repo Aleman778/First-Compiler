@@ -11,8 +11,9 @@ use interpreter::eval_expr;
 // use std::fs;
 
 fn main() {
-    // let input = "true == 5";
-    let input = "(10  +  15) - ((5 + 3) * 2)";
+    let input = "true == 5";
+    // let input = "(10  +  15) - ((5 + 3) * 2)";
+    
     let expr = a02_parser::parse_expr(Span::new(input));
     
     // println!("{:#?}", (expr.unwrap().1).1);
