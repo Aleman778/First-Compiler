@@ -6,7 +6,7 @@ use nom_locate::LocatedSpan;
 
 type Span<'a> = LocatedSpan<&'a str>;
 
-use interpreter::interpret_expr;
+use interpreter::eval_expr;
 
 // use std::fs;
 
@@ -16,7 +16,7 @@ fn main() {
     let expr = a02_parser::parse_expr(Span::new(input));
     
     // println!("{:#?}", (expr.unwrap().1).1);
-    println!("{:?}", interpret_expr(expr.unwrap().1));
+    println!("{:?}", eval_expr(expr.unwrap().1));
     
     // let input = fs::read_to_string("test.sq")
         // .expect("Error reading the file");

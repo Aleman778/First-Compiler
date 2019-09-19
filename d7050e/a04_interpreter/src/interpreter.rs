@@ -5,12 +5,10 @@ use a02_parser::{
     Op,
     Span,
     SpanOp,
+    SpanVal,
     SpanExpr,
-    // SpanFn,
-    // SpanArg,
     Expr,
-    // Function,
-    // Argument
+    Val,
 };
 
 
@@ -27,7 +25,7 @@ use std::{fmt, error};
 #[derive(Debug, Clone)]
 pub enum RuntimeError<'a> {
     TypeError(&'a str, Span<'a>),
-    InvalidExpression(&'a str),
+    InvalidExpression(&'a str, Span<'a>),
 }
 
 
@@ -38,7 +36,7 @@ impl<'a> fmt::Display for RuntimeError<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             RuntimeError::TypeError(reason, span) => write!(f, "{} {:?}", reason, span),
-            RuntimeError::InvalidExpression(reason) => write!(f, "{}", reason),
+            RuntimeError::InvalidExpression(reason, span) => write!(f, "{} {:?}", reason, span),
         }
     }
 }
@@ -50,8 +48,8 @@ impl<'a> fmt::Display for RuntimeError<'a> {
 impl<'a> error::Error for RuntimeError<'a> {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match *self {
-            RuntimeError::TypeError(_reason, _span) => None,
-            RuntimeError::InvalidExpression(_reason) => None,
+            RuntimeError::TypeError(_, _) => None,
+            RuntimeError::InvalidExpression(_, _) => None,
         }
     }
 }
@@ -61,12 +59,13 @@ impl<'a> error::Error for RuntimeError<'a> {
  * Interpret an expression returns a simplified expression,
  * e.g. ast for 5 + 2 gives the result Num(7).
  */
-pub fn interpret_expr<'a>(expr: SpanExpr<'a>) -> Result<SpanExpr<'a>, RuntimeError<'a>> {
+pub fn eval_expr<'a>(expr: SpanExpr<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
     match expr.1 {
-        Expr::BinOp(left, op, right) => map_res(expr.0, compute(interpret_expr(*left).unwrap(), op,
-                                                                interpret_expr(*right).unwrap())),
-        Expr::Paren(inl_expr) => interpret_expr(*inl_expr),
-        _ => Ok(expr),
+        Expr::BinOp(left, op, right) => map_res(expr.0, compute(eval_expr(*left).unwrap(), op,
+                                                                eval_expr(*right).unwrap())),
+        Expr::Paren(inl_expr) => eval_expr(*inl_expr),
+        Expr::Val(val) => Ok((expr.0, val)),
+        _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
     }
 }
 
@@ -74,7 +73,7 @@ pub fn interpret_expr<'a>(expr: SpanExpr<'a>) -> Result<SpanExpr<'a>, RuntimeErr
 /**
  * Convinence function for mapping the expr result onto the span expr result.
  */
-pub fn map_res<'a>(span: Span<'a>, res: Result<Expr<'a>, RuntimeError<'a>>) -> Result<SpanExpr<'a>, RuntimeError<'a>>{
+pub fn map_res<'a>(span: Span<'a>, res: Result<Val, RuntimeError<'a>>) -> Result<SpanVal<'a>, RuntimeError<'a>>{
     match res {
         Ok(expr) => Ok((span, expr)),
         Err(err) => Err(err),
@@ -86,10 +85,10 @@ pub fn map_res<'a>(span: Span<'a>, res: Result<Expr<'a>, RuntimeError<'a>>) -> R
  * Get the integer value of an expression.
  * Returns a type error if expression is not an i32 number.
  */
-pub fn get_int<'a>(expr: &SpanExpr<'a>) -> Result<i32, RuntimeError<'a>> {
-    match expr.1 {
-        Expr::Num(val) => Ok(val),
-        _ => Err(RuntimeError::TypeError("expected type i32", expr.0)),
+pub fn get_int<'a>(value: &SpanVal<'a>) -> Result<i32, RuntimeError<'a>> {
+    match value.1 {
+        Val::Num(val) => Ok(val),
+        _ => Err(RuntimeError::TypeError("expected type i32", value.0)),
     }
 }
 
@@ -98,10 +97,10 @@ pub fn get_int<'a>(expr: &SpanExpr<'a>) -> Result<i32, RuntimeError<'a>> {
  * Get the boolean value of an expression.
  * Returns type error if the expression is not a boolean.
  */
-pub fn get_bool<'a>(expr: &SpanExpr<'a>) -> Result<bool, RuntimeError<'a>> {
-    match expr.1 {
-        Expr::Bool(b) => Ok(b),
-        _ => Err(RuntimeError::TypeError("expected type bool", expr.0)),
+pub fn get_bool<'a>(value: &SpanVal<'a>) -> Result<bool, RuntimeError<'a>> {
+    match value.1 {
+        Val::Bool(b) => Ok(b),
+        _ => Err(RuntimeError::TypeError("expected type bool", value.0)),
     }
 }
 
@@ -109,22 +108,22 @@ pub fn get_bool<'a>(expr: &SpanExpr<'a>) -> Result<bool, RuntimeError<'a>> {
 /**
  * Computes the value of a binary operation.
  */
-fn compute<'a>(left: SpanExpr<'a>, op: SpanOp<'a>, right: SpanExpr<'a>) -> Result<Expr<'a>, RuntimeError<'a>> {
+fn compute<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> Result<Val, RuntimeError<'a>> {
     match op.1 {
         // Boolean operators
-        Op::And   => Ok(Expr::Bool(get_bool(&left).unwrap() && get_bool(&right).unwrap())),
-        Op::Or    => Ok(Expr::Bool(get_bool(&left).unwrap() || get_bool(&right).unwrap())),
+        Op::And   => Ok(Val::Bool(get_bool(&left).unwrap() && get_bool(&right).unwrap())),
+        Op::Or    => Ok(Val::Bool(get_bool(&left).unwrap() || get_bool(&right).unwrap())),
         
         // Numerical operators
-        Op::LessThan   => Ok(Expr::Bool(get_int(&left).unwrap() <  get_int(&right).unwrap())),
-        Op::LessEq     => Ok(Expr::Bool(get_int(&left).unwrap() <= get_int(&right).unwrap())),
-        Op::LargerThan => Ok(Expr::Bool(get_int(&left).unwrap() >  get_int(&right).unwrap())),
-        Op::LargerEq   => Ok(Expr::Bool(get_int(&left).unwrap() >= get_int(&right).unwrap())),
-        Op::Add        => Ok(Expr::Num(get_int(&left).unwrap() + get_int(&right).unwrap())),
-        Op::Sub        => Ok(Expr::Num(get_int(&left).unwrap() - get_int(&right).unwrap())),
-        Op::Mul        => Ok(Expr::Num(get_int(&left).unwrap() * get_int(&right).unwrap())),
-        Op::Div        => Ok(Expr::Num(get_int(&left).unwrap() / get_int(&right).unwrap())),
-        Op::Mod        => Ok(Expr::Num(get_int(&left).unwrap() % get_int(&right).unwrap())),
+        Op::LessThan   => Ok(Val::Bool(get_int(&left).unwrap() <  get_int(&right).unwrap())),
+        Op::LessEq     => Ok(Val::Bool(get_int(&left).unwrap() <= get_int(&right).unwrap())),
+        Op::LargerThan => Ok(Val::Bool(get_int(&left).unwrap() >  get_int(&right).unwrap())),
+        Op::LargerEq   => Ok(Val::Bool(get_int(&left).unwrap() >= get_int(&right).unwrap())),
+        Op::Add        => Ok(Val::Num(get_int(&left).unwrap() + get_int(&right).unwrap())),
+        Op::Sub        => Ok(Val::Num(get_int(&left).unwrap() - get_int(&right).unwrap())),
+        Op::Mul        => Ok(Val::Num(get_int(&left).unwrap() * get_int(&right).unwrap())),
+        Op::Div        => Ok(Val::Num(get_int(&left).unwrap() / get_int(&right).unwrap())),
+        Op::Mod        => Ok(Val::Num(get_int(&left).unwrap() % get_int(&right).unwrap())),
 
         // Both boolean and numerical
         Op::Equal => {
@@ -133,9 +132,9 @@ fn compute<'a>(left: SpanExpr<'a>, op: SpanOp<'a>, right: SpanExpr<'a>) -> Resul
             let il = get_int(&left);
             let ir = get_int(&right);
             if bl.is_ok() && br.is_ok() {
-                return Ok(Expr::Bool(bl.unwrap() == br.unwrap()));
+                return Ok(Val::Bool(bl.unwrap() == br.unwrap()));
             } else if il.is_ok() && ir.is_ok() {
-                return Ok(Expr::Bool(il.unwrap() == ir.unwrap()));
+                return Ok(Val::Bool(il.unwrap() == ir.unwrap()));
             } else {
                 return Err(RuntimeError::TypeError("incompatible types", right.0));
             }
@@ -146,16 +145,16 @@ fn compute<'a>(left: SpanExpr<'a>, op: SpanOp<'a>, right: SpanExpr<'a>) -> Resul
             let il = get_int(&left);
             let ir = get_int(&right);
             if bl.is_ok() && br.is_ok() {
-                return Ok(Expr::Bool(bl.unwrap() != br.unwrap()));
+                return Ok(Val::Bool(bl.unwrap() != br.unwrap()));
             } else if il.is_ok() && ir.is_ok() {
-                return Ok(Expr::Bool(il.unwrap() != ir.unwrap()));
+                return Ok(Val::Bool(il.unwrap() != ir.unwrap()));
             } else {
                 return Err(RuntimeError::TypeError("incompatible types ", right.0));
             }
         },
 
         // Unsupported binary operators e.g. NOT, "!"
-        _ => Err(RuntimeError::InvalidExpression("not a valid binary operator")),
+        _ => Err(RuntimeError::InvalidExpression("not a valid binary operator", op.0)),
     }
 }
 

@@ -138,6 +138,22 @@ pub enum Expr<'a> {
     // Identifier
     Ident(&'a str),
 
+    // Value literal e.g. i32 or bool value.
+    Val(Val),
+}
+
+
+/**
+ * Type alias of expressions to include span.
+ */
+pub type SpanExpr<'a> = (Span<'a>, Expr<'a>);
+
+
+/**
+ * Value enum contains either a i32 or bool value.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub enum Val {
     // Number literal
     Num(i32),
 
@@ -147,9 +163,9 @@ pub enum Expr<'a> {
 
 
 /**
- * Type alias of expressions to include span.
+ * Type alias of value to include span.
  */
-pub type SpanExpr<'a> = (Span<'a>, Expr<'a>);
+pub type SpanVal<'a> = (Span<'a>, Val);
 
 
 /**
@@ -368,7 +384,7 @@ pub fn parse_paren(input: Span) -> IResult<Span, SpanExpr> {
 pub fn parse_i32<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
     let (input, digits) = digit1(input)?;
     match digits.fragment.parse() {
-        Ok(n) => Ok((input, (digits, Expr::Num(n)))),
+        Ok(n) => Ok((input, (digits, Expr::Val(Val::Num(n))))),
         Err(e) => Err(Err::Error(Error(
             input,
             Some(digits),
@@ -386,8 +402,8 @@ pub fn parse_i32<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
 pub fn parse_literal<'a>(input: Span<'a>) -> IResult<Span<'a>, SpanExpr> {
     alt((
         parse_i32,
-        map(tag("true"), |s| (s, Expr::Bool(true))),
-        map(tag("false"), |s| (s, Expr::Bool(false))),
+        map(tag("true"), |s| (s, Expr::Val(Val::Bool(true)))),
+        map(tag("false"), |s| (s, Expr::Val(Val::Bool(false)))),
     ))(input)
 }
 
