@@ -89,7 +89,7 @@ pub fn map_res<'a>(span: Span<'a>, res: Result<Val, RuntimeError<'a>>) -> Result
 pub fn get_int<'a>(value: &SpanVal<'a>) -> Result<i32, RuntimeError<'a>> {
     match value.1 {
         Val::Num(val) => Ok(val),
-        _ => Err(RuntimeError::TypeError("expected type i32", value.0)),
+        _ => Err(RuntimeError::TypeError("expected type i32 got bool", value.0)),
     }
 }
 
@@ -101,7 +101,7 @@ pub fn get_int<'a>(value: &SpanVal<'a>) -> Result<i32, RuntimeError<'a>> {
 pub fn get_bool<'a>(value: &SpanVal<'a>) -> Result<bool, RuntimeError<'a>> {
     match value.1 {
         Val::Bool(b) => Ok(b),
-        _ => Err(RuntimeError::TypeError("expected type bool", value.0)),
+        _ => Err(RuntimeError::TypeError("expected type bool got i32", value.0)),
     }
 }
 
@@ -110,64 +110,39 @@ pub fn get_bool<'a>(value: &SpanVal<'a>) -> Result<bool, RuntimeError<'a>> {
  * Computes the value of a binary operation.
  */
 fn compute_binop<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> Result<Val, RuntimeError<'a>> {
-    match op.1 {
-        // Boolean operators
-        Op::And   => Ok(Val::Bool(get_bool(&left).unwrap() && get_bool(&right).unwrap())),
-        Op::Or    => Ok(Val::Bool(get_bool(&left).unwrap() || get_bool(&right).unwrap())),
-        
-        // Numerical operators
-        Op::LessThan   => Ok(Val::Bool(get_int(&left).unwrap() <  get_int(&right).unwrap())),
-        Op::LessEq     => Ok(Val::Bool(get_int(&left).unwrap() <= get_int(&right).unwrap())),
-        Op::LargerThan => Ok(Val::Bool(get_int(&left).unwrap() >  get_int(&right).unwrap())),
-        Op::LargerEq   => Ok(Val::Bool(get_int(&left).unwrap() >= get_int(&right).unwrap())),
-        Op::Add        => Ok(Val::Num(get_int(&left).unwrap() + get_int(&right).unwrap())),
-        Op::Sub        => Ok(Val::Num(get_int(&left).unwrap() - get_int(&right).unwrap())),
-        Op::Mul        => Ok(Val::Num(get_int(&left).unwrap() * get_int(&right).unwrap())),
-        Op::Div        => Ok(Val::Num(get_int(&left).unwrap() / get_int(&right).unwrap())),
-        Op::Mod        => Ok(Val::Num(get_int(&left).unwrap() % get_int(&right).unwrap())),
-
-        // Both boolean and numerical
-        Op::Equal => {
-            let bl = get_bool(&left);
-            let br = get_bool(&right);
-            let il = get_int(&left);
-            let ir = get_int(&right);
-            if bl.is_ok() && br.is_ok() {
-                return Ok(Val::Bool(bl.unwrap() == br.unwrap()));
-            } else if il.is_ok() && ir.is_ok() {
-                return Ok(Val::Bool(il.unwrap() == ir.unwrap()));
-            } else {
-                if bl.is_ok() {
-                    return Err(RuntimeError::TypeError("expected type bool got i32", right.0));
-                } else if il.is_ok() {
-                    return Err(RuntimeError::TypeError("expected type i32 got bool", right.0));
-                } else {
-                    return Err(RuntimeError::TypeError("incompatible type", right.0));
-                }
-            }
-        },
-        Op::NotEq => {
-            let bl = get_bool(&left);
-            let br = get_bool(&right);
-            let il = get_int(&left);
-            let ir = get_int(&right);
-            if bl.is_ok() && br.is_ok() {
-                return Ok(Val::Bool(bl.unwrap() != br.unwrap()));
-            } else if il.is_ok() && ir.is_ok() {
-                return Ok(Val::Bool(il.unwrap() != ir.unwrap()));
-            } else {
-                if bl.is_ok() {
-                    return Err(RuntimeError::TypeError("expected type bool got i32", right.0));
-                } else if il.is_ok() {
-                    return Err(RuntimeError::TypeError("expected type i32 got bool", right.0));
-                } else {
-                    return Err(RuntimeError::TypeError("incompatible type", right.0));
-                }
-            }
-        },
-
-        // Unsupported binary operators e.g. NOT, "!"
-        _ => Err(RuntimeError::InvalidExpression("not a valid binary operator", op.0)),
+    let bl = get_bool(&left);
+    let br = get_bool(&right);
+    let il = get_int(&left);
+    let ir = get_int(&right);
+    if bl.is_ok() && br.is_ok() {
+        // Boolean binary operations
+        let bl: bool = bl.unwrap();
+        let br: bool = br.unwrap();
+        match op.1 {
+            Op::Equal => Ok(Val::Bool(bl == br)),
+            Op::NotEq => Ok(Val::Bool(bl != br)),
+            Op::And   => Ok(Val::Bool(bl && br)),
+            Op::Or    => Ok(Val::Bool(bl || br)),
+            _ => Err(RuntimeError::InvalidExpression("not a valid binary operator for boolean values", op.0)),
+        }
+    } else if il.is_ok() && ir.is_ok() {
+        // Integer binary opeartions
+        let il: i32 = il.unwrap();
+        let ir: i32 = ir.unwrap();
+        match op.1 {
+            Op::Equal      => Ok(Val::Bool(il == ir)),
+            Op::NotEq      => Ok(Val::Bool(il != ir)),
+            Op::LessThan   => Ok(Val::Bool(il <  ir)),
+            Op::LessEq     => Ok(Val::Bool(il <= ir)),
+            Op::LargerThan => Ok(Val::Bool(il >  ir)),
+            Op::LargerEq   => Ok(Val::Bool(il >= ir)),
+            Op::Add        => Ok(Val::Num(il + ir)),
+            Op::Sub        => Ok(Val::Num(il - ir)),
+            Op::Mul        => Ok(Val::Num(il * ir)),
+            Op::Div        => Ok(Val::Num(il / ir)),
+            Op::Mod        => Ok(Val::Num(il % ir)),
+        }
+    } else {
     }
 }
 

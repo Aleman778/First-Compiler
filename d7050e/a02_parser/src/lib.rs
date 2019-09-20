@@ -266,7 +266,7 @@ pub fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
             |(left, op, right)| (input, Expr::BinOp(Box::new(left), op, Box::new(right)))),
         
         // Unary operation e.g. -5
-        map(tuple((preceded(multispace0, parse_binoperator), parse_expr_ms)),
+        map(tuple((preceded(multispace0, parse_unoperator), parse_expr_ms)),
             |(op, right)| (input, Expr::UnOp(op, Box::new(right)))),
         
         // Local variable declaration e.g. let a: i32 = 5;
