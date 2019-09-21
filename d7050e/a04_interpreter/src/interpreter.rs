@@ -55,6 +55,11 @@ impl<'a> error::Error for RuntimeError<'a> {
 }
 
 
+pub fn eval_commands() {
+    
+}
+
+
 /**
  * Interpret an expression returns a simplified expression,
  * e.g. ast for 5 + 2 gives the result Num(7).
@@ -141,8 +146,16 @@ fn compute_binop<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> R
             Op::Mul        => Ok(Val::Num(il * ir)),
             Op::Div        => Ok(Val::Num(il / ir)),
             Op::Mod        => Ok(Val::Num(il % ir)),
+            _ => Err(RuntimeError::InvalidExpression("not a valid binary operator for integer values", op.0)),
         }
     } else {
+        if bl.is_ok() {
+            return Err(RuntimeError::TypeError("expected type bool got i32", right.0));
+        } else if il.is_ok() {
+            return Err(RuntimeError::TypeError("expected type i32 got bool", right.0));
+        } else {
+            return Err(RuntimeError::TypeError("incompatible type", right.0));
+        }
     }
 }
 
