@@ -11,13 +11,19 @@ Note: this grammar is based on my parser implementation from assignment 2 but wh
 
 ### Non-terminals
 ```EBNF
+Program = {FnDecl};
+
+FnDecl = "fn" IDENT "(" [Argument {"," Argument}] ")" ["->" TYPE] Block;
+
+Argument = IDENT ":" TYPE;
+
 Expr = BinOp | UnOp | Local | Assign | If | While | Block | Keywords | Atom;
 
 BinOp = Atom BINOP Expr;
 
 UnOp = UNOP Expr;
 
-Local = "let" IDENT ":" TYPE "=" Expr;
+Local = "let" ["mut"] IDENT ":" TYPE "=" Expr;
 
 Assign = Ident "=" Expr;
 
