@@ -13,6 +13,12 @@ use a02_parser::{
 
 
 /**
+ * Require the use of env module.
+ */
+use crate::env::Env;
+
+
+/**
  * Used for custom erros and formatting them.
  */
 use std::{fmt, error};
@@ -55,23 +61,42 @@ impl<'a> error::Error for RuntimeError<'a> {
 }
 
 
-pub fn eval_commands() {
-    
+/**
+ * Evaluates an expression inside a given environment and returns a value,
+ * note that an expression may update the environment, e.g. let statements.
+ * e.g. ast for 5 + 2 gives the result Num(7).
+ */
+pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+    match env.expr.1 {
+        // Binary operation
+        Expr::BinOp(left, op, right) => map_res(env.expr.0, compute_binop(eval_atom(*left).unwrap(), op,
+                                                                          eval_expr(*right).unwrap())),
+
+        // Unary operation
+        Expr::UnOp(op, right) => map_res(env.expr.0, compute_unop(op, eval_expr(*right).unwrap())),
+
+        // Local variable declaration
+        Expr::Local(_mutable, ident, ty, expr) => env.store((ident.1).0, eval_expr(expr).1),
+        
+        _ => eval_atom(expr, env),
+    }
 }
 
 
 /**
- * Interpret an expression returns a simplified expression,
- * e.g. ast for 5 + 2 gives the result Num(7).
+ * Evaluates an atom i.e. either a parenthesized expression, literal, function call or identifier.
  */
-pub fn eval_expr<'a>(expr: SpanExpr<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
-    match expr.1 {
-        Expr::BinOp(left, op, right) => map_res(expr.0, compute_binop(eval_expr(*left).unwrap(), op,
-                                                                      eval_expr(*right).unwrap())),
-        Expr::UnOp(op, right) => map_res(expr.0, compute_unop(op, eval_expr(*right).unwrap())),
+pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+    match env.expr.1 {
+        // Parentheses
         Expr::Paren(inl_expr) => eval_expr(*inl_expr),
-        Expr::Val(val) => Ok((expr.0, val)),
-        _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
+
+        // Function call
+        // Expr::Call(ident, args) => eval_expr(Env::from_args()),
+
+        // Value either integer or boolean
+        Expr::Val(val) => Ok((env.expr.0, val)),
+        _ => Err(RuntimeError::InvalidExpression("invalid expression", env.expr.0)),
     }
 }
 

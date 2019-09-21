@@ -1,3 +1,4 @@
+mod env;
 mod interpreter;
 
 // use a02_parser::{parse};
@@ -7,6 +8,8 @@ use nom_locate::LocatedSpan;
 type Span<'a> = LocatedSpan<&'a str>;
 
 use interpreter::eval_expr;
+use crate::env::Env;
+
 
 // use std::fs;
 
@@ -17,7 +20,7 @@ fn main() {
     let expr = a02_parser::parse_expr(Span::new(input));
     
     // println!("{:#?}", (expr.unwrap().1).1);
-    println!("{:?}", eval_expr(expr.unwrap().1));
+    println!("{:?}", eval_expr(expr.unwrap().1, &Env::new()));
     
     // let input = fs::read_to_string("test.sq")
         // .expect("Error reading the file");
