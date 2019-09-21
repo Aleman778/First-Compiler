@@ -12,6 +12,7 @@ members = [
     "a02_parser",
     "a03_grammar",
     "a04_interpreter",
+    "a05_semantic",
 ]
 
 [dependencies]
