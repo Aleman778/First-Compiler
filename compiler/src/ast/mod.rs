@@ -1,6 +1,6 @@
 
 /***************************************************************************
- * AST module implements the Abstract Syntax Tree data structure.
+ * AST module implements an Abstract Syntax Tree data structure.
  ***************************************************************************/
 
 
