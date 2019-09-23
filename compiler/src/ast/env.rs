@@ -9,6 +9,10 @@
  */
 use std::collections::HashMap;
 
+
+/**
+ * Requires the identifier struct.
+ */
 use crate::ast::{Span, atom::Ident};
 
 
@@ -17,8 +21,7 @@ use crate::ast::{Span, atom::Ident};
  */
 #[derive(Debug, PartialEq)]
 pub struct Env<'a> {
-    variables: HashMap<&'a str, Ident<'a>>,
-    functions: HashMap<&'a str, Ident<'a>>,
+    pub identifiers: HashMap<&'a str, Ident<'a>>,
 }
 
 
@@ -32,21 +35,19 @@ impl<'a> Env<'a> {
      */
     pub fn new() -> Env<'a> {
         Env {
-            variables: HashMap::new(),
-            functions: HashMap::new(),
+            identifiers: HashMap::new(),
         }
     }
 
 
-    /**
-     * Retrive the variable identifier 
-     */
-    pub fn var(&'a mut self, ident: Span<'a>) -> &'a mut Ident<'a> {
-        self.variables.entry(ident.fragment).or_insert(Ident{to_string: ident.fragment, span: ident})
-    }
-
-
-    pub fn func(&'a mut self, ident: Span<'a>) -> &'a mut Ident<'a> {
-        self.functions.entry(ident.fragment).or_insert(Ident{to_string: ident.fragment, span: ident})
-    }
+    // pub fn ident(&'a mut self, s: Span<'a>) -> &'a Ident<'a> {
+        // match self.identifiers.get(s.fragment) {
+            // Some(ident) => ident,
+            // None => {
+                // let ident = Ident{to_string: s.fragment, span: s};
+                // self.identifiers.insert(s.fragment, ident);
+                // return self.ident(s);
+            // }
+        // }
+    // }
 }

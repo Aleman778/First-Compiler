@@ -5,9 +5,10 @@
 
 
 use nom::{
-    character::complete::digit1,
-    bytes::complete::tag,
-    combinator::map,
+    character::complete::{alpha1, digit1},
+    character::{is_alphanumeric},
+    bytes::complete::{tag, take_while1},
+    combinator::{map, peek},
     branch::alt,
     Err,
 };
@@ -26,19 +27,24 @@ use crate::parser::{
 };
 
 
-// impl<'a> Parser<'a, Ident<'a>> for Ident<'a> {
-    // fn parse() 
-// }
+impl<'a> Parser<'a, Ident<'a>> for Ident<'a> {
+    fn parse(input: Span<'a>) -> IResult<Span, Ident<'a>> {
+        peek(alt((alpha1, tag("_"))))(input)?;
+        map(take_while1(|c: char| is_alphanumeric(c as u8) || c == '_'),
+            |s: Span<'a>| Ident{to_string: s.fragment, span: s}
+        )(input)
+    }
+}
 
 
 /**
  * Parse either an integer or boolean literal.
  */
-impl<'a> Parser<'a, Val<'a>> for Val<'a> {
-    fn parse(input: Span<'a>) -> IResult<Span, Val<'a>> {
+impl<'a> Parser<'a, Atom<'a>> for Atom<'a> {
+    fn parse(input: Span<'a>) -> IResult<Span, Atom<'a>> {
         alt((
-            map(LitInt::parse, |literal| Val::Num(literal)),
-            map(LitBool::parse, |literal| Val::Bool(literal)),
+            map(LitInt::parse, |literal| Atom::Num(literal)),
+            map(LitBool::parse, |literal| Atom::Bool(literal)),
         ))(input)
     }
 }

@@ -7,7 +7,7 @@
 /**
  * Requires the LocatedSpan struct from the nom locate crate.
  */
-use nom_locate::LocatedSpanEx;
+use nom_locate::LocatedSpan;
 
 use env::Env;
 
@@ -16,7 +16,7 @@ use env::Env;
  * Type alias of LocatedSpan for convenience.
  * Every node in the AST is recommended to include this span.
  */
-pub type Span<'a> = LocatedSpanEx<&'a str, &'a Env<'a>>;
+pub type Span<'a> = LocatedSpan<&'a str>;
 
 
 pub mod env;

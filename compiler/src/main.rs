@@ -8,10 +8,10 @@ mod ast;
 mod parser;
 
 
-use ast::{Span, env::Env};
+use ast::Span;
 use parser::Parser;
 
 
 fn main() {
-    println!("{:#?}", ast::atom::Val::parse(Span::new_extra("42", &Env::new())));
+    println!("{:#?}", ast::atom::Atom::parse(Span::new("42")));
 }

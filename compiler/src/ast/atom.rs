@@ -23,15 +23,6 @@ use crate::ast::{
 pub enum Atom<'a> {
     Paren(Paren<'a>),
     Ident(Ident<'a>),
-    Val(Val<'a>),
-}
-
-
-/**
- * Value enum contains only structs that has an actual value.
- */
-#[derive(Debug, PartialEq)]
-pub enum Val<'a> {
     Num(LitInt<'a>),
     Bool(LitBool<'a>),
 }
