@@ -22,7 +22,7 @@ use crate::ast::{
  * only function items are supported, but can easily be
  * extended to support any item such as structs, type alias etc.
  */
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct File<'a> {
     items: Vec<Item<'a>>,
     span: Span<'a>
@@ -33,7 +33,7 @@ pub struct File<'a> {
  * Items enum contains all types of items that appear in a file.
  * This currently only supports item functions.
  */
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Item<'a> {
     ItemFn(ItemFn<'a>),
 }
@@ -43,7 +43,7 @@ pub enum Item<'a> {
  * Item function struct defines the properties of a function
  * the identifier, declaration and block.
  */
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ItemFn<'a> {
     ident: Ident<'a>,
     decl: FnDecl<'a>,
@@ -89,7 +89,7 @@ pub enum Type<'a> {
  * 32 bit signed integer type.
  */
 #[derive(Debug, PartialEq)]
-struct Int32 <'a> {
+pub struct Int32 <'a> {
     span: Span<'a>,
 }
 
@@ -98,6 +98,6 @@ struct Int32 <'a> {
  * Boolean type.
  */
 #[derive(Debug, PartialEq)]
-struct Bool<'a> {
+pub struct Bool<'a> {
     span: Span<'a>,
 }

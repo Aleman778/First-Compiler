@@ -12,8 +12,10 @@ use nom::{
     Err,
 };
 
-use crate::ast::Span;
-use crate::ast::atom::*;
+use crate::ast::{
+    Span,
+    atom::*,
+};
 
 
 use crate::parser::{
@@ -24,8 +26,22 @@ use crate::parser::{
 };
 
 
+// impl<'a> Parser<'a, Ident<'a>> for Ident<'a> {
+    // fn parse() 
+// }
 
-impl<'a> Parser<'a, P>
+
+/**
+ * Parse either an integer or boolean literal.
+ */
+impl<'a> Parser<'a, Val<'a>> for Val<'a> {
+    fn parse(input: Span<'a>) -> IResult<Span, Val<'a>> {
+        alt((
+            map(LitInt::parse, |literal| Val::Num(literal)),
+            map(LitBool::parse, |literal| Val::Bool(literal)),
+        ))(input)
+    }
+}
 
 
 // impl<'a> Parser<'a, Paren<'a>> for Paren<'a> {
@@ -37,11 +53,12 @@ impl<'a> Parser<'a, P>
 // }
 
 
+    
+
 
 /**
  * Parser implementation for 32 bit unsigned integer literals.
  */
-pub parse_
 impl<'a> Parser<'a, LitInt<'a>> for LitInt<'a> {
     fn parse(input: Span<'a>) -> IResult<Span, LitInt<'a>> {
         let (input, digits) = digit1(input)?;
