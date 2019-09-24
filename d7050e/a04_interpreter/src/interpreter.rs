@@ -99,7 +99,8 @@ pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a
         Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
 
         // Function call
-        // Expr::Call(ident, args) => eval_expr(Env::from_args()),
+        Expr::Call(ident, args) => Ok((expr.0, eval_expr(
+            find_function(ident), Env::from_args(args)).unwrap())),
 
         Expr::Ident(ident) => Ok((expr.0, *env.load(ident, expr.0).unwrap())),
         

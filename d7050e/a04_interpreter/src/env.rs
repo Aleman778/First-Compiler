@@ -5,9 +5,12 @@ use a02_parser::{Span, SpanArg, SpanExpr, Val};
 
 
 /**
- * Require runtime error.
+ * Require interpreter functionality.
  */
-use crate::interpreter::RuntimeError;
+use crate::interpreter::{
+    RuntimeError,
+    get_ident,
+};
 
 
 /**
@@ -47,8 +50,7 @@ impl<'a> Env<'a> {
     pub fn from_args(args: Vec<SpanArg<'a>>, values: Vec<Val>) -> Env<'a> {
         let mem = HashMap::new();
         for i in 0..args.len() {
-            println!("{:#?}", args[i]);
-            // mem.insert((((args[i.1).0).1).1, values[i]);
+            mem.insert(get_ident(&(args[i].1).0).unwrap(), values[i]);
         }
 
         Env {

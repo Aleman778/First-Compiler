@@ -172,7 +172,7 @@ pub type SpanVal<'a> = (Span<'a>, Val);
  * Argument struct defines an identifier with a type
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Argument<'a>(SpanExpr<'a>, SpanType<'a>);
+pub struct Argument<'a>(pub SpanExpr<'a>, pub SpanType<'a>);
 
 
 /**
