@@ -32,6 +32,7 @@ use std::{fmt, error};
 pub enum RuntimeError<'a> {
     TypeError(&'a str, Span<'a>),
     InvalidExpression(&'a str, Span<'a>),
+    MemoryError(&'a str, Span<'a>),
 }
 
 
@@ -43,6 +44,7 @@ impl<'a> fmt::Display for RuntimeError<'a> {
         match *self {
             RuntimeError::TypeError(reason, span) => write!(f, "{} {:?}", reason, span),
             RuntimeError::InvalidExpression(reason, span) => write!(f, "{} {:?}", reason, span),
+            RuntimeError::MemoryError(reason, span) => write!(f, "{} {:?}", reason, span),
         }
     }
 }
@@ -56,6 +58,7 @@ impl<'a> error::Error for RuntimeError<'a> {
         match *self {
             RuntimeError::TypeError(_, _) => None,
             RuntimeError::InvalidExpression(_, _) => None,
+            RuntimeError::MemoryError(_, _) => None,
         }
     }
 }
@@ -66,17 +69,21 @@ impl<'a> error::Error for RuntimeError<'a> {
  * note that an expression may update the environment, e.g. let statements.
  * e.g. ast for 5 + 2 gives the result Num(7).
  */
-pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
-    match env.expr.1 {
+pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+    match expr.1 {
         // Binary operation
-        Expr::BinOp(left, op, right) => map_res(env.expr.0, compute_binop(eval_atom(*left).unwrap(), op,
-                                                                          eval_expr(*right).unwrap())),
+        Expr::BinOp(left, op, right) => map_res(expr.0, compute_binop(eval_atom(*left, env).unwrap(), op,
+                                                                          eval_expr(*right, env).unwrap())),
 
         // Unary operation
-        Expr::UnOp(op, right) => map_res(env.expr.0, compute_unop(op, eval_expr(*right).unwrap())),
+        Expr::UnOp(op, right) => map_res(expr.0, compute_unop(op, eval_expr(*right, env).unwrap())),
 
         // Local variable declaration
-        Expr::Local(_mutable, ident, ty, expr) => env.store((ident.1).0, eval_expr(expr).1),
+        Expr::Local(_mutable, ident, _ty, init) => {
+            let val = eval_expr(*init, env).unwrap().1;
+            env.store(get_ident(&ident).unwrap(), val);
+            return Ok((expr.0, Val::Num(0)));
+        }
         
         _ => eval_atom(expr, env),
     }
@@ -86,17 +93,19 @@ pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &Env<'a>) -> Result<SpanVal<'a>, R
 /**
  * Evaluates an atom i.e. either a parenthesized expression, literal, function call or identifier.
  */
-pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
-    match env.expr.1 {
+pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+    match expr.1 {
         // Parentheses
-        Expr::Paren(inl_expr) => eval_expr(*inl_expr),
+        Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
 
         // Function call
         // Expr::Call(ident, args) => eval_expr(Env::from_args()),
 
+        Expr::Ident(ident) => Ok((expr.0, *env.load(ident, expr.0).unwrap())),
+        
         // Value either integer or boolean
-        Expr::Val(val) => Ok((env.expr.0, val)),
-        _ => Err(RuntimeError::InvalidExpression("invalid expression", env.expr.0)),
+        Expr::Val(val) => Ok((expr.0, val)),
+        _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
     }
 }
 
@@ -108,6 +117,17 @@ pub fn map_res<'a>(span: Span<'a>, res: Result<Val, RuntimeError<'a>>) -> Result
     match res {
         Ok(expr) => Ok((span, expr)),
         Err(err) => Err(err),
+    }
+}
+
+
+/**
+ * Get the identifier from an expression.
+ */
+pub fn get_ident<'a>(expr: &SpanExpr<'a>) -> Result<&'a str, RuntimeError<'a>> {
+    match expr.1 {
+        Expr::Ident(id) => Ok(id),
+        _ => Err(RuntimeError::InvalidExpression("not a valid identifier", expr.0)),
     }
 }
 

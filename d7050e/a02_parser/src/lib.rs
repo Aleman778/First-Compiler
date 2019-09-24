@@ -152,7 +152,7 @@ pub type SpanExpr<'a> = (Span<'a>, Expr<'a>);
 /**
  * Value enum contains either a i32 or bool value.
  */
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Val {
     // Number literal
     Num(i32),
