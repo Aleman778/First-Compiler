@@ -187,7 +187,7 @@ pub type SpanArg<'a> = (Span<'a>, Argument<'a>);
  * and the block containing the function implementation.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Function<'a>(Box<SpanExpr<'a>>, Vec<SpanArg<'a>>, Option<SpanType<'a>>, Box<SpanExpr<'a>>);
+pub struct Function<'a>(pub Box<SpanExpr<'a>>, pub Vec<SpanArg<'a>>, pub Option<SpanType<'a>>, pub Box<SpanExpr<'a>>);
 
 
 /**
@@ -201,8 +201,8 @@ pub type SpanFn<'a> = (Span<'a>, Function<'a>);
  * currently I only support functions. So this defines a vector
  * of functions defined in a source file.
  */
-#[derive(Debug)]
-pub struct AST<'a>(Vec<SpanFn<'a>>);
+#[derive(Debug, PartialEq)]
+pub struct AST<'a>(pub Vec<SpanFn<'a>>);
 
 
 /**

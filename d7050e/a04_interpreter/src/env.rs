@@ -1,7 +1,7 @@
 /**
  * Require the parser from assignment 2.
  */
-use a02_parser::{Span, SpanArg, SpanExpr, Val};
+use a02_parser::{Span, SpanArg, Val, AST};
 
 
 /**
@@ -25,6 +25,7 @@ use std::collections::HashMap;
 #[derive(Debug, PartialEq)]
 pub struct Env<'a> {
     mem: HashMap<&'a str, Val>,
+    pub ast: &'a AST<'a>,
 }
 
 
@@ -36,9 +37,10 @@ impl<'a> Env<'a> {
     /**
      * Constructs an empty environment.
      */
-    pub fn new() -> Env<'a> {
+    pub fn new(ast: &'a AST<'a>) -> Env<'a> {
         Env {
             mem: HashMap::new(),
+            ast: ast,
         }
     }
  
@@ -47,14 +49,15 @@ impl<'a> Env<'a> {
      * Constructs an environment from function arguments
      * and their respective values from a function call.
      */
-    pub fn from_args(args: Vec<SpanArg<'a>>, values: Vec<Val>) -> Env<'a> {
-        let mem = HashMap::new();
+    pub fn from_args(args: Vec<SpanArg<'a>>, values: Vec<Val>, ast: &'a AST<'a>) -> Env<'a> {
+        let mut mem = HashMap::new();
         for i in 0..args.len() {
             mem.insert(get_ident(&(args[i].1).0).unwrap(), values[i]);
         }
 
         Env {
             mem: mem,
+            ast: ast,
         }
     }
 

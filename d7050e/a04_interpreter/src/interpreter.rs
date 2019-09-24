@@ -5,10 +5,12 @@ use a02_parser::{
     Op,
     Span,
     SpanOp,
+    SpanFn,
     SpanVal,
     SpanExpr,
     Expr,
     Val,
+    AST,
 };
 
 
@@ -65,6 +67,17 @@ impl<'a> error::Error for RuntimeError<'a> {
 
 
 /**
+ * Runs the main method in the Abstract Syntax Tree.
+ */
+pub fn eval<'a>(ast: &'a AST<'a>) {
+    let env = &mut Env::new(ast);
+    let function = &get_function("main", env).unwrap().1;
+    eval_expr(*(function.3), env);
+    println!("{:#?}", env);
+}
+
+
+/**
  * Evaluates an expression inside a given environment and returns a value,
  * note that an expression may update the environment, e.g. let statements.
  * e.g. ast for 5 + 2 gives the result Num(7).
@@ -99,15 +112,32 @@ pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a
         Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
 
         // Function call
-        Expr::Call(ident, args) => Ok((expr.0, eval_expr(
-            find_function(ident), Env::from_args(args)).unwrap())),
+        Expr::Call(ident, args) => eval_func_call(*ident, args, env),
 
+        // Identifiers
         Expr::Ident(ident) => Ok((expr.0, *env.load(ident, expr.0).unwrap())),
         
         // Value either integer or boolean
         Expr::Val(val) => Ok((expr.0, val)),
         _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
     }
+}
+
+
+/**
+ * Evaluates an function call, creates a new environment and runs the function.
+ * This function return is forwarded from whatver the invoked function returns.
+ */
+pub fn eval_func_call<'a>(ident: SpanExpr<'a>,
+                          args: Vec<SpanExpr<'a>>,
+                          env: &mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+    let function = get_function(get_ident(&ident).unwrap(), env).unwrap().1;
+    let mut values = Vec::new();
+    for arg in args {
+        values.push(eval_expr(arg, env).unwrap().1);
+    }
+    let fn_env = &mut Env::from_args(function.1, values, env.ast);
+    eval_expr(*function.3, fn_env)
 }
 
 
@@ -119,6 +149,19 @@ pub fn map_res<'a>(span: Span<'a>, res: Result<Val, RuntimeError<'a>>) -> Result
         Ok(expr) => Ok((span, expr)),
         Err(err) => Err(err),
     }
+}
+
+
+/**
+ * Retrive a function by an identifier.
+ */
+pub fn get_function<'a>(ident: &'a str, env: &mut Env<'a>) -> Result<&'a SpanFn<'a>, RuntimeError<'a>> {
+    for func in env.ast.0.iter_mut() {
+        if ident == get_ident(&(func.1).0).unwrap() {
+            return Ok(func);
+        }
+    }
+    Err(RuntimeError::InvalidExpression("function does not exist", Span::new(ident)))
 }
 
 
