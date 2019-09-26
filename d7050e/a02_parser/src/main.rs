@@ -8,6 +8,7 @@ use std::fs;
  * Main method, program starts here.
  */
 fn main() {
+    
     // let input = "let hello30: i32 = 1 + 2   ;";
     // let input = "min(a + 25, 40 - -b);";
     // let input = "{ let mut a:i32 = 5; let b:i32 = 3; a = a + 5; min(a + b, a - b * a + a * b); }";

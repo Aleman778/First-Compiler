@@ -24,6 +24,7 @@ use std::collections::HashMap;
  */
 #[derive(Debug, PartialEq)]
 pub struct Env<'a> {
+    parent: Option<&'a Env<'a>>,
     mem: HashMap<&'a str, Val>,
     pub ast: &'a AST<'a>,
 }
@@ -37,8 +38,9 @@ impl<'a> Env<'a> {
     /**
      * Constructs an empty environment.
      */
-    pub fn new(ast: &'a AST<'a>) -> Env<'a> {
+    pub fn new(ast: &'a AST<'a>, parent: Option<&'a Env<'a>>) -> Env<'a> {
         Env {
+            parent: parent,
             mem: HashMap::new(),
             ast: ast,
         }
@@ -56,6 +58,7 @@ impl<'a> Env<'a> {
         }
 
         Env {
+            parent: None,
             mem: mem,
             ast: ast,
         }
@@ -74,6 +77,12 @@ impl<'a> Env<'a> {
         match self.mem.get(ident) {
             Some(val) => Ok(val),
             None => Err(RuntimeError::MemoryError("not found in this scope", s)),
+            // {
+                // match self.parent {
+                    // Some(env) => env.load(ident, s),
+                // ,
+                // }
+            // }
         }
     }
 }

@@ -70,10 +70,10 @@ impl<'a> error::Error for RuntimeError<'a> {
  * Runs the main method in the Abstract Syntax Tree.
  */
 pub fn eval<'a>(ast: &'a AST<'a>) {
-    let env = &mut Env::new(ast);
-    let function = &get_function("main", env).unwrap().1;
-    eval_expr(*(function.3), env);
-    println!("{:#?}", env);
+    let env = &mut Env::new(ast, None);
+    let function = get_function("main", env).unwrap().1;
+    eval_expr(*function.3, env);
+    // println!("{:#?}", env);
 }
 
 
@@ -82,7 +82,7 @@ pub fn eval<'a>(ast: &'a AST<'a>) {
  * note that an expression may update the environment, e.g. let statements.
  * e.g. ast for 5 + 2 gives the result Num(7).
  */
-pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &'a mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
     match expr.1 {
         // Binary operation
         Expr::BinOp(left, op, right) => map_res(expr.0, compute_binop(eval_atom(*left, env).unwrap(), op,
@@ -90,6 +90,8 @@ pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a
 
         // Unary operation
         Expr::UnOp(op, right) => map_res(expr.0, compute_unop(op, eval_expr(*right, env).unwrap())),
+
+        Expr::Block(exprs) => eval_block(exprs, &mut Env::new(env.ast, Some(env)), false),
 
         // Local variable declaration
         Expr::Local(_mutable, ident, _ty, init) => {
@@ -106,7 +108,7 @@ pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a
 /**
  * Evaluates an atom i.e. either a parenthesized expression, literal, function call or identifier.
  */
-pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &'a mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
     match expr.1 {
         // Parentheses
         Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
@@ -125,19 +127,40 @@ pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<SpanVal<'a
 
 
 /**
+ * Evaluates a block of expressions. If this is a function then ret param
+ * should be true to indicate if the function returns something.
+ */
+pub fn eval_block<'a>(exprs: Vec<SpanExpr<'a>>, new_env: &'a mut Env<'a>, ret: bool) -> Result<SpanVal<'a>, RuntimeError<'a>>{
+    for expr in exprs {
+        let result = eval_expr(expr, &mut new_env);
+        if ret {
+            match expr.1 {
+                Expr::Return(expr) => result,
+                _ => continue,
+            };
+        }
+    }
+    Ok((Span::new(""), Val::Num(0)))
+}
+
+
+/**
  * Evaluates an function call, creates a new environment and runs the function.
  * This function return is forwarded from whatver the invoked function returns.
  */
 pub fn eval_func_call<'a>(ident: SpanExpr<'a>,
                           args: Vec<SpanExpr<'a>>,
-                          env: &mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+                          env: &'a mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
     let function = get_function(get_ident(&ident).unwrap(), env).unwrap().1;
     let mut values = Vec::new();
     for arg in args {
         values.push(eval_expr(arg, env).unwrap().1);
     }
     let fn_env = &mut Env::from_args(function.1, values, env.ast);
-    eval_expr(*function.3, fn_env)
+    match (*function.3).1 {
+        Expr::Block(exprs) => eval_block(exprs, fn_env, true),
+        _ => Err(RuntimeError::InvalidExpression("should be a block", (*function.3).0)),
+    }
 }
 
 
@@ -155,10 +178,11 @@ pub fn map_res<'a>(span: Span<'a>, res: Result<Val, RuntimeError<'a>>) -> Result
 /**
  * Retrive a function by an identifier.
  */
-pub fn get_function<'a>(ident: &'a str, env: &mut Env<'a>) -> Result<&'a SpanFn<'a>, RuntimeError<'a>> {
-    for func in env.ast.0.iter_mut() {
+pub fn get_function<'a>(ident: &'a str, env: &mut Env<'a>) -> Result<SpanFn<'a>, RuntimeError<'a>> {
+    let mut ast = &env.ast.0;
+    for func in ast.iter() {
         if ident == get_ident(&(func.1).0).unwrap() {
-            return Ok(func);
+            return Ok(func.clone());
         }
     }
     Err(RuntimeError::InvalidExpression("function does not exist", Span::new(ident)))
