@@ -20,8 +20,7 @@ fn main() {
     let input = "fn main() {let x: i32 = 5;}";
     let ast = a02_parser::parse(input).unwrap();
     
-    println!("{:#?}", eval(&ast));
-    // println!("{:#?}", env);
+    println!("{:#?}", eval(ast));
     
     // let input = fs::read_to_string("test.sq")
         // .expect("Error reading the file");

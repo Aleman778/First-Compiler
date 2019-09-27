@@ -1,0 +1,25 @@
+diff a/d7050e/a04_interpreter/src/interpreter.rs b/d7050e/a04_interpreter/src/interpreter.rs	(rejected hunks)
+@@ -124,6 +124,23 @@
+ }
+ 
+ 
++/**
++ * Evaluates an function call, creates a new environment and runs the function.
++ * This function return is forwarded from whatver the invoked function returns.
++ */
++pub fn eval_func_call<'a>(ident: SpanExpr<'a>,
++                          args: Vec<SpanExpr<'a>>,
++                          env: &mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
++    let function = get_function(get_ident(&ident).unwrap(), env).unwrap().1;
++    let mut values = Vec::new();
++    for arg in args {
++        values.push(eval_expr(arg, env).unwrap().1);
++    }
++    let fn_env = &mut Env::from_args(function.1, values, env.ast);
++    eval_expr(*function.3, fn_env)
++}
++
++
+ /**
+  * Convinence function for mapping the expr result onto the span expr result.
+  */

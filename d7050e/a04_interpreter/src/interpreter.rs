@@ -6,10 +6,9 @@ use a02_parser::{
     Span,
     SpanOp,
     SpanFn,
-    SpanVal,
+    SpanType,
     SpanExpr,
     Expr,
-    Val,
     AST,
 };
 
@@ -36,6 +35,30 @@ pub enum RuntimeError<'a> {
     InvalidExpression(&'a str, Span<'a>),
     MemoryError(&'a str, Span<'a>),
 }
+
+pub type Result<'a, T> = std::result::Result<T, RuntimeError<'a>>;
+
+
+/**
+ * Value enum is used to return information during evaluation.
+ */
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Val {
+    // Number literal
+    Num(i32),
+
+    // Boolean literal
+    Bool(bool),
+
+    // No value
+    None,
+}
+
+
+/**
+ * Type alias of val to include span information.
+ */
+pub type SpanVal<'a> = (Span<'a>, Val);
 
 
 /**
@@ -69,11 +92,11 @@ impl<'a> error::Error for RuntimeError<'a> {
 /**
  * Runs the main method in the Abstract Syntax Tree.
  */
-pub fn eval<'a>(ast: &'a AST<'a>) {
-    let env = &mut Env::new(ast, None);
-    let function = get_function("main", env).unwrap().1;
-    eval_expr(*function.3, env);
-    // println!("{:#?}", env);
+pub fn eval<'a>(ast: AST<'a>) {
+    let mut env = Env::new(&ast, None);
+    let function = get_function("main", &mut env).unwrap().1;
+    eval_expr(*function.3, &mut env);
+    println!("{:#?}", env);
 }
 
 
@@ -82,46 +105,17 @@ pub fn eval<'a>(ast: &'a AST<'a>) {
  * note that an expression may update the environment, e.g. let statements.
  * e.g. ast for 5 + 2 gives the result Num(7).
  */
-pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &'a mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVal<'a>> {
     match expr.1 {
-        // Binary operation
-        Expr::BinOp(left, op, right) => map_res(expr.0, compute_binop(eval_atom(*left, env).unwrap(), op,
-                                                                          eval_expr(*right, env).unwrap())),
-
-        // Unary operation
-        Expr::UnOp(op, right) => map_res(expr.0, compute_unop(op, eval_expr(*right, env).unwrap())),
-
-        Expr::Block(exprs) => eval_block(exprs, &mut Env::new(env.ast, Some(env)), false),
-
-        // Local variable declaration
-        Expr::Local(_mutable, ident, _ty, init) => {
-            let val = eval_expr(*init, env).unwrap().1;
-            env.store(get_ident(&ident).unwrap(), val);
-            return Ok((expr.0, Val::Num(0)));
-        }
-        
+        Expr::BinOp(left, op, right) => map_res(expr.0, eval_binop(*left, op, *right, env)),
+        Expr::UnOp(op, right) => map_res(expr.0, eval_unop(op, *right, env)),
+        Expr::Block(exprs) => {
+            let ast = env.get_ast();
+            let mut new_env = Env::new(ast, Some(env));
+            map_res(expr.0, eval_block(exprs, &mut new_env, false))
+        },
+        Expr::Local(mutable, ident, ty, init) => map_res(expr.0, eval_local(mutable, *ident, ty, *init, env)),
         _ => eval_atom(expr, env),
-    }
-}
-
-
-/**
- * Evaluates an atom i.e. either a parenthesized expression, literal, function call or identifier.
- */
-pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &'a mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
-    match expr.1 {
-        // Parentheses
-        Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
-
-        // Function call
-        Expr::Call(ident, args) => eval_func_call(*ident, args, env),
-
-        // Identifiers
-        Expr::Ident(ident) => Ok((expr.0, *env.load(ident, expr.0).unwrap())),
-        
-        // Value either integer or boolean
-        Expr::Val(val) => Ok((expr.0, val)),
-        _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
     }
 }
 
@@ -130,17 +124,42 @@ pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &'a mut Env<'a>) -> Result<SpanVal
  * Evaluates a block of expressions. If this is a function then ret param
  * should be true to indicate if the function returns something.
  */
-pub fn eval_block<'a>(exprs: Vec<SpanExpr<'a>>, new_env: &'a mut Env<'a>, ret: bool) -> Result<SpanVal<'a>, RuntimeError<'a>>{
+pub fn eval_block<'a>(exprs: Vec<SpanExpr<'a>>, env: &mut Env<'a>, ret: bool) -> Result<'a, Val>{
     for expr in exprs {
-        let result = eval_expr(expr, &mut new_env);
+        let result = eval_expr(expr, env).unwrap().1;
         if ret {
-            match expr.1 {
-                Expr::Return(expr) => result,
-                _ => continue,
-            };
+            if Val::None != result {
+                return Ok(result);
+            }
         }
     }
-    Ok((Span::new(""), Val::Num(0)))
+    Ok(Val::None)
+}
+
+
+/**
+ * Evaluates assignment of a local variable.
+ * This only updates the given environment and returns Val::None.
+ */
+pub fn eval_local<'a>(_mutable: bool, ident: SpanExpr<'a>, _ty: SpanType<'a>, init: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, Val> {
+    let val = eval_expr(init, env).unwrap().1;
+    env.store(get_ident(&ident).unwrap(), val);
+    Ok(Val::None)
+}
+
+
+/**
+ * Evaluates an atom i.e. either a parenthesized expression, literal, function call or identifier.
+ */
+pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVal<'a>> {
+    match expr.1 {
+        Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
+        Expr::Call(ident, args) => map_res(expr.0, eval_func_call(*ident, args, env)),
+        Expr::Ident(ident) => map_res(expr.0, env.load(ident, expr.0)),
+        Expr::Num(int) => Ok((expr.0, Val::Num(int))),
+        Expr::Bool(en) => Ok((expr.0, Val::Bool(en))),
+        _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
+    }
 }
 
 
@@ -148,15 +167,14 @@ pub fn eval_block<'a>(exprs: Vec<SpanExpr<'a>>, new_env: &'a mut Env<'a>, ret: b
  * Evaluates an function call, creates a new environment and runs the function.
  * This function return is forwarded from whatver the invoked function returns.
  */
-pub fn eval_func_call<'a>(ident: SpanExpr<'a>,
-                          args: Vec<SpanExpr<'a>>,
-                          env: &'a mut Env<'a>) -> Result<SpanVal<'a>, RuntimeError<'a>> {
+pub fn eval_func_call<'a>(ident: SpanExpr<'a>, args: Vec<SpanExpr<'a>>, env: &mut Env<'a>) -> Result<'a, Val> {
     let function = get_function(get_ident(&ident).unwrap(), env).unwrap().1;
     let mut values = Vec::new();
     for arg in args {
         values.push(eval_expr(arg, env).unwrap().1);
     }
-    let fn_env = &mut Env::from_args(function.1, values, env.ast);
+    let ast = env.get_ast();
+    let fn_env = &mut Env::from_args(function.1, values, ast);
     match (*function.3).1 {
         Expr::Block(exprs) => eval_block(exprs, fn_env, true),
         _ => Err(RuntimeError::InvalidExpression("should be a block", (*function.3).0)),
@@ -165,73 +183,15 @@ pub fn eval_func_call<'a>(ident: SpanExpr<'a>,
 
 
 /**
- * Convinence function for mapping the expr result onto the span expr result.
- */
-pub fn map_res<'a>(span: Span<'a>, res: Result<Val, RuntimeError<'a>>) -> Result<SpanVal<'a>, RuntimeError<'a>>{
-    match res {
-        Ok(expr) => Ok((span, expr)),
-        Err(err) => Err(err),
-    }
-}
-
-
-/**
- * Retrive a function by an identifier.
- */
-pub fn get_function<'a>(ident: &'a str, env: &mut Env<'a>) -> Result<SpanFn<'a>, RuntimeError<'a>> {
-    let mut ast = &env.ast.0;
-    for func in ast.iter() {
-        if ident == get_ident(&(func.1).0).unwrap() {
-            return Ok(func.clone());
-        }
-    }
-    Err(RuntimeError::InvalidExpression("function does not exist", Span::new(ident)))
-}
-
-
-/**
- * Get the identifier from an expression.
- */
-pub fn get_ident<'a>(expr: &SpanExpr<'a>) -> Result<&'a str, RuntimeError<'a>> {
-    match expr.1 {
-        Expr::Ident(id) => Ok(id),
-        _ => Err(RuntimeError::InvalidExpression("not a valid identifier", expr.0)),
-    }
-}
-
-
-/**
- * Get the integer value of an expression.
- * Returns a type error if expression is not an i32 number.
- */
-pub fn get_int<'a>(value: &SpanVal<'a>) -> Result<i32, RuntimeError<'a>> {
-    match value.1 {
-        Val::Num(val) => Ok(val),
-        _ => Err(RuntimeError::TypeError("expected type i32 got bool", value.0)),
-    }
-}
-
-
-/**
- * Get the boolean value of an expression.
- * Returns type error if the expression is not a boolean.
- */
-pub fn get_bool<'a>(value: &SpanVal<'a>) -> Result<bool, RuntimeError<'a>> {
-    match value.1 {
-        Val::Bool(b) => Ok(b),
-        _ => Err(RuntimeError::TypeError("expected type bool got i32", value.0)),
-    }
-}
-
-
-/**
  * Computes the value of a binary operation.
  */
-fn compute_binop<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> Result<Val, RuntimeError<'a>> {
-    let bl = get_bool(&left);
-    let br = get_bool(&right);
-    let il = get_int(&left);
-    let ir = get_int(&right);
+fn eval_binop<'a>(left: SpanExpr<'a>, op: SpanOp<'a>, right: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, Val> {
+    let lval = eval_atom(left, env).unwrap();
+    let rval = eval_expr(right, env).unwrap();
+    let bl = get_bool(&lval);
+    let br = get_bool(&rval);
+    let il = get_int(&lval);
+    let ir = get_int(&rval);
     if bl.is_ok() && br.is_ok() {
         // Boolean binary operations
         let bl: bool = bl.unwrap();
@@ -263,11 +223,11 @@ fn compute_binop<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> R
         }
     } else {
         if bl.is_ok() {
-            return Err(RuntimeError::TypeError("expected type bool got i32", right.0));
+            return Err(RuntimeError::TypeError("expected type bool got i32", rval.0));
         } else if il.is_ok() {
-            return Err(RuntimeError::TypeError("expected type i32 got bool", right.0));
+            return Err(RuntimeError::TypeError("expected type i32 got bool", rval.0));
         } else {
-            return Err(RuntimeError::TypeError("incompatible type", right.0));
+            return Err(RuntimeError::TypeError("incompatible type", rval.0));
         }
     }
 }
@@ -276,10 +236,71 @@ fn compute_binop<'a>(left: SpanVal<'a>, op: SpanOp<'a>, right: SpanVal<'a>) -> R
 /**
  * Computes the value of an unary operation.
  */
-fn compute_unop<'a>(op: SpanOp<'a>, right: SpanVal<'a>) -> Result<Val, RuntimeError<'a>> {
+fn eval_unop<'a>(op: SpanOp<'a>, right: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, Val> {
+    let val = eval_expr(right, env).unwrap();
     match op.1 {
-        Op::Sub => Ok(Val::Num(-get_int(&right).unwrap())),
-        Op::Not => Ok(Val::Bool(!get_bool(&right).unwrap())),
+        Op::Sub => Ok(Val::Num(-get_int(&val).unwrap())),
+        Op::Not => Ok(Val::Bool(!get_bool(&val).unwrap())),
         _ => Err(RuntimeError::InvalidExpression("not a valid unary operator", op.0)),
+    }
+}
+
+
+/**
+ * Convinence function for mapping the expr result onto the span value result.
+ */
+pub fn map_res<'a>(span: Span<'a>, res: Result<'a, Val>) -> Result<'a, SpanVal<'a>>{
+    match res {
+        Ok(expr) => Ok((span, expr)),
+        Err(err) => Err(err),
+    }
+}
+
+
+/**
+ * Retrive a function by an identifier.
+ */
+pub fn get_function<'a>(ident: &'a str, env: &mut Env<'a>) -> Result<'a, SpanFn<'a>> {
+    let ast = &env.get_ast().0;
+    for func in ast.iter() {
+        if ident == get_ident(&(func.1).0).unwrap() {
+            return Ok(func.clone());
+        }
+    }
+    Err(RuntimeError::InvalidExpression("function does not exist", Span::new(ident)))
+}
+
+
+/**
+ * Get the identifier from an expression.
+ */
+pub fn get_ident<'a>(expr: &SpanExpr<'a>) -> Result<'a, &'a str> {
+    match expr.1 {
+        Expr::Ident(id) => Ok(id),
+        _ => Err(RuntimeError::InvalidExpression("not a valid identifier", expr.0)),
+    }
+}
+
+
+/**
+ * Get the integer value of an expression.
+ * Returns a type error if expression is not an i32 number.
+ */
+pub fn get_int<'a>(value: &SpanVal<'a>) -> Result<'a, i32> {
+    match value.1 {
+        Val::Num(val) => Ok(val),
+        _ => Err(RuntimeError::TypeError("expected type i32 got bool", value.0)),
+    }
+}
+
+
+/**
+ * Get the boolean value of an expression.
+ * Returns type error if the expression is not a boolean.
+ */
+pub fn get_bool<'a>(value: &SpanVal<'a>) -> Result<'a, bool> {
+    match value.1 {
+        Val::Bool(b) => Ok(b),
+        _ => Err(RuntimeError::TypeError("expected type bool got i32", value.0)),
     }
 }

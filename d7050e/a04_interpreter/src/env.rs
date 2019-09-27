@@ -1,7 +1,7 @@
 /**
  * Require the parser from assignment 2.
  */
-use a02_parser::{Span, SpanArg, Val, AST};
+use a02_parser::{Span, SpanArg, AST};
 
 
 /**
@@ -9,6 +9,8 @@ use a02_parser::{Span, SpanArg, Val, AST};
  */
 use crate::interpreter::{
     RuntimeError,
+    Result,
+    Val,
     get_ident,
 };
 
@@ -26,7 +28,7 @@ use std::collections::HashMap;
 pub struct Env<'a> {
     parent: Option<&'a Env<'a>>,
     mem: HashMap<&'a str, Val>,
-    pub ast: &'a AST<'a>,
+    ast: &'a AST<'a>,
 }
 
 
@@ -73,16 +75,27 @@ impl<'a> Env<'a> {
     }
 
 
-    pub fn load(&mut self, ident: &'a str, s: Span<'a>) -> Result<&Val, RuntimeError<'a>>{
+    /**
+     * Loads a variable from the memory in this environment.
+     */
+    pub fn load(&mut self, ident: &'a str, s: Span<'a>) -> Result<'a, Val>{
         match self.mem.get(ident) {
-            Some(val) => Ok(val),
+            Some(val) => Ok(*val),
             None => Err(RuntimeError::MemoryError("not found in this scope", s)),
             // {
-                // match self.parent {
-                    // Some(env) => env.load(ident, s),
-                // ,
-                // }
+            //     match self.parent {
+            //         Some(env) => env.load(ident, s),
+            //     ,
+            //     }
             // }
         }
+    }
+
+    
+    /**
+     * Returns the Abstract Syntax Tree.
+     */
+    pub fn get_ast(&self) -> &'a AST<'a>{
+        &self.ast
     }
 }
