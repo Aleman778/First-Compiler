@@ -36,7 +36,12 @@ pub enum RuntimeError<'a> {
     MemoryError(&'a str, Span<'a>),
 }
 
+
+/**
+ * Type alias of result to include input, output types as well as runtime errors.
+ */
 pub type Result<'a, I, O, E = RuntimeError<'a>> = std::result::Result<(I, O), E>;
+
 
 
 /**
@@ -59,6 +64,12 @@ pub enum Val {
  * Type alias of val to include span information.
  */
 pub type SpanVal<'a> = (Span<'a>, Val);
+
+
+/**
+ * Type alias of an identifier string to include span information.
+ */
+pub type SpanIdent<'a> = (Span<'a>, &'a str);
 
 
 /**
@@ -87,17 +98,6 @@ impl<'a> error::Error for RuntimeError<'a> {
         }
     }
 }
-
-
-// /**
-//  * Runs the main method in the Abstract Syntax Tree.
-//  */
-// pub fn eval(ast: AST) {
-//     let mut env = Env::new(&ast, None);
-//     let (env, function) = get_function("main", env).unwrap();
-//     eval_expr(*function.3, env);
-//     println!("{:#?}", env);
-// }
 
 
 /**
@@ -303,9 +303,9 @@ pub fn map<'a>(span: Span<'a>, res: Result<'a, Env<'a>, Val>) -> Result<'a, Env<
 /**
  * Get the identifier from an expression.
  */
-pub fn get_ident<'a>(expr: &'a SpanExpr<'a>) -> std::result::Result<&'a str, RuntimeError<'a>> {
+pub fn get_ident<'a>(expr: &'a SpanExpr<'a>) -> std::result::Result<SpanIdent<'a>, RuntimeError<'a>> {
     match expr.1 {
-        Expr::Ident(id) => Ok(id),
+        Expr::Ident(id) => Ok((expr.0, id)),
         _ => Err(RuntimeError::InvalidExpression("not a valid identifier", expr.0)),
     }
 }
