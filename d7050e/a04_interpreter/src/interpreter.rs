@@ -102,13 +102,18 @@ impl<'a> error::Error for RuntimeError<'a> {
  * Runs the main method in the Abstract Syntax Tree.
  */
 pub fn eval<'a>(ast: AST<'a>) {
-    let mut env = Env::new(&ast, None);
-    for func in env.0 {
+    let mut env = Env::new();
+    eval_ast(ast, &mut env);
+    println!("env:\n{:#?}", env);
+}
+
+
+pub fn eval_ast<'a>(ast: AST<'a>, env: &mut Env<'a>) {
+    for func in ast.0 {
         env.store_func(func.1);
     }
-    let expr = env.load_main();
-    let val = eval_expr(expr, &mut env);
-    println!("env:\n{:#?}\n\nval:\n{:#?}", env, val);
+    let expr = env.push_main().unwrap();
+    eval_expr(*expr, env);
 }
 
 
@@ -157,7 +162,7 @@ pub fn eval_local<'a>(_mutable: bool, ident: SpanExpr<'a>, _ty: SpanType<'a>, in
 pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVal<'a>> {
     match expr.1 {
         Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
-        // Expr::Call(ident, args) => map_res(expr.0, eval_func_call(*ident, args, env)),
+        Expr::Call(ident, args) => map_res(expr.0, eval_func_call(*ident, args, env)),
         // Expr::Ident(ident) => map_res(expr.0, env.load_var(ident, expr.0)),
         Expr::Num(int) => Ok((expr.0, Val::Num(int))),
         Expr::Bool(en) => Ok((expr.0, Val::Bool(en))),
@@ -170,19 +175,20 @@ pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVa
  * Evaluates an function call, creates a new environment and runs the function.
  * This function return is forwarded from whatver the invoked function returns.
  */
-// pub fn eval_func_call<'a>(ident: SpanExpr<'a>, args: Vec<SpanExpr<'a>>, env: &mut Env<'a>) -> Result<'a, Val> {
-//     let function = get_function(get_ident(&ident).unwrap(), env).unwrap().1;
-//     let mut values = Vec::new();
-//     for arg in args {
-//         values.push(eval_expr(arg, env).unwrap().1);
-//     }
-//     let ast = env.get_ast();
-//     let fn_env = &mut Env::from_args(function.1, values, ast);
-//     match (*function.3).1 {
-//         Expr::Block(exprs) => eval_block(exprs, fn_env, true),
-//         _ => Err(RuntimeError::InvalidExpression("should be a block", (*function.3).0)),
-//     }
-// }
+pub fn eval_func_call<'a>(ident: SpanExpr<'a>, args: Vec<SpanExpr<'a>>, env: &mut Env<'a>) -> Result<'a, Val> {
+    let mut values = Vec::new();
+    for arg in args {
+        values.push(eval_expr(arg, env).unwrap().1);
+    }
+    let id = get_ident(&ident).unwrap();
+    let expr = env.push_func(id, values).unwrap();
+    let ret = match (*expr).1 {
+        Expr::Block(expr) => eval_block(expr, env),
+        _ => Err(RuntimeError::InvalidExpression("should be a block", (*expr).0)),
+    };
+    env.pop_func();
+    ret
+}
 
 
 /**
@@ -258,20 +264,6 @@ pub fn map_res<'a>(span: Span<'a>, res: Result<'a, Val>) -> Result<'a, SpanVal<'
         Err(err) => Err(err),
     }
 }
-
-
-/**
- * Retrive a function by an identifier.
- */
-// pub fn get_function<'a>(ident: &'a str, env: &mut Env<'a>) -> Result<'a, SpanFn<'a>> {
-//     let ast = &env.get_ast().0;
-//     for func in ast.iter() {
-//         if ident == get_ident(&(func.1).0).unwrap() {
-//             return Ok(func.clone());
-//         }
-//     }
-//     Err(RuntimeError::InvalidExpression("function does not exist", Span::new(ident)))
-// }
 
 
 /**

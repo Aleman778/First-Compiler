@@ -82,32 +82,17 @@ impl<'a> Env<'a> {
 
 
     /**
-     * Push a new scope onto the scope stack.
-     * Use this when entering a new function, also
-     * make sure to pop from stack when done.
+     * Loads the main function from this environment. This creates a new scope
+     * and then returns the block expression that should be executed.
      */
-    pub fn push(&'a mut self, scope: Scope<'a>) {
-        self.scopes.push(scope);
-    }
-
-
-    /**
-     * Removes the last scope from the scope stack.
-     * Call this when exiting a function.
-     */
-    pub fn pop(&'a mut self) {
-        self.scopes.pop();
-    }
-
-
-    pub fn load_main(&'a mut self) -> Result<'a, Box<SpanExpr<'a>>> {
+    pub fn push_main(&mut self) -> Result<'a, Box<SpanExpr<'a>>> {
         match self.func.get("main") {
             Some(func) => {
                 let scope = Scope::new();
                 self.scopes.push(scope);
-                
+                Ok(func.block.clone())
             }
-            None => Err(RuntimeError::MemoryError("there is no main method")),
+            None => Err(RuntimeError::MemoryError("there is no main method", Span::new(""))),
         }
     }
     
@@ -116,7 +101,7 @@ impl<'a> Env<'a> {
      * Loads a function from this environment. This creates a new scope containing all the parameters
      * and then returns the block expression from the function that should be executed.
      */
-    pub fn load_func(&'a mut self, ident: SpanIdent<'a>, values: Vec<Val>) -> Result<'a, Box<SpanExpr<'a>>> {
+    pub fn push_func(&mut self, ident: SpanIdent<'a>, values: Vec<Val>) -> Result<'a, Box<SpanExpr<'a>>> {
         match self.func.get(ident.1) {
             Some(func) => {
                 let mut scope = Scope::new();
@@ -134,10 +119,19 @@ impl<'a> Env<'a> {
 
 
     /**
+     * Removes the last scope from the scope stack.
+     * Call this when exiting a function.
+     */
+    pub fn pop_func(&mut self) {
+        self.scopes.pop();
+    }
+
+
+    /**
      * Stores a function onto the function signature mapper.
      */
     pub fn store_func(&mut self, func: Function<'a>) {
-        let id = get_ident(func.0).unwrap();
+        let id = get_ident(&func.0).unwrap();
         self.func.insert(id.1,
             Func {
                 arg: func.1,
@@ -153,10 +147,9 @@ impl<'a> Env<'a> {
      * scope present then the value is returned otherwise a memory error is returned.
      */
     pub fn load_var(&self, ident: SpanIdent<'a>) -> Result<Val> {
-        match self.scopes.last() {
-            Some(scope) => scope.load_var(ident),
-            None => Err(RuntimeError::MemoryError("not inside a scope", ident.0)),
-        }
+        let len = self.scopes.len();
+        let scope = &self.scopes[len - 1];
+        scope.load_var(ident)
     }
 
     
@@ -165,10 +158,6 @@ impl<'a> Env<'a> {
      * If no current scope is present then this returns a memory error.
      */
     pub fn store_var(&mut self, ident: SpanIdent<'a>, val: Val) -> Result<Option<Val>> {
-        // match self.scopes.last() {
-            // Some(scope) => Ok(scope.store_var(ident, val)),
-            // None => Err(RuntimeError::MemoryError("not inside a scope", ident.0)),
-        // }
         let len = self.scopes.len();
         let scope = &mut self.scopes[len - 1];
         Ok(scope.store_var(ident, val))
