@@ -1,19 +1,15 @@
+#![allow(dead_code)]
+
 /**
  * Require AST DS from the parser in assignment 2.
  */
-use a02_parser::{Span, SpanArg, SpanExpr, SpanType, Function, AST};
+use a02_parser::{Span, SpanArg, SpanExpr, SpanType, Function};
 
 
 /**
  * Require interpreter functionality.
  */
-use crate::interpreter::{RuntimeError, Val, SpanIdent, get_ident};
-
-
-/**
- * Type alias of result to include output and runtime errors.
- */
-pub type Result<'a, O, E = RuntimeError<'a>> = std::result::Result<O, E>;
+use crate::interpreter::{Result, RuntimeError, Val, SpanIdent, get_ident};
 
 
 /**
@@ -70,13 +66,9 @@ impl<'a> Env<'a> {
      * Constructs an empty environment.
      */
     pub fn new() -> Env<'a> {
-        let global = Scope::new();
-        let mut scopes = Vec::new();
-        scopes.push(global);
-        
         Env {
             func: HashMap::new(),
-            scopes: scopes,
+            scopes: Vec::new(),
         }
     }
 
@@ -149,7 +141,7 @@ impl<'a> Env<'a> {
     pub fn load_var(&self, ident: SpanIdent<'a>) -> Result<Val> {
         let len = self.scopes.len();
         let scope = &self.scopes[len - 1];
-        scope.load_var(ident)
+        scope.load_var(ident).clone()
     }
 
     

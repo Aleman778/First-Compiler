@@ -1,16 +1,6 @@
 mod env;
 mod interpreter;
 
-// use a02_parser::{parse};
-
-use nom_locate::LocatedSpan;
-
-type Span<'a> = LocatedSpan<&'a str>;
-
-// use interpreter::eval;
-// use crate::env::Env;
-
-
 // use std::fs;
 
 fn main() {
@@ -19,7 +9,7 @@ fn main() {
     // let input = "(10  +  15) - ((5 + 3) * 2)";
     // let input = "(3 > 4) || (100 < 343)";
     // let input = "let x: i32 = 5;";
-    let input = "fn main() {let x: i32 = 5;}";
+    let input = "fn main() {let x: i32 = add(4, 7);} fn add(a: i32, b: i32) {return a + b;}";
     // let ast = a02_parser::parse(input).unwrap();
     
     let ast = a02_parser::parse(input).unwrap();
