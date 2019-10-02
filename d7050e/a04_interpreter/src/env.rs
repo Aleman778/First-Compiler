@@ -1,20 +1,9 @@
 #![allow(dead_code)]
 
-/**
- * Require AST DS from the parser in assignment 2.
- */
+
 use a02_parser::{Span, SpanArg, SpanExpr, SpanType, Function};
-
-
-/**
- * Require interpreter functionality.
- */
-use crate::interpreter::{Result, RuntimeError, Val, SpanIdent, get_ident};
-
-
-/**
- * Require hash map from standard library.
- */
+use crate::interpreter::{Result, RuntimeError, Val, SpanIdent, get_ident, check_type};
+use crate::scope::Scope;
 use std::collections::HashMap;
 
 
@@ -32,29 +21,18 @@ pub struct Env<'a> {
 
 
 /**
- * The scope is used to store memory inside a particular scope.
- * For nested blocks then this scope has access to the child scope.
- * Function calls creates a new scope and puts on a stack however
- * other function scopes are inaccessable from this scope.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct Scope<'a> {
-    // The child scope, used for 
-    child: Box<Option<Scope<'a>>>,
-    
-    // Maps identifier to value used for storing variable data.
-    mem: HashMap<&'a str, Val>,
-}
-
-
-/**
  * Defines the attributes of a function.
  */
 #[derive(Debug, Clone, PartialEq)]
-struct Func<'a> {
-    arg: Vec<SpanArg<'a>>,
-    ty: Option<SpanType<'a>>,
-    block: Box<SpanExpr<'a>>,
+pub struct Func<'a> {
+    // Vector of function arguments.
+    pub arg: Vec<SpanArg<'a>>,
+
+    // The return type, optional no return type.
+    pub ty: Option<SpanType<'a>>,
+
+    // The function block.
+    pub block: Box<SpanExpr<'a>>,
 }
 
 
@@ -72,17 +50,39 @@ impl<'a> Env<'a> {
         }
     }
 
+    
+    /**
+     * Pushes a new block scope on the environment
+     * i.e. creates a new scope for handling the block.
+     * There has to be a scope already int the call stack.
+     */
+    pub fn push_block(&mut self) {
+        let len = self.scopes.len();
+        let scope = &mut self.scopes[len - 1];
+        scope.push();
+    }
+
+
+    /**
+     * Pops the latest pushed block scope.
+     */
+    pub fn pop_block(&mut self) {
+        let len = self.scopes.len();
+        let scope = &mut self.scopes[len - 1];
+        scope.pop();
+    }
+
 
     /**
      * Loads the main function from this environment. This creates a new scope
-     * and then returns the block expression that should be executed.
+     * and then returns the function data for evaluation.
      */
-    pub fn push_main(&mut self) -> Result<'a, Box<SpanExpr<'a>>> {
+    pub fn push_main(&mut self) -> Result<'a, Func<'a>> {
         match self.func.get("main") {
             Some(func) => {
                 let scope = Scope::new();
                 self.scopes.push(scope);
-                Ok(func.block.clone())
+                Ok(func.clone())
             }
             None => Err(RuntimeError::MemoryError("there is no main method", Span::new(""))),
         }
@@ -90,20 +90,24 @@ impl<'a> Env<'a> {
     
 
     /**
-     * Loads a function from this environment. This creates a new scope containing all the parameters
-     * and then returns the block expression from the function that should be executed.
+     * Pushes a specific function on the stack in this environment.
+     * This creates a new scope containing all the parameters
+     * and also returns the function data for evaluation.
      */
-    pub fn push_func(&mut self, ident: SpanIdent<'a>, values: Vec<Val>) -> Result<'a, Box<SpanExpr<'a>>> {
+    pub fn push_func(&mut self, ident: SpanIdent<'a>, values: Vec<Val>) -> Result<'a, Func<'a>> {
         match self.func.get(ident.1) {
             Some(func) => {
                 let mut scope = Scope::new();
                 for i in 0..func.arg.len() {
                     let arg = &func.arg[i].1;
                     let id = get_ident(&arg.0).unwrap();
-                    scope.store_var(id, values[i]);
+                    match check_type(&func.ty, values[i], ident.0) {
+                        Ok(()) => scope.store_var(id, values[i]),
+                        Err(e) => return Err(e),
+                    };
                 }
                 self.scopes.push(scope);
-                Ok(func.block.clone())
+                Ok(func.clone())
             },
             None => Err(RuntimeError::MemoryError("not found in this scope", ident.0))
         }        
@@ -153,67 +157,5 @@ impl<'a> Env<'a> {
         let len = self.scopes.len();
         let scope = &mut self.scopes[len - 1];
         Ok(scope.store_var(ident, val))
-    }
-}
-
-
-/**
- * Implementation of the scope
- */
-impl<'a> Scope<'a> {
-    /**
-     * Constructs a new empty scope.
-     */
-    pub fn new() -> Scope<'a> {
-        Scope {
-            child: Box::new(None),
-            mem: HashMap::new(),
-        }
-    }
-
-    
-    /**
-     * Loads a variable from the provided identifier
-     */
-    pub fn load_var(&self, ident: SpanIdent<'a>) -> Result<Val> {
-        match &*self.child {
-            Some(child) => {
-                match child.load_var(ident) {
-                    Ok(val) => Ok(val),
-                    Err(_) => self.find_mem(ident),
-                }
-            }
-            None => self.find_mem(ident),
-        }
-    }
-    
-    
-    /**
-     * Stores a variable using the given identifier and value.
-     * If this variable was already allocated then this function
-     * returns the previous value otherwise None is returned.
-     */
-    pub fn store_var(&mut self, ident: SpanIdent<'a>, val: Val) -> Option<Val> {
-        self.mem.insert(ident.1, val)
-    }
-
-    
-    /**
-     * Set the provided environment to be the parent of this environment.
-     */
-    pub fn set_child(&mut self, child: Scope<'a>) {
-        self.child = Box::new(Some(child));
-    }
-
-
-    /**
-     * Find a value in the memory using the provided identifier.
-     * Returns memory error if not found in this scope.
-     */
-    fn find_mem(&self, ident: SpanIdent<'a>) -> Result<Val> {
-        match self.mem.get(ident.1) {
-            Some(val) => Ok(*val),
-            None => Err(RuntimeError::MemoryError("not found in this scope", ident.0)),
-        }
     }
 }
