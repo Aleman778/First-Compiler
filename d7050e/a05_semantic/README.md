@@ -1,4 +1,4 @@
-# Assignment 5 - Use Semantic Analysis to improve interpreter
+# Assignment 5 - Use Semantic Analysis to Reject Erroneous Programs
 In this assignment we will start working on the semantic analyser that will
 essentially use the parsed AST data structure from assignment 2 and create meanings for this language.
 
