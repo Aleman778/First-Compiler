@@ -100,11 +100,9 @@ impl<'a> Env<'a> {
                 let mut scope = Scope::new();
                 for i in 0..func.arg.len() {
                     let arg = &func.arg[i].1;
-                    let id = get_ident(&arg.0).unwrap();
-                    match check_type(&func.ty, values[i], ident.0) {
-                        Ok(()) => scope.store_var(id, values[i]),
-                        Err(e) => return Err(e),
-                    };
+                    let id = get_ident(&arg.0)?;
+                    check_type(&func.ty, values[i], ident.0)?;
+                    scope.store_var(id, values[i]);
                 }
                 self.scopes.push(scope);
                 Ok(func.clone())
@@ -126,15 +124,14 @@ impl<'a> Env<'a> {
     /**
      * Stores a function onto the function signature mapper.
      */
-    pub fn store_func(&mut self, func: Function<'a>) {
-        let id = get_ident(&func.0).unwrap();
-        self.func.insert(id.1,
-            Func {
-                arg: func.1,
-                ty: func.2,
-                block: func.3,
-            }
-        );
+    pub fn store_func(&mut self, func: Function<'a>) -> Result<'a, ()> {
+        let id = get_ident(&func.0)?;
+        self.func.insert(id.1, Func {
+            arg: func.1,
+            ty: func.2,
+            block: func.3,
+        });
+        Ok(())
     }
 
 

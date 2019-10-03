@@ -116,10 +116,10 @@ pub fn eval<'a>(ast: AST<'a>) {
  */
 pub fn eval_ast<'a>(ast: AST<'a>, env: &mut Env<'a>) -> Result<'a, SpanVal<'a>> {
     for func in ast.0 {
-        env.store_func(func.1);
+        env.store_func(func.1)?;
     }
-    let expr = env.push_main().unwrap();
-    eval_expr(*expr.block, env)
+    let func = env.push_main()?;
+    eval_expr(*func.block, env)
 }
 
 
@@ -132,7 +132,7 @@ pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVa
     match expr.1 {
         Expr::BinOp(left, op, right) => map(eval_binop(*left, op, *right, env), expr.0),
         Expr::UnOp(op, right) => map(eval_unop(op, *right, env), expr.0),
-        Expr::Block(exprs) => eval_block(exprs, env),
+        Expr::Block(exprs) => eval_block(exprs, env, true),
         Expr::Local(mutable, ident, ty, init) => map(eval_local(mutable, *ident, ty, *init, env), expr.0),
         _ => eval_atom(expr, env),
     }
@@ -143,16 +143,16 @@ pub fn eval_expr<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVa
  * Computes the value of a binary operation.
  */
 fn eval_binop<'a>(left: SpanExpr<'a>, op: SpanOp<'a>, right: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, Val> {
-    let lval = eval_atom(left, env).unwrap();
-    let rval = eval_expr(right, env).unwrap();
+    let lval = eval_atom(left, env)?;
+    let rval = eval_expr(right, env)?;
     let bl = get_bool(lval);
     let br = get_bool(rval);
     let il = get_int(lval);
     let ir = get_int(rval);
     if bl.is_ok() && br.is_ok() {
         // Boolean binary operations
-        let bl: bool = bl.unwrap();
-        let br: bool = br.unwrap();
+        let bl: bool = bl?;
+        let br: bool = br?;
         match op.1 {
             Op::Equal => Ok(Val::Bool(bl == br)),
             Op::NotEq => Ok(Val::Bool(bl != br)),
@@ -162,8 +162,8 @@ fn eval_binop<'a>(left: SpanExpr<'a>, op: SpanOp<'a>, right: SpanExpr<'a>, env: 
         }
     } else if il.is_ok() && ir.is_ok() {
         // Integer binary opeartions
-        let il: i32 = il.unwrap();
-        let ir: i32 = ir.unwrap();
+        let il: i32 = il?;
+        let ir: i32 = ir?;
         match op.1 {
             Op::Equal      => Ok(Val::Bool(il == ir)),
             Op::NotEq      => Ok(Val::Bool(il != ir)),
@@ -194,10 +194,10 @@ fn eval_binop<'a>(left: SpanExpr<'a>, op: SpanOp<'a>, right: SpanExpr<'a>, env: 
  * Computes the value of an unary operation.
  */
 fn eval_unop<'a>(op: SpanOp<'a>, right: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, Val> {
-    let val = eval_expr(right.clone(), env).unwrap();
+    let val = eval_expr(right.clone(), env)?;
     match op.1 {
-        Op::Sub => Ok(Val::Num(-get_int(val).unwrap())),
-        Op::Not => Ok(Val::Bool(!get_bool(val).unwrap())),
+        Op::Sub => Ok(Val::Num(-get_int(val)?)),
+        Op::Not => Ok(Val::Bool(!get_bool(val)?)),
         _ => Err(RuntimeError::InvalidExpression("not a valid unary operator", op.0)),
     }
 }
@@ -207,19 +207,30 @@ fn eval_unop<'a>(op: SpanOp<'a>, right: SpanExpr<'a>, env: &mut Env<'a>) -> Resu
  * Evaluates a block of expressions. If this is a function then ret param
  * should be true to indicate if the function returns something.
  */
-pub fn eval_block<'a>(exprs: Vec<SpanExpr<'a>>, env: &mut Env<'a>) -> Result<'a, SpanVal<'a>> {
+pub fn eval_block<'a>(exprs: Vec<SpanExpr<'a>>, env: &mut Env<'a>, new_scope: bool) -> Result<'a, SpanVal<'a>> {
+    let mut result = Ok((Span::new(""), Val::None));
+    if new_scope {
+        env.push_block();
+    }
     for i in 0..exprs.len() {
         match exprs[i].1.clone() {
-            Expr::Return(val) => return eval_return(*val, env),
+            Expr::Return(val) => {
+                result = eval_return(*val, env);
+                break;
+            },
             _ => {
                 let ret = eval_expr(exprs[i].clone(), env);
                 if i == (exprs.len() - 1) {
-                    return ret;
+                    result = ret;
+                    break;
                 }
             }
         }
     }
-    Ok((Span::new(""), Val::None))
+    if new_scope {
+        env.pop_block();
+    }
+    return result;
 }
 
 
@@ -228,8 +239,8 @@ pub fn eval_block<'a>(exprs: Vec<SpanExpr<'a>>, env: &mut Env<'a>) -> Result<'a,
  * This only updates the given environment and returns Val::None.
  */
 pub fn eval_local<'a>(_mutable: bool, ident: SpanExpr<'a>, _ty: SpanType<'a>, init: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, Val> {
-    let val = eval_expr(init, env).unwrap();
-    let res = env.store_var(get_ident(&ident).unwrap(), val.1);
+    let val = eval_expr(init, env)?;
+    let res = env.store_var(get_ident(&ident)?, val.1);
     match res {
         Ok(_) => Ok(Val::None),
         Err(_) => Err(RuntimeError::MemoryError("failed to store variable", ident.0)),
@@ -243,7 +254,7 @@ pub fn eval_local<'a>(_mutable: bool, ident: SpanExpr<'a>, _ty: SpanType<'a>, in
  */
 pub fn eval_return<'a>(val: Option<SpanExpr<'a>>, env: &mut Env<'a>) -> Result<'a, SpanVal<'a>> {
     match val {
-        Some(expr) => Ok(eval_expr(expr, env).unwrap()),
+        Some(expr) => Ok(eval_expr(expr, env)?),
         None => Ok((Span::new(""), Val::None)),
     }
 }
@@ -256,7 +267,7 @@ pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVa
     match expr.1 {
         Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
         Expr::Call(ident, args) => map(eval_func_call(*ident, args, env), expr.0),
-        Expr::Ident(ident) => Ok((expr.0, env.load_var((Span::new(""), ident)).unwrap())),
+        Expr::Ident(ident) => map(eval_ident(ident, env), expr.0),
         Expr::Num(int) => Ok((expr.0, Val::Num(int))),
         Expr::Bool(en) => Ok((expr.0, Val::Bool(en))),
         _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
@@ -272,16 +283,17 @@ pub fn eval_func_call<'a>(ident: SpanExpr<'a>, args: Vec<SpanExpr<'a>>, env: &mu
     let result;
     let mut values = Vec::new();
     for arg in args {
-        values.push(eval_expr(arg, env).unwrap().1);
+        let val = eval_expr(arg, env)?;
+        values.push(val.1);
     }
-    let id = get_ident(&ident).unwrap();
+    let id = get_ident(&ident)?;
     match env.push_func(id, values) {
         Ok(function) => {
             match (*function.block).1 {
                 Expr::Block(expr) => {
-                    let res = eval_block(expr, env).unwrap().1;
-                    match check_type(&function.ty, res, ident.0) {
-                        Ok(()) => result = res,
+                    let val = eval_block(expr, env, false)?;
+                    match check_type(&function.ty, val.1, ident.0) {
+                        Ok(()) => result = val.1,
                         Err(e) => return Err(e),
                     }
                 }
@@ -294,6 +306,20 @@ pub fn eval_func_call<'a>(ident: SpanExpr<'a>, args: Vec<SpanExpr<'a>>, env: &mu
     }
     env.pop_func();
     Ok(result)
+}
+
+
+/**
+ * Evaluates an identifier, loads the variable from the scope stored inside
+ * the environment provided.
+ */
+pub fn eval_ident<'a>(ident: &str, env: &mut Env<'a>) -> Result<'a, Val> {
+    let res = env.load_var((Span::new(""), ident));
+    if res.is_ok() {
+        return Ok(res.unwrap());
+    } else {
+        return Err(RuntimeError::MemoryError("not found in this scope", Span::new("")));
+    }
 }
 
 

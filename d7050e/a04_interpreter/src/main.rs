@@ -10,7 +10,8 @@ fn main() {
     // let input = "(10  +  15) - ((5 + 3) * 2)";
     // let input = "(3 > 4) || (100 < 343)";
     // let input = "let x: i32 = 5;";
-    let input = "fn main() {let x: i32 = add(23, 7);} fn add(a: i32, b: i32) -> i32 {return a + b;}";
+    let input = "fn main() {let a: i32 = add(40, 7);} fn add(a: i32, b: i32) -> i32 {return a + b;}";
+    // let input = "fn main() { recursion(1000); } fn recursion() {}";
     // let ast = a02_parser::parse(input).unwrap();
     
     let ast = a02_parser::parse(input).unwrap();

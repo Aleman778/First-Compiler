@@ -13,10 +13,10 @@ use std::collections::HashMap;
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct Scope<'a> {
-    // The child scope, used for 
+    // The child scope, used for sub block epressions
     child: Box<Option<Scope<'a>>>,
     
-    // Maps identifier to value used for storing variable data.
+    // Maps identifier to value used for storing variable data
     mem: HashMap<&'a str, Val>,
 }
 
