@@ -3,6 +3,7 @@
  */
 use std::fs;
 
+use a02_parser::parser;
 
 /**
  * Main method, program starts here.
@@ -19,7 +20,7 @@ fn main() {
     
     let input = fs::read_to_string("test.sq")
         .expect("Error reading the file");
-    let result = a02_parser::parse(input.as_str());
+    let result = parser::parse(input.as_str());
     
     match result {
         Ok(n) => println!("Ok: \nInput: {}\nResulting Tree:\n    {:#?}", input, n),
