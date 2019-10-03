@@ -3,7 +3,7 @@
 /**
  * Require the parser from assignment 2.
  */
-use a02_parser::{
+use a02_parser::ast::{
     Op,
     Span,
     SpanOp,

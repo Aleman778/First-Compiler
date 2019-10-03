@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 
-use a02_parser::{Span, SpanArg, SpanExpr, SpanType, Function};
+use a02_parser::ast::{Span, SpanArg, SpanExpr, SpanType, Function};
 use crate::interpreter::{Result, RuntimeError, Val, SpanIdent, get_ident, check_type};
 use crate::scope::Scope;
 use std::collections::HashMap;

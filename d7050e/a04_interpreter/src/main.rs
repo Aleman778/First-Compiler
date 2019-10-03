@@ -4,6 +4,8 @@ mod interpreter;
 
 // use std::fs;
 
+use a02_parser::parser;
+
 fn main() {
     // let input = "!false";
     // let input = "true == 5";
@@ -15,7 +17,7 @@ fn main() {
     let input = "fn main() {let a: i32 = 5; { let b: i32 = a + 5; } let a: i32 = a + b; }";
     // let ast = a02_parser::parse(input).unwrap();
     
-    let ast = a02_parser::parse(input).unwrap();
+    let ast = parser::parse(input).unwrap();
     interpreter::eval(ast);
     
     // let input = fs::read_to_string("test.sq")
