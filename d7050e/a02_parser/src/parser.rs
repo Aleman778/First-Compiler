@@ -26,7 +26,6 @@ use crate::ast::*;
  * Parses a simple arithmetic expression, only supports addition.
  */
 pub fn parse_expr(input: Span) -> IResult<Span, SpanExpr> {
-    println!("{:#?}", input);
     alt((
         // Binary operation e.g. 4 + 5
         map(tuple((parse_atom_ms, preceded(multispace0, parse_binoperator), parse_expr_ms)),

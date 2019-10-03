@@ -119,7 +119,7 @@ pub fn eval_ast<'a>(ast: AST<'a>, env: &mut Env<'a>) -> Result<'a, SpanVal<'a>> 
         env.store_func(func.1)?;
     }
     let func = env.push_main()?;
-    eval_expr(*func.block, env)
+    eval_func_block(*func.block, env)
 }
 
 
@@ -233,6 +233,14 @@ pub fn eval_block<'a>(exprs: Vec<SpanExpr<'a>>, env: &mut Env<'a>, new_scope: bo
     return result;
 }
 
+pub fn eval_func_block<'a>(block: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVal<'a>>{
+    match block.1 {
+        Expr::Block(exprs) => eval_block(exprs, env, false),
+        _ => Err(RuntimeError::InvalidExpression("should be a block", block.0)),
+    }
+}
+
+
 
 /**
  * Evaluates assignment of a local variable.
@@ -267,7 +275,7 @@ pub fn eval_atom<'a>(expr: SpanExpr<'a>, env: &mut Env<'a>) -> Result<'a, SpanVa
     match expr.1 {
         Expr::Paren(inl_expr) => eval_expr(*inl_expr, env),
         Expr::Call(ident, args) => map(eval_func_call(*ident, args, env), expr.0),
-        Expr::Ident(ident) => map(eval_ident(ident, env), expr.0),
+        Expr::Ident(ident) => map(eval_ident(ident, expr.0, env), expr.0),
         Expr::Num(int) => Ok((expr.0, Val::Num(int))),
         Expr::Bool(en) => Ok((expr.0, Val::Bool(en))),
         _ => Err(RuntimeError::InvalidExpression("invalid expression", expr.0)),
@@ -289,15 +297,10 @@ pub fn eval_func_call<'a>(ident: SpanExpr<'a>, args: Vec<SpanExpr<'a>>, env: &mu
     let id = get_ident(&ident)?;
     match env.push_func(id, values) {
         Ok(function) => {
-            match (*function.block).1 {
-                Expr::Block(expr) => {
-                    let val = eval_block(expr, env, false)?;
-                    match check_type(&function.ty, val.1, ident.0) {
-                        Ok(()) => result = val.1,
-                        Err(e) => return Err(e),
-                    }
-                }
-                _ => return Err(RuntimeError::InvalidExpression("should be a block", (*function.block).0)),
+            let val = eval_func_block(*function.block, env)?;
+            match check_type(&function.ty, val.1, ident.0) {
+                Ok(()) => result = val.1,
+                Err(e) => return Err(e),
             };
         },
         Err(e) => {
@@ -313,12 +316,12 @@ pub fn eval_func_call<'a>(ident: SpanExpr<'a>, args: Vec<SpanExpr<'a>>, env: &mu
  * Evaluates an identifier, loads the variable from the scope stored inside
  * the environment provided.
  */
-pub fn eval_ident<'a>(ident: &str, env: &mut Env<'a>) -> Result<'a, Val> {
+pub fn eval_ident<'a>(ident: &'a str, span: Span<'a>, env: &mut Env<'a>) -> Result<'a, Val> {
     let res = env.load_var((Span::new(""), ident));
     if res.is_ok() {
         return Ok(res.unwrap());
     } else {
-        return Err(RuntimeError::MemoryError("not found in this scope", Span::new("")));
+        return Err(RuntimeError::MemoryError("not found in this scope", span));
     }
 }
 

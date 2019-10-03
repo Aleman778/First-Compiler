@@ -58,7 +58,10 @@ impl<'a> Scope<'a> {
      * returns the previous value otherwise None is returned.
      */
     pub fn store_var(&mut self, ident: SpanIdent<'a>, val: Val) -> Option<Val> {
-        self.mem.insert(ident.1, val)
+        match &mut *self.child {
+            Some(child) => child.store_var(ident, val),
+            None => self.mem.insert(ident.1, val),
+        }
     }
 
     
@@ -66,8 +69,8 @@ impl<'a> Scope<'a> {
      * Push a child scope onto this scope used when entering sub block expressions.
      */
     pub fn push(&mut self) {
-        match *self.child.clone() {
-            Some(mut c) => c.push(),
+        match &mut *self.child {
+            Some(child) => child.push(),
             None => self.child = Box::new(Some(Scope::new()))
         };
     }
@@ -77,7 +80,20 @@ impl<'a> Scope<'a> {
      * Pops the outer most child scope used when exiting sub block expressions.
      */
     pub fn pop(&mut self) {
-        self.child = Box::new(None);
+        self.pop_impl();
+    }
+
+
+    pub fn pop_impl(&mut self) -> bool {
+        match &mut *self.child {
+            Some(child) => {
+                if child.pop_impl() {
+                    self.child = Box::new(None);
+                }
+                false
+            },
+            None => true,
+        }
     }
     
 
