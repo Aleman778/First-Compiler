@@ -3,13 +3,7 @@
  * AST module implements an Abstract Syntax Tree data structure.
  ***************************************************************************/
 
-
-/**
- * Requires the LocatedSpan struct from the nom locate crate.
- */
 use nom_locate::LocatedSpan;
-
-use env::Env;
 
 
 /**

@@ -66,8 +66,8 @@ type IResult<'a, I, O, E = Error<'a>> = Result<(I, O), Err<E>>;
  * Parser trait defines a generic parser that should
  * be implemented by each structure of the AST.
  */
-pub trait Parser<'a, T> {
-    fn parse(input: Span<'a>) -> IResult<Span, T>;
+pub trait Parser: Sized {
+    fn parse(input: Span) -> IResult<Span, Self>;
 }
 
 

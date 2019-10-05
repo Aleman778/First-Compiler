@@ -4,12 +4,11 @@
  ***************************************************************************/
 
 
-use compiler::{
-    ast::{Span, atom::*},
+use crate::compiler::{
+    ast::atom::*,
+    ast::Span,
     parser::Parser,
 };
-
-
 use nom_locate::LocatedSpanEx;
 
 

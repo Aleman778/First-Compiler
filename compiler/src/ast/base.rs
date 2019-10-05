@@ -22,7 +22,7 @@ use crate::ast::{
  * only function items are supported, but can easily be
  * extended to support any item such as structs, type alias etc.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct File<'a> {
     items: Vec<Item<'a>>,
     span: Span<'a>
@@ -33,7 +33,7 @@ pub struct File<'a> {
  * Items enum contains all types of items that appear in a file.
  * This currently only supports item functions.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Item<'a> {
     ItemFn(ItemFn<'a>),
 }
@@ -43,7 +43,7 @@ pub enum Item<'a> {
  * Item function struct defines the properties of a function
  * the identifier, declaration and block.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ItemFn<'a> {
     ident: Ident<'a>,
     decl: FnDecl<'a>,
@@ -56,7 +56,7 @@ pub struct ItemFn<'a> {
  * Function declaration struct contains information about the
  * functions input arguments and output type.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FnDecl<'a> {
     inputs: Vec<Argument<'a>>,
     output: Type<'a>,
@@ -67,7 +67,7 @@ pub struct FnDecl<'a> {
 /**
  * Argument struct contains an identifier and a type.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Argument<'a> {
     ident: Ident<'a>,
     ty: Type<'a>,
@@ -78,7 +78,7 @@ pub struct Argument<'a> {
 /**
  * Type enum currently only supports i32 and bool.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Type<'a> {
     Int32(Int32<'a>),
     Bool(Bool<'a>)
@@ -88,7 +88,7 @@ pub enum Type<'a> {
 /**
  * 32 bit signed integer type.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Int32 <'a> {
     span: Span<'a>,
 }
@@ -97,7 +97,7 @@ pub struct Int32 <'a> {
 /**
  * Boolean type.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bool<'a> {
     span: Span<'a>,
 }

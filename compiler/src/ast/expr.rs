@@ -17,7 +17,7 @@ use crate::ast::{
  * Expressions enum contains all the different types of expressions,
  * e.g. binary operations, local variable assignment, atoms etc.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expr<'a> {
     BinOp(BinOp<'a>),
     UnOp(UnOp<'a>),
@@ -37,7 +37,7 @@ pub enum Expr<'a> {
  * Binary operation has a left and right operand
  * and also the operator in between, e.g. 1 + 2.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BinOp<'a> {
     left: Box<Atom<'a>>,
     op: Op,
@@ -50,7 +50,7 @@ pub struct BinOp<'a> {
  * Unary operation has an operator to the left and
  * the operand to the right, e.g. !running.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct UnOp<'a> {
     op: Op,
     right: Box<Expr<'a>>,
@@ -62,7 +62,7 @@ pub struct UnOp<'a> {
  * Local variable declartion defines information about
  * the variable e.g. let mut a: i32 = 53;
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Local<'a> {
     mutable: bool,
     ident: Ident<'a>,
@@ -75,7 +75,7 @@ pub struct Local<'a> {
 /**
  * Assignment of mutable variable, e.g. x = 5;
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Assign<'a> {
     ident: Ident<'a>,
     expr: Box<Expr<'a>>,
@@ -86,7 +86,7 @@ pub struct Assign<'a> {
 /**
  * Block contains a vector of expressions.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Block<'a> {
     stmts: Vec<Expr<'a>>,
     span: Span<'a>,
@@ -98,7 +98,7 @@ pub struct Block<'a> {
  * that is executed if condition is true otherwise the
  * second block is optionally executed instead.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct If<'a> {
     cond: Box<Atom<'a>>,
     then_block: Block<'a>,
@@ -111,7 +111,7 @@ pub struct If<'a> {
  * While loops includes a condition and a block that is
  * executed each time the condition is true.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct While<'a> {
     cond: Box<Expr<'a>>,
     block: Block<'a>,
@@ -122,7 +122,7 @@ pub struct While<'a> {
 /**
  * Return statement can optionally return an expression
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Return<'a> {
     expr: Option<Box<Expr<'a>>>,
     span: Span<'a>,
@@ -132,7 +132,7 @@ pub struct Return<'a> {
 /**
  * Breaks the loop.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Break<'a> {
     span: Span<'a>
 }
@@ -141,7 +141,7 @@ pub struct Break<'a> {
 /**
  * Continue to next cycle of the loop.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Continue<'a> {
     span: Span<'a>
 }
@@ -151,7 +151,7 @@ pub struct Continue<'a> {
  * The different kinds of operators used by
  * both the binary and unary operations.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Op {
     Equal,      // ==
     NotEq,      // !=

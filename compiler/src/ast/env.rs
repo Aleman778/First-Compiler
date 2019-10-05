@@ -13,7 +13,7 @@ use std::collections::HashMap;
 /**
  * Requires the identifier struct.
  */
-use crate::ast::{Span, atom::Ident};
+use crate::ast::{atom::Ident};
 
 
 /**

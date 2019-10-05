@@ -4,6 +4,15 @@
  ***************************************************************************/
 
 
+use crate::compiler::{
+    ast::atom::*,
+    ast::expr::*,
+    ast::Span,
+    parser::Parser,
+};
+use nom_locate::LocatedSpanEx;
+
+/*
 /**
  * Easily define span information to test whats left after parsing.
  */
@@ -70,9 +79,9 @@ fn parse_local() {
         Local::parse(Span::new("let mut a: i32 = 5;")).unwrap().1,
         Local {
             mutable: true,
-            ident: Ident(to_string: "a", span(8, "a")),
-            ty: ,
-            init: ,
+            ident: Ident{to_string: "a", span: span(8, "a")},
+            ty: Type::Int32,
+            init: Atom::Num(LitInt(5)),
             span: span(0, "let mut a: i32 = 5;"),
         }
     );
@@ -82,6 +91,11 @@ fn parse_local() {
 #[test]
 fn parse_assign() {
     assert_eq!(
+        Assign::parse(Span::new("x = x + 5")).unwrap().1,
+        Assign {
+            ident: Ident{to_string: "x", span(0, "x")},
+            expr: BinOp{left: Box::new(Ident}
+        }
     );
 }
 
