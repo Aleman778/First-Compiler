@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+
 /***************************************************************************
  * Atom parser implementation defines parsers for atoms and values.
  ***************************************************************************/
@@ -48,12 +49,13 @@ impl Parser for Atom {
  */
 impl Parser for Ident {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Ident> {
-        peek(alt((alpha1, tag("_"))))(input)?;
+        peek(alt((alpha1, tag("_"))))(input.clone())?;
         map(take_while1(|c: char| is_alphanumeric(c as u8) || c == '_'),
-            |s: ParseSpan| Ident{id: 0, span: Span::new(s)}
+            |s: ParseSpan| Ident{to_string: s.fragment.to_string(), span: Span::new(s)}
         )(input)
     }    
 }
+
 
 /**
  * Parser implementation for 32 bit unsigned integer literals.

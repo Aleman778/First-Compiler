@@ -5,7 +5,6 @@
 
 
 pub mod span;
-pub mod env;
 pub mod op;
 pub mod base;
 pub mod atom;

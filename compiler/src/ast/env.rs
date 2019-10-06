@@ -14,7 +14,7 @@ use std::collections::HashMap;
 /**
  * Environment is used to cache variable and function identifiers.
  */
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Env<'a> {
     ids: HashMap<&'a str, i32>,
     idents: Vec<&'a str>,

@@ -72,6 +72,6 @@ pub struct FnCall {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct Ident {
-    pub id: i32,
+    pub to_string: String,
     pub span: Span,
 }

@@ -13,5 +13,6 @@ use parser::Parser;
 
 
 fn main() {
-    println!("{:#?}", ast::atom::Atom::parse(ParseSpan::new("42")));
+    println!("{:#?}", ast::atom::Atom::parse(ParseSpan::new("aaaaa")));
+
 }

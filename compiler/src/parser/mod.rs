@@ -9,7 +9,6 @@
 /**
  * Require AST data structure
  */
-use crate::ast::env::Env;
 use nom_locate::LocatedSpan;
 
 
@@ -26,7 +25,6 @@ use nom::{
     error,
     Err,
 };
-
 
 
 /**
@@ -73,7 +71,7 @@ type IResult<'a, I, O, E = Error<'a>> = Result<(I, O), Err<E>>;
  * be implemented by each structure of the AST.
  */
 pub trait Parser: Sized {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self>;
+    fn parse<'a>(input: ParseSpan) -> IResult<ParseSpan, Self>;
 }
 
 
