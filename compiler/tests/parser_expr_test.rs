@@ -4,6 +4,7 @@
  ***************************************************************************/
 
 
+/*
 use crate::compiler::{
     ast::atom::*,
     ast::expr::*,
@@ -12,7 +13,6 @@ use crate::compiler::{
 };
 use nom_locate::LocatedSpanEx;
 
-/*
 /**
  * Easily define span information to test whats left after parsing.
  */
@@ -150,3 +150,4 @@ fn parse_atom() {
     assert_eq!(Atom::parse(Span::new("false123")).unwrap(),
                (span(5, "123"), Atom::Bool(LitBool{value:false, span: span(0, "false")})));
 }
+*/
