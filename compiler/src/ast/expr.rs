@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /***************************************************************************
  * Expressions AST sub module can be really anything from simple
@@ -6,7 +7,8 @@
 
 
 use crate::ast::{
-    Span,
+    span::Span,
+    op::*,
     atom::Atom,
     atom::Ident,
     base::Type,
@@ -18,18 +20,18 @@ use crate::ast::{
  * e.g. binary operations, local variable assignment, atoms etc.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub enum Expr<'a> {
-    BinOp(BinOp<'a>),
-    UnOp(UnOp<'a>),
-    Local(Local<'a>),
-    Assign(Assign<'a>),
-    Block(Block<'a>),
-    If(If<'a>),
-    While(While<'a>),
-    Return(Return<'a>),
-    Break(Break<'a>),
-    Continue(Continue<'a>),
-    Atom(Atom<'a>),
+pub enum Expr {
+    BinOp(ExprBinOp),
+    UnOp(ExprUnOp),
+    Local(ExprLocal),
+    Assign(ExprAssign),
+    Block(ExprBlock),
+    If(ExprIf),
+    While(ExprWhile),
+    Return(ExprReturn),
+    Break(ExprBreak),
+    Continue(ExprContinue),
+    Atom(Atom),
 }
 
 
@@ -38,11 +40,11 @@ pub enum Expr<'a> {
  * and also the operator in between, e.g. 1 + 2.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct BinOp<'a> {
-    left: Box<Atom<'a>>,
-    op: Op,
-    right: Box<Expr<'a>>,
-    span: Span<'a>,
+pub struct ExprBinOp {
+    left: Box<Atom>,
+    op: BinOp,
+    right: Box<Expr>,
+    span: Span,
 }
 
 
@@ -51,10 +53,10 @@ pub struct BinOp<'a> {
  * the operand to the right, e.g. !running.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct UnOp<'a> {
-    op: Op,
-    right: Box<Expr<'a>>,
-    span: Span<'a>,
+pub struct ExprUnOp {
+    op: UnOp,
+    right: Box<Expr>,
+    span: Span,
 }
 
 
@@ -63,12 +65,12 @@ pub struct UnOp<'a> {
  * the variable e.g. let mut a: i32 = 53;
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Local<'a> {
+pub struct ExprLocal {
     mutable: bool,
-    ident: Ident<'a>,
-    ty: Type<'a>,
-    init: Box<Expr<'a>>,
-    span: Span<'a>,
+    ident: Ident,
+    ty: Type,
+    init: Box<Expr>,
+    span: Span,
 }
 
 
@@ -76,10 +78,10 @@ pub struct Local<'a> {
  * Assignment of mutable variable, e.g. x = 5;
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Assign<'a> {
-    ident: Ident<'a>,
-    expr: Box<Expr<'a>>,
-    span: Span<'a>,
+pub struct ExprAssign {
+    ident: Ident,
+    expr: Box<Expr>,
+    span: Span,
 }
 
 
@@ -87,9 +89,9 @@ pub struct Assign<'a> {
  * Block contains a vector of expressions.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Block<'a> {
-    stmts: Vec<Expr<'a>>,
-    span: Span<'a>,
+pub struct ExprBlock {
+    stmts: Vec<Expr>,
+    span: Span,
 }
 
 
@@ -99,11 +101,11 @@ pub struct Block<'a> {
  * second block is optionally executed instead.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct If<'a> {
-    cond: Box<Atom<'a>>,
-    then_block: Block<'a>,
-    else_block: Option<Block<'a>>,
-    span: Span<'a>,
+pub struct ExprIf {
+    cond: Box<Atom>,
+    then_block: ExprBlock,
+    else_block: Option<ExprBlock>,
+    span: Span,
 }
 
 
@@ -112,10 +114,10 @@ pub struct If<'a> {
  * executed each time the condition is true.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct While<'a> {
-    cond: Box<Expr<'a>>,
-    block: Block<'a>,
-    span: Span<'a>,
+pub struct ExprWhile {
+    cond: Box<Expr>,
+    block: ExprBlock,
+    span: Span,
 }
 
 
@@ -123,9 +125,9 @@ pub struct While<'a> {
  * Return statement can optionally return an expression
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Return<'a> {
-    expr: Option<Box<Expr<'a>>>,
-    span: Span<'a>,
+pub struct ExprReturn {
+    expr: Option<Box<Expr>>,
+    span: Span,
 }
 
 
@@ -133,8 +135,8 @@ pub struct Return<'a> {
  * Breaks the loop.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Break<'a> {
-    span: Span<'a>
+pub struct ExprBreak {
+    span: Span,
 }
 
 
@@ -142,29 +144,6 @@ pub struct Break<'a> {
  * Continue to next cycle of the loop.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Continue<'a> {
-    span: Span<'a>
-}
-
-
-/**
- * The different kinds of operators used by
- * both the binary and unary operations.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub enum Op {
-    Equal,      // ==
-    NotEq,      // !=
-    LessThan,   // <
-    LessEq,     // <=
-    LargerThan, // >
-    LargerEq,   // >=
-    And,        // &&
-    Or,         // ||
-    Add,        // +
-    Sub,        // -
-    Mul,        // *
-    Div,        // /
-    Mod,        // %
-    Not,        // !
+pub struct ExprContinue {
+    span: Span,
 }

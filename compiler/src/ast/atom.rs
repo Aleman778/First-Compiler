@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /***************************************************************************
  * Atoms are basic structures such as parenthesized expressions,
@@ -7,7 +8,7 @@
 
 
 use crate::ast::{
-    Span,
+    span::Span,
     expr::Expr,
 };
 
@@ -17,11 +18,11 @@ use crate::ast::{
  * in expressions e.g. integers, bools etc.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub enum Atom<'a> {
-    Paren(Paren<'a>),
-    Ident(Ident<'a>),
-    Num(LitInt<'a>),
-    Bool(LitBool<'a>),
+pub enum Atom {
+    Paren(Paren),
+    Ident(Ident),
+    Num(LitInt),
+    Bool(LitBool),
 }
 
 
@@ -29,9 +30,9 @@ pub enum Atom<'a> {
  * Parenthesized expressions.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Paren<'a> {
-    pub expr: Box<Expr<'a>>,
-    pub span: Span<'a>,
+pub struct Paren {
+    pub expr: Box<Expr>,
+    pub span: Span,
 }
 
 
@@ -39,9 +40,9 @@ pub struct Paren<'a> {
  * Literal integer struct has an i32 value.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct LitInt<'a> {
+pub struct LitInt {
     pub value: i32,
-    pub span: Span<'a>,
+    pub span: Span,
 }
 
 
@@ -49,9 +50,9 @@ pub struct LitInt<'a> {
  * Literal boolean struct has a bool value.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct LitBool<'a> {
+pub struct LitBool {
     pub value: bool,
-    pub span: Span<'a>,
+    pub span: Span,
 }
 
 
@@ -59,10 +60,10 @@ pub struct LitBool<'a> {
  * Function call contains the identifier and arguments.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct FnCall<'a> {
-    pub ident: Ident<'a>,
-    pub args: Vec<Expr<'a>>,
-    pub span: Span<'a>,
+pub struct FnCall {
+    pub ident: Ident,
+    pub args: Vec<Expr>,
+    pub span: Span,
 }
 
 
@@ -70,7 +71,7 @@ pub struct FnCall<'a> {
  * Identifier struct contains a user defined name.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Ident<'a> {
-    pub to_string: &'a str,
-    pub span: Span<'a>,
+pub struct Ident {
+    pub id: i32,
+    pub span: Span,
 }

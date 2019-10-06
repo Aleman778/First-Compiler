@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /***************************************************************************
  * Base AST sub module contains the base structures such as the file
@@ -10,9 +11,9 @@
  * Requires parts from other parts in the ast module.
  */
 use crate::ast::{
-    Span,
+    span::Span,
     atom::Ident,
-    expr::Block,
+    expr::ExprBlock,
 };
 
 
@@ -23,9 +24,9 @@ use crate::ast::{
  * extended to support any item such as structs, type alias etc.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct File<'a> {
-    items: Vec<Item<'a>>,
-    span: Span<'a>
+pub struct File {
+    items: Vec<Item>,
+    span: Span
 }
 
 
@@ -34,8 +35,8 @@ pub struct File<'a> {
  * This currently only supports item functions.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub enum Item<'a> {
-    ItemFn(ItemFn<'a>),
+pub enum Item {
+    ItemFn(ItemFn),
 }
 
 
@@ -44,11 +45,11 @@ pub enum Item<'a> {
  * the identifier, declaration and block.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ItemFn<'a> {
-    ident: Ident<'a>,
-    decl: FnDecl<'a>,
-    block: Block<'a>,
-    span: Span<'a>,
+pub struct ItemFn {
+    ident: Ident,
+    decl: FnDecl,
+    block: ExprBlock,
+    span: Span,
 }
 
 
@@ -57,10 +58,10 @@ pub struct ItemFn<'a> {
  * functions input arguments and output type.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct FnDecl<'a> {
-    inputs: Vec<Argument<'a>>,
-    output: Type<'a>,
-    span: Span<'a>,
+pub struct FnDecl {
+    inputs: Vec<Argument>,
+    output: Type,
+    span: Span,
 }
 
 
@@ -68,10 +69,10 @@ pub struct FnDecl<'a> {
  * Argument struct contains an identifier and a type.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Argument<'a> {
-    ident: Ident<'a>,
-    ty: Type<'a>,
-    span: Span<'a>,
+pub struct Argument {
+    ident: Ident,
+    ty: Type,
+    span: Span,
 }
 
 
@@ -79,9 +80,9 @@ pub struct Argument<'a> {
  * Type enum currently only supports i32 and bool.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub enum Type<'a> {
-    Int32(Int32<'a>),
-    Bool(Bool<'a>)
+pub enum Type {
+    Int32(Int32),
+    Bool(Bool)
 }
 
 
@@ -89,8 +90,8 @@ pub enum Type<'a> {
  * 32 bit signed integer type.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Int32 <'a> {
-    span: Span<'a>,
+pub struct Int32  {
+    span: Span,
 }
 
 
@@ -98,6 +99,6 @@ pub struct Int32 <'a> {
  * Boolean type.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Bool<'a> {
-    span: Span<'a>,
+pub struct Bool {
+    span: Span,
 }

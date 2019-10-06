@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /***************************************************************************
  * Environment struct used during parsing to cache identifiers.
@@ -11,17 +12,12 @@ use std::collections::HashMap;
 
 
 /**
- * Requires the identifier struct.
- */
-use crate::ast::{atom::Ident};
-
-
-/**
  * Environment is used to cache variable and function identifiers.
  */
 #[derive(Debug, PartialEq)]
 pub struct Env<'a> {
-    pub identifiers: HashMap<&'a str, Ident<'a>>,
+    ids: HashMap<&'a str, i32>,
+    idents: Vec<&'a str>,
 }
 
 
@@ -35,19 +31,34 @@ impl<'a> Env<'a> {
      */
     pub fn new() -> Env<'a> {
         Env {
-            identifiers: HashMap::new(),
+            ids: HashMap::new(),
+            idents: Vec::new(),
         }
     }
 
 
-    // pub fn ident(&'a mut self, s: Span<'a>) -> &'a Ident<'a> {
-        // match self.identifiers.get(s.fragment) {
-            // Some(ident) => ident,
-            // None => {
-                // let ident = Ident{to_string: s.fragment, span: s};
-                // self.identifiers.insert(s.fragment, ident);
-                // return self.ident(s);
-            // }
-        // }
-    // }
+    /**
+     * Get the id value of an identifier, if this identifier is new
+     * then a new id is generated and cached to faster referencing.
+     */
+    pub fn get_id(&'a mut self, ident: &'a str) -> i32 {
+        match self.ids.get(ident) {
+            Some(id) => *id,
+            None => {
+                let id = self.idents.len() as i32;
+                self.ids.insert(ident, id);
+                self.idents.push(ident);
+                return id;
+            }
+        }
+    }
+
+
+    /**
+     * Get the identifier string from an id number.
+     */
+    pub fn get_identifier(&'a mut self, id: i32) -> Option<&str> {
+        let ident = self.idents.get(id as usize)?;
+        Some(ident)
+    }
 }

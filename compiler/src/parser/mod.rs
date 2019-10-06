@@ -9,9 +9,14 @@
 /**
  * Require AST data structure
  */
-use crate::ast::{
-    Span,
-};
+use crate::ast::env::Env;
+use nom_locate::LocatedSpan;
+
+
+/**
+ * Type alias of LocatedSpan for convenience.
+ */
+pub type ParseSpan<'a> = LocatedSpan<&'a str>;
 
 
 /**
@@ -23,12 +28,13 @@ use nom::{
 };
 
 
+
 /**
  * Error struct, defines the original span and optional local
  * span that is being parsed, with the error kind.
  */
 #[derive(Debug)]
-pub struct Error<'a>(Span<'a>, Option<Span<'a>>, ErrorKind);
+pub struct Error<'a>(ParseSpan<'a>, Option<ParseSpan<'a>>, ErrorKind);
 
 
 /**
@@ -45,12 +51,12 @@ enum ErrorKind {
 /**
  * Implement nom parse error functions for Error.
  */
-impl<'a> error::ParseError<Span<'a>> for Error<'a> {
-    fn from_error_kind(input: Span<'a>, kind: error::ErrorKind) -> Self {
+impl<'a> error::ParseError<ParseSpan<'a>> for Error<'a> {
+    fn from_error_kind(input: ParseSpan<'a>, kind: error::ErrorKind) -> Self {
         Error(input, None, ErrorKind::Nom(kind))
     }
 
-    fn append(_: Span<'a>, _: error::ErrorKind, other: Self) -> Self {
+    fn append(_: ParseSpan<'a>, _: error::ErrorKind, other: Self) -> Self {
         other
     }
 }
@@ -67,7 +73,7 @@ type IResult<'a, I, O, E = Error<'a>> = Result<(I, O), Err<E>>;
  * be implemented by each structure of the AST.
  */
 pub trait Parser: Sized {
-    fn parse(input: Span) -> IResult<Span, Self>;
+    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self>;
 }
 
 
