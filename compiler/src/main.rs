@@ -13,8 +13,8 @@ use parser::Parser;
 
 
 fn main() {
-    let input = ParseSpan::new("1111111111111");
-    match ast::atom::LitInt::parse(input.clone()) {
+    let input = ParseSpan::new("11111111111111");
+    match ast::atom::Atom::parse(input.clone()) {
         Ok(ast) => println!("Ok:{:#?}", ast),
         Err(e) => {
             match e {

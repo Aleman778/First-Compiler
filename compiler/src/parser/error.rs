@@ -47,7 +47,13 @@ pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String
         result.push_str("  |    ");
         result.push_str(input.fragment);
         result.push_str("\n   |    ");
-        
+        for i in 1..(input.fragment.len() + 1) {
+            if i >= err.span.start.column && i < err.span.end.column {
+                result.push('^');
+            } else {
+                result.push(' ');
+            }
+        }
         
         break;
     }
@@ -96,6 +102,20 @@ impl<'a> ParseError<'a> {
         });
         other
     }
+
+
+    fn is_important(&self) -> bool {
+        match self.errors.last() {
+            Some(verbose) => {
+                match verbose.kind {
+                    ErrorKind::ParseIntError(_) => true,
+                    _ => false,
+                }
+                
+            },
+            None => false,
+        }
+    }
 }
 
 
@@ -136,7 +156,13 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
 
 
     fn or(self, other: Self) -> Self {
-        if self.errors.len() > other.errors.len() {
+        let sim = self.is_important();
+        let oim = other.is_important();
+        if sim && !oim {
+            self
+        } else if !sim && oim {
+            other
+        } else if self.errors.len() > other.errors.len() {
             self
         } else {
             other
