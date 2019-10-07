@@ -6,11 +6,9 @@
  ***************************************************************************/
 
 
-/**
- * Require AST data structure
- */
+use crate::parser::error::ParseError;
 use nom_locate::LocatedSpan;
-
+use nom::Err;
 
 /**
  * Type alias of LocatedSpan for convenience.
@@ -19,51 +17,9 @@ pub type ParseSpan<'a> = LocatedSpan<&'a str>;
 
 
 /**
- * Require error handling from nom library
- */
-use nom::{
-    error,
-    Err,
-};
-
-
-/**
- * Error struct, defines the original span and optional local
- * span that is being parsed, with the error kind.
- */
-#[derive(Debug)]
-pub struct Error<'a>(ParseSpan<'a>, Option<ParseSpan<'a>>, ErrorKind);
-
-
-/**
- * Defines the different kinds of errors to expect.
- */
-#[derive(Debug)]
-enum ErrorKind {
-    ParseIntError(std::num::ParseIntError),
-    Nom(error::ErrorKind),
-    SyntaxError,
-}
-
-
-/**
- * Implement nom parse error functions for Error.
- */
-impl<'a> error::ParseError<ParseSpan<'a>> for Error<'a> {
-    fn from_error_kind(input: ParseSpan<'a>, kind: error::ErrorKind) -> Self {
-        Error(input, None, ErrorKind::Nom(kind))
-    }
-
-    fn append(_: ParseSpan<'a>, _: error::ErrorKind, other: Self) -> Self {
-        other
-    }
-}
-
-
-/**
  * Type aliased IResult from std::Result.
  */
-type IResult<'a, I, O, E = Error<'a>> = Result<(I, O), Err<E>>;
+type IResult<'a, I, O, E = ParseError<'a>> = Result<(I, O), Err<E>>;
 
 
 /**
@@ -75,4 +31,5 @@ pub trait Parser: Sized {
 }
 
 
+pub mod error;
 pub mod atom;

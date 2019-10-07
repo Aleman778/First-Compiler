@@ -3,6 +3,6 @@
  * Main library file, imports the sub modules.
  ***************************************************************************/
 
-
+pub mod error;
 pub mod ast;
 pub mod parser;

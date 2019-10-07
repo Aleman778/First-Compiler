@@ -7,25 +7,27 @@
 
 
 use nom::{
-    character::complete::{alpha1, digit1},
+    character::complete::{alpha1, digit1, multispace0},
     character::{is_alphanumeric},
     bytes::complete::{tag, take_while1},
     combinator::{map, peek},
+    sequence::{preceded, tuple},
     branch::alt,
     Err,
 };
 
+
 use crate::ast::{
     span::Span,
+    expr::Expr,
     atom::*,
 };
 
 
 use crate::parser::{
+    error::{ParseError, ErrorKind},
     ParseSpan,
     IResult,
-    Error,
-    ErrorKind,
     Parser,
 };
 
@@ -36,12 +38,24 @@ use crate::parser::{
 impl Parser for Atom {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         alt((
-            map(LitInt::parse, |literal| Atom::Num(literal)),
             map(LitBool::parse, |literal| Atom::Bool(literal)),
-            map(Ident::parse, |ident| Atom::Ident(ident)),
+            // map(Ident::parse, |ident| Atom::Ident(ident)),
+            map(LitInt::parse, |literal| Atom::Num(literal)),
         ))(input)
     }
 }
+
+
+// impl Parser for Paren {
+//     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+//         map(tuple((
+//             tag("("),
+//             preceded(multispace0, Expr::parse),
+//             tag(")")
+//         )), |(_, expr, _)| Paren{expr: Box::new(expr), span: Span::new(input)}
+//         )(input)
+//     }
+// }
 
 
 /**
@@ -68,11 +82,12 @@ impl Parser for LitInt {
                 value: n,
                 span: Span::new(digits),
             })),
-            Err(e) => Err(Err::Error(Error(
-                input,
-                Some(digits),
-                ErrorKind::ParseIntError(e),
-            ))),
+            Err(e) => Err(Err::Error(ParseError::new(input, ErrorKind::ParseIntError(e)))),
+            // Err(e) => Err(Err::Error(Error(
+                // input,
+                // Some(digits),
+                // ErrorKind::ParseIntError(e),
+            // ))),
         }
     }
 }
@@ -89,12 +104,3 @@ impl Parser for LitBool {
         ))(input)
     }
 }
-
-
-// impl Parser<'a, Paren> for Paren {
-//     fn parse(input: ParseSpan) -> IResult<ParseSpan, Paren> {
-//         map(tuple((
-//             tag("("),
-//             preceded(multispace0, 
-//     }
-// }
