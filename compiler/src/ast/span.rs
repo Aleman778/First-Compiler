@@ -5,15 +5,22 @@
 
 
 use crate::parser::ParseSpan;
+use std::fmt;
 
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+/**
+ * Contains line and column numbers.
+ */
+#[derive(Clone, Copy, PartialEq)]
 pub struct LineColumn {
     pub line: u32,
     pub column: usize,
 }
 
 
+/**
+ * To string for lines and columns
+ */
 impl std::string::ToString for LineColumn {
     fn to_string(&self) -> String {
         format!("{}:{}", self.line, self.column)
@@ -21,14 +28,35 @@ impl std::string::ToString for LineColumn {
 }
 
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Span {
-    pub start: LineColumn,
-    pub end: LineColumn,
+/**
+ * Debug print for line column.
+ */
+impl fmt::Debug for LineColumn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{{ line: {}, col: {} }}", self.line, self.column)
+    }
 }
 
 
+/**
+ * Custom span struct only includes lines and columns from the start to
+ * the end of the span location.
+ */
+#[derive(Clone, Copy, PartialEq)]
+pub struct Span {
+    pub start: LineColumn,
+    pub end: LineColumn,
+    length: usize,
+}
+
+
+/**
+ * Implementation of span.
+ */
 impl Span {
+    /**
+     * Constructs a new span from a parse span.
+     */
     pub fn new(s: ParseSpan) -> Self {
         Span{
             start: LineColumn{
@@ -39,9 +67,43 @@ impl Span {
                 line: get_end_line(&s),
                 column: get_end_column(&s),
             },
+            length: s.fragment.len(),
         }
     }
+
+
+    /**
+     * Get the length of the entire span fragment.
+     */
+    pub fn len(&self) -> usize {
+        self.length
+    }
+
+
+    /**
+     * Get the offset to the start of the span.
+     */
+    pub fn offset(&self) -> usize {
+        self.start.column
+    }
+
+
+    /**
+     * Check if the span includes more than one line.
+     */
+    pub fn multiline(&self) -> bool {
+        self.end.line > self.start.line
+    }
 }
+
+
+impl fmt::Debug for Span {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Span {{ line: {}-{}, col: {}-{} }}", self.start.line,
+               self.end.line, self.start.column, self.end.column)
+    }
+}
+
 
 
 /***************************************************************************

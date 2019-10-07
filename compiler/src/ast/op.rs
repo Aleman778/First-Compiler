@@ -5,37 +5,40 @@
  ***************************************************************************/
 
 
+use crate::ast::span::Span;
+
+
 /**
  * Binary operators e.g. `+`, `&&` etc.
  */
 #[derive(Debug, Clone, PartialEq)]
 pub enum BinOp {
     /// The `+` operator (addition)
-    Add,
+    Add{span: Span},
     /// The `-` operator (subtraction)
-    Sub,
+    Sub{span: Span},
     /// The `*` operator (multiplication)
-    Mul,
+    Mul{span: Span},
     /// The `/` operator (division)
-    Div,
+    Div{span: Span},
     /// The `%` operator (modulus)
-    Mod,
+    Mod{span: Span},
     /// The `&&` operator (logical and)
-    And,
+    And{span: Span},
     /// The `||` operator (logical or)
-    Or,
+    Or{span: Span},
     /// The `=` operator (equality)
-    Eq,
+    Eq{span: Span},
     /// The `!=` operator (not equal to)
-    Ne,
+    Ne{span: Span},
     /// The `<` operator (less than)
-    Lt,
+    Lt{span: Span},
     /// The `<=` operator (less than or equal to)
-    Le,
+    Le{span: Span},
     /// The `>` operator (greater than)
-    Gt,
+    Gt{span: Span},
     /// The `>=` operator (greater than or equal to)
-    Ge,
+    Ge{span: Span},
 }
 
 
@@ -45,9 +48,9 @@ pub enum BinOp {
 #[derive(Debug, Clone, PartialEq)]
 pub enum UnOp {
     /// The `*` operator (dereferencing)
-    Deref,
+    Deref{span: Span},
     /// The `!` operator (logical inversion)
-    Not,
+    Not{span: Span},
     /// The `-` operator (negation)
-    Neg,
+    Neg{span: Span},
 }

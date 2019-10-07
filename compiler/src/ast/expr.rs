@@ -41,10 +41,10 @@ pub enum Expr {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBinOp {
-    left: Box<Atom>,
-    op: BinOp,
-    right: Box<Expr>,
-    span: Span,
+    pub left: Box<Atom>,
+    pub op: BinOp,
+    pub right: Box<Expr>,
+    pub span: Span,
 }
 
 
@@ -54,9 +54,9 @@ pub struct ExprBinOp {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprUnOp {
-    op: UnOp,
-    right: Box<Expr>,
-    span: Span,
+    pub op: UnOp,
+    pub right: Box<Expr>,
+    pub span: Span,
 }
 
 
@@ -66,11 +66,11 @@ pub struct ExprUnOp {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprLocal {
-    mutable: bool,
-    ident: Ident,
-    ty: Type,
-    init: Box<Expr>,
-    span: Span,
+    pub mutable: bool,
+    pub ident: Ident,
+    pub ty: Type,
+    pub init: Box<Expr>,
+    pub span: Span,
 }
 
 
@@ -79,9 +79,9 @@ pub struct ExprLocal {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprAssign {
-    ident: Ident,
-    expr: Box<Expr>,
-    span: Span,
+    pub ident: Ident,
+    pub expr: Box<Expr>,
+    pub span: Span,
 }
 
 
@@ -90,8 +90,8 @@ pub struct ExprAssign {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBlock {
-    stmts: Vec<Expr>,
-    span: Span,
+    pub stmts: Vec<Expr>,
+    pub span: Span,
 }
 
 
@@ -102,10 +102,10 @@ pub struct ExprBlock {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprIf {
-    cond: Box<Atom>,
-    then_block: ExprBlock,
-    else_block: Option<ExprBlock>,
-    span: Span,
+    pub cond: Box<Atom>,
+    pub then_block: ExprBlock,
+    pub else_block: Option<ExprBlock>,
+    pub span: Span,
 }
 
 
@@ -115,9 +115,9 @@ pub struct ExprIf {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprWhile {
-    cond: Box<Expr>,
-    block: ExprBlock,
-    span: Span,
+    pub cond: Box<Expr>,
+    pub block: ExprBlock,
+    pub span: Span,
 }
 
 
@@ -126,8 +126,8 @@ pub struct ExprWhile {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprReturn {
-    expr: Option<Box<Expr>>,
-    span: Span,
+    pub expr: Option<Box<Expr>>,
+    pub span: Span,
 }
 
 
@@ -136,7 +136,7 @@ pub struct ExprReturn {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBreak {
-    span: Span,
+    pub span: Span,
 }
 
 
@@ -145,5 +145,5 @@ pub struct ExprBreak {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprContinue {
-    span: Span,
+    pub span: Span,
 }

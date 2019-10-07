@@ -25,8 +25,8 @@ use crate::ast::{
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct File {
-    items: Vec<Item>,
-    span: Span
+    pub items: Vec<Item>,
+    pub span: Span
 }
 
 
@@ -46,10 +46,10 @@ pub enum Item {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemFn {
-    ident: Ident,
-    decl: FnDecl,
-    block: ExprBlock,
-    span: Span,
+    pub ident: Ident,
+    pub decl: FnDecl,
+    pub block: ExprBlock,
+    pub span: Span,
 }
 
 
@@ -59,9 +59,9 @@ pub struct ItemFn {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnDecl {
-    inputs: Vec<Argument>,
-    output: Type,
-    span: Span,
+    pub inputs: Vec<Argument>,
+    pub output: Type,
+    pub span: Span,
 }
 
 
@@ -70,9 +70,9 @@ pub struct FnDecl {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct Argument {
-    ident: Ident,
-    ty: Type,
-    span: Span,
+    pub ident: Ident,
+    pub ty: Type,
+    pub span: Span,
 }
 
 
@@ -81,24 +81,6 @@ pub struct Argument {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub enum Type {
-    Int32(Int32),
-    Bool(Bool)
-}
-
-
-/**
- * 32 bit signed integer type.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct Int32  {
-    span: Span,
-}
-
-
-/**
- * Boolean type.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct Bool {
-    span: Span,
+    Int32{span: Span},
+    Bool{span: Span},
 }
