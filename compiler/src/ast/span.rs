@@ -13,6 +13,14 @@ pub struct LineColumn {
     pub column: usize,
 }
 
+
+impl std::string::ToString for LineColumn {
+    fn to_string(&self) -> String {
+        format!("{}:{}", self.line, self.column)
+    }
+}
+
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Span {
     pub start: LineColumn,

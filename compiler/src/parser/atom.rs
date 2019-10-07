@@ -11,8 +11,9 @@ use nom::{
     character::{is_alphanumeric},
     bytes::complete::{tag, take_while1},
     combinator::{map, peek},
-    sequence::{preceded, tuple},
+    sequence::{preceded, pair, tuple},
     branch::alt,
+    error::context,
     Err,
 };
 
@@ -37,11 +38,14 @@ use crate::parser::{
  */
 impl Parser for Atom {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        alt((
-            map(LitBool::parse, |literal| Atom::Bool(literal)),
-            // map(Ident::parse, |ident| Atom::Ident(ident)),
-            map(LitInt::parse, |literal| Atom::Num(literal)),
-        ))(input)
+        context(
+            "atom",
+            alt((
+                map(LitBool::parse, |literal| Atom::Bool(literal)),
+                map(Ident::parse, |ident| Atom::Ident(ident)),
+                map(LitInt::parse, |literal| Atom::Num(literal)),
+            ))
+        )(input)
     }
 }
 
@@ -63,9 +67,12 @@ impl Parser for Atom {
  */
 impl Parser for Ident {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Ident> {
-        peek(alt((alpha1, tag("_"))))(input.clone())?;
-        map(take_while1(|c: char| is_alphanumeric(c as u8) || c == '_'),
-            |s: ParseSpan| Ident{to_string: s.fragment.to_string(), span: Span::new(s)}
+        context(
+            "identifier",
+            map(pair(
+                peek(alt((alpha1, tag("_")))),
+                take_while1(|c: char| is_alphanumeric(c as u8) || c == '_')
+            ), |(_, s): (ParseSpan, ParseSpan)| Ident{to_string: s.fragment.to_string(), span: Span::new(s)})
         )(input)
     }    
 }
@@ -82,12 +89,7 @@ impl Parser for LitInt {
                 value: n,
                 span: Span::new(digits),
             })),
-            Err(e) => Err(Err::Error(ParseError::new(input, ErrorKind::ParseIntError(e)))),
-            // Err(e) => Err(Err::Error(Error(
-                // input,
-                // Some(digits),
-                // ErrorKind::ParseIntError(e),
-            // ))),
+            Err(e) => Err(Err::Error(ParseError::new(digits, ErrorKind::ParseIntError(e)))),
         }
     }
 }
