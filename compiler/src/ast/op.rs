@@ -21,6 +21,8 @@ pub enum BinOp {
     Mul{span: Span},
     /// The `/` operator (division)
     Div{span: Span},
+    /// The `**` operator (power)
+    Pow{span: Span},
     /// The `%` operator (modulus)
     Mod{span: Span},
     /// The `&&` operator (logical and)
@@ -53,4 +55,28 @@ pub enum UnOp {
     Not{span: Span},
     /// The `-` operator (negation)
     Neg{span: Span},
+}
+
+
+/**
+ * An operator can either be left or right associative.
+ */
+pub enum Assoc {
+    Left,
+    Right,
+}
+
+
+/**
+ * Get the pre
+ */
+pub fn get_prec(op: BinOp) -> (u8, Assoc) {
+    match op {
+        BinOp::Add{span: _} => (1, Assoc::Left),
+        BinOp::Sub{span: _} => (1, Assoc::Left),
+        BinOp::Mul{span: _} => (2, Assoc::Left),
+        BinOp::Div{span: _} => (2, Assoc::Left),
+        BinOp::Pow{span: _} => (3, Assoc::Right),
+        _=> (1, Assoc::Left),
+    }
 }
