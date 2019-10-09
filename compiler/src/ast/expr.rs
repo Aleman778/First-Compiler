@@ -8,10 +8,9 @@
 
 use crate::ast::{
     span::Span,
-    op::*,
-    atom::Atom,
-    atom::Ident,
     base::Type,
+    op::*,
+    atom::*,
 };
 
 
@@ -21,17 +20,37 @@ use crate::ast::{
  */
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
+    /// Expression for binary opeations
     BinOp(ExprBinOp),
+    /// Expression for unary operations
     UnOp(ExprUnOp),
+    /// Expression for local variable assignment
     Local(ExprLocal),
+    /// Expression for mutation for variable
     Assign(ExprAssign),
+    /// Expression for blocks (a.k.a. body)
     Block(ExprBlock),
+    /// Expression for if statements
     If(ExprIf),
+    /// Expression for while statements
     While(ExprWhile),
+    /// Expression for return statements
     Return(ExprReturn),
+    /// Expression for break statements
     Break(ExprBreak),
+    /// Expression for continue statements
     Continue(ExprContinue),
-    Atom(Atom),
+    /// Parenthesized expression
+    Paren(ExprParen),
+    /// Expression for identifiers
+    Ident(ExprIdent),
+    /// Expression for function calls
+    FnCall(ExprFnCall),
+    /// Expression for integer literals
+    Num(ExprLitInt),
+    /// Expression for boolean literals
+    Bool(ExprLitBool),
+
 }
 
 
@@ -67,7 +86,7 @@ pub struct ExprUnOp {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprLocal {
     pub mutable: bool,
-    pub ident: Ident,
+    pub ident: ExprIdent,
     pub ty: Type,
     pub init: Box<Expr>,
     pub span: Span,
@@ -79,7 +98,7 @@ pub struct ExprLocal {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprAssign {
-    pub ident: Ident,
+    pub ident: ExprIdent,
     pub expr: Box<Expr>,
     pub span: Span,
 }
@@ -102,7 +121,7 @@ pub struct ExprBlock {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprIf {
-    pub cond: Box<Atom>,
+    pub cond: Box<Expr>,
     pub then_block: ExprBlock,
     pub else_block: Option<ExprBlock>,
     pub span: Span,

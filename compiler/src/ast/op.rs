@@ -68,7 +68,7 @@ pub enum Assoc {
 
 
 /**
- * Get the pre
+ * Returns the precedence and associativity of the given operator.
  */
 pub fn get_prec(op: &BinOp) -> (u8, Assoc) {
     match op {
@@ -78,5 +78,40 @@ pub fn get_prec(op: &BinOp) -> (u8, Assoc) {
         BinOp::Div{span: _} => (2, Assoc::Left),
         BinOp::Pow{span: _} => (3, Assoc::Right),
         _ => (1, Assoc::Left),
+    }
+}
+
+
+/**
+ * Returns the span info of the given binary operator.
+ */
+pub fn get_binop_span(op: &BinOp) -> Span {
+    match op {
+        BinOp::Add{span} => *span,
+        BinOp::Sub{span} => *span,
+        BinOp::Mul{span} => *span,
+        BinOp::Div{span} => *span,
+        BinOp::Pow{span} => *span,
+        BinOp::Mod{span} => *span,
+        BinOp::And{span} => *span,
+        BinOp::Or{span} => *span,
+        BinOp::Eq{span} => *span,
+        BinOp::Ne{span} => *span,
+        BinOp::Lt{span} => *span,
+        BinOp::Le{span} => *span,
+        BinOp::Gt{span} => *span,
+        BinOp::Ge{span} => *span,
+    }
+}
+
+
+/**
+ * Returns the span info of the given unary operator.
+ */
+pub fn get_unop_span(op: &UnOp) -> Span {
+    match op {
+        UnOp::Deref{span} => *span,
+        UnOp::Not{span} => *span,
+        UnOp::Neg{span} => *span,
     }
 }

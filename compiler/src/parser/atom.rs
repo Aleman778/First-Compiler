@@ -7,11 +7,11 @@
 
 
 use nom::{
-    character::complete::{alpha1, digit1, multispace0},
+    character::complete::{alpha1, digit1},
     character::{is_alphanumeric},
     bytes::complete::{tag, take_while1},
     combinator::{map, peek},
-    sequence::{preceded, pair, tuple},
+    sequence::{pair, delimited},
     branch::alt,
     error::context,
     Err,
@@ -20,13 +20,13 @@ use nom::{
 
 use crate::ast::{
     span::Span,
-    expr::Expr,
     atom::*,
 };
 
 
 use crate::parser::{
     error::{ParseError, ErrorKind},
+    token::parse_math_expr,
     ParseSpan,
     IResult,
     Parser,
@@ -34,28 +34,12 @@ use crate::parser::{
 
 
 /**
- * Parse either an integer or boolean literal.
+ * Parse a parenthesized expression e.g. (2 + 6) 
  */
-impl Parser for Atom {
+impl Parser for ExprParen {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "atom",
-            alt((
-                map(Paren::parse, |paren| Atom::Paren(paren)),
-                map(LitBool::parse, |literal| Atom::Bool(literal)),
-                map(Ident::parse, |ident| Atom::Ident(ident)),
-                map(LitInt::parse, |literal| Atom::Num(literal)),
-            ))
-        )(input)
-    }
-}
-
-
-impl Parser for Paren {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        map(tuple((
-            tag("("), Expr::parse, tag(")")
-        )), |(_, expr, _)| Paren{expr: Box::new(expr), span: Span::new(input)}
+        map(delimited(tag("("), parse_math_expr, tag(")")),
+            |expr| ExprParen{expr: Box::new(expr), span: Span::new(input)}
         )(input)
     }
 }
@@ -64,14 +48,14 @@ impl Parser for Paren {
 /**
  * Parse an identifier e.g. test_id.
  */
-impl Parser for Ident {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Ident> {
+impl Parser for ExprIdent {
+    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "identifier",
             map(pair(
                 peek(alt((alpha1, tag("_")))),
                 take_while1(|c: char| is_alphanumeric(c as u8) || c == '_')
-            ), |(_, s): (ParseSpan, ParseSpan)| Ident{to_string: s.fragment.to_string(), span: Span::new(s)})
+            ), |(_, s): (ParseSpan, ParseSpan)| ExprIdent{to_string: s.fragment.to_string(), span: Span::new(s)})
         )(input)
     }    
 }
@@ -80,11 +64,11 @@ impl Parser for Ident {
 /**
  * Parser implementation for 32 bit unsigned integer literals.
  */
-impl Parser for LitInt {
+impl Parser for ExprLitInt {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         let (input, digits) = digit1(input)?;
         match digits.fragment.parse::<i32>() {
-            Ok(n) => Ok((input, LitInt{
+            Ok(n) => Ok((input, ExprLitInt{
                 value: n,
                 span: Span::new(digits),
             })),
@@ -97,11 +81,11 @@ impl Parser for LitInt {
 /**
  * Parser implementation for boolean literals.
  */
-impl Parser for LitBool {
+impl Parser for ExprLitBool {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         alt((
-            map(tag("true"),  |s| LitBool{value:true,  span: Span::new(s)}),
-            map(tag("false"), |s| LitBool{value:false, span: Span::new(s)}),
+            map(tag("true"),  |s| ExprLitBool{value:true,  span: Span::new(s)}),
+            map(tag("false"), |s| ExprLitBool{value:false, span: Span::new(s)}),
         ))(input)
     }
 }

@@ -12,7 +12,7 @@
  */
 use crate::ast::{
     span::Span,
-    atom::Ident,
+    atom::ExprIdent,
     expr::ExprBlock,
 };
 
@@ -46,7 +46,7 @@ pub enum Item {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ItemFn {
-    pub ident: Ident,
+    pub ident: ExprIdent,
     pub decl: FnDecl,
     pub block: ExprBlock,
     pub span: Span,
@@ -70,7 +70,7 @@ pub struct FnDecl {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct Argument {
-    pub ident: Ident,
+    pub ident: ExprIdent,
     pub ty: Type,
     pub span: Span,
 }

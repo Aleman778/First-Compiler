@@ -14,23 +14,10 @@ use crate::ast::{
 
 
 /**
- * Atom enum contains different types of values used
- * in expressions e.g. integers, bools etc.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub enum Atom {
-    Paren(Paren),
-    Ident(Ident),
-    Num(LitInt),
-    Bool(LitBool),
-}
-
-
-/**
  * Parenthesized expressions.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Paren {
+pub struct ExprParen {
     pub expr: Box<Expr>,
     pub span: Span,
 }
@@ -40,7 +27,7 @@ pub struct Paren {
  * Literal integer struct has an i32 value.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct LitInt {
+pub struct ExprLitInt {
     pub value: i32,
     pub span: Span,
 }
@@ -50,7 +37,7 @@ pub struct LitInt {
  * Literal boolean struct has a bool value.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct LitBool {
+pub struct ExprLitBool {
     pub value: bool,
     pub span: Span,
 }
@@ -60,8 +47,8 @@ pub struct LitBool {
  * Function call contains the identifier and arguments.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct FnCall {
-    pub ident: Ident,
+pub struct ExprFnCall {
+    pub ident: ExprIdent,
     pub args: Vec<Expr>,
     pub span: Span,
 }
@@ -71,7 +58,7 @@ pub struct FnCall {
  * Identifier struct contains a user defined name.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct Ident {
+pub struct ExprIdent {
     pub to_string: String,
     pub span: Span,
 }
