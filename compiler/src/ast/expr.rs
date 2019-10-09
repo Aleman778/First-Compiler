@@ -41,7 +41,7 @@ pub enum Expr {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBinOp {
-    pub left: Box<Atom>,
+    pub left: Box<Expr>,
     pub op: BinOp,
     pub right: Box<Expr>,
     pub span: Span,

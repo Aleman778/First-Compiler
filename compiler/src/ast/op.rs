@@ -70,13 +70,13 @@ pub enum Assoc {
 /**
  * Get the pre
  */
-pub fn get_prec(op: BinOp) -> (u8, Assoc) {
+pub fn get_prec(op: &BinOp) -> (u8, Assoc) {
     match op {
         BinOp::Add{span: _} => (1, Assoc::Left),
         BinOp::Sub{span: _} => (1, Assoc::Left),
         BinOp::Mul{span: _} => (2, Assoc::Left),
         BinOp::Div{span: _} => (2, Assoc::Left),
         BinOp::Pow{span: _} => (3, Assoc::Right),
-        _=> (1, Assoc::Left),
+        _ => (1, Assoc::Left),
     }
 }

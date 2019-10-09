@@ -6,7 +6,7 @@
 
 
 use nom::{
-    character::complete::{alpha1, digit1, multispace0},
+    character::complete::multispace0,
     character::{is_alphanumeric},
     bytes::complete::{tag, take_while1},
     combinator::{map, peek},
@@ -45,12 +45,15 @@ impl Parser for  {
 */
 
 
+/**
+ * Parse an expression.
+ */
 impl Parser for Expr {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "expression",
             alt((
-                map(ExprBinOp::parse, |res| Expr::BinOp(res)),
+                map(parse_binop, |expr| expr),
                 map(Atom::parse, |res| Expr::Atom(res)),
             ))
         )(input)
@@ -58,40 +61,48 @@ impl Parser for Expr {
 }
 
 
-/**
- * Parse binary operations e.g. "10 + 5", "false && true" etc.
- */
-impl Parser for ExprBinOp {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        compute_expr(input, 1)
-    }
+pub fn parse_binop(input: ParseSpan) -> IResult<ParseSpan, Expr> {
+    compute_expr(input, 1)
 }
 
 
-pub fn compute_expr(input: ParseSpan, min_prec: u8) -> IResult<ParseSpan, BinOp> {
-    let (input, atom_lhs) = Atom::parse()(input)?;
+/**
+ * Compute the expression using precedence climbining algorithm.
+ */
+pub fn compute_expr(mut input: ParseSpan, min_prec: u8) -> IResult<ParseSpan, Expr> {
+    let (inpt, atom_lhs) = Atom::parse(input)?;
+    input = inpt;
+    let mut expr_lhs = Expr::Atom(atom_lhs);
     loop {
         let op_result = peek(BinOp::parse)(input);
         if op_result.is_err() {
             break;
         }
-        let (input, op) = op_result?;
-        let (prec, assoc) = op.get_prec();
+        let (inpt, op) = op_result?;
+        let (prec, assoc) = get_prec(&op);
         if prec < min_prec {
             break;
         }
 
         let next_prev_prec = match assoc {
-            Assoc::Left => min_prec + 1,
-            Assoc::
-        }
-        let min_prec = 
+            Assoc::Left => prec + 1,
+            Assoc::Right => prec,
+        };
 
-        BinOp.parse();
-        let atom_rhs
-
+        let (inpt, op) = BinOp::parse(input)?;
+        input = inpt;
+        let (inpt, expr_rhs) = compute_expr(input, next_prev_prec)?;
+        input = inpt;
         
-        
+        let binop = ExprBinOp{
+            left: Box::new(expr_lhs),
+            op: op,
+            right: Box::new(expr_rhs),
+            span: Span::new(input),
+        };
+        expr_lhs = Expr::BinOp(binop);
     }
+
+    Ok((input, expr_lhs))
 }
 

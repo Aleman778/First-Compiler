@@ -4,6 +4,15 @@
  ***************************************************************************/
 
 
+use crate::ast::{op::*, span::Span};
+use crate::parser::{ParseSpan, Parser, IResult};
+use nom::{
+    bytes::complete::tag,
+    combinator::map,
+    error::context,
+    branch::alt,
+};
+
 
 /**
  * Parse binary operators

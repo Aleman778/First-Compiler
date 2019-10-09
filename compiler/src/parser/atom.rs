@@ -41,6 +41,7 @@ impl Parser for Atom {
         context(
             "atom",
             alt((
+                map(Paren::parse, |paren| Atom::Paren(paren)),
                 map(LitBool::parse, |literal| Atom::Bool(literal)),
                 map(Ident::parse, |ident| Atom::Ident(ident)),
                 map(LitInt::parse, |literal| Atom::Num(literal)),
@@ -50,16 +51,14 @@ impl Parser for Atom {
 }
 
 
-// impl Parser for Paren {
-//     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-//         map(tuple((
-//             tag("("),
-//             preceded(multispace0, Expr::parse),
-//             tag(")")
-//         )), |(_, expr, _)| Paren{expr: Box::new(expr), span: Span::new(input)}
-//         )(input)
-//     }
-// }
+impl Parser for Paren {
+    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+        map(tuple((
+            tag("("), Expr::parse, tag(")")
+        )), |(_, expr, _)| Paren{expr: Box::new(expr), span: Span::new(input)}
+        )(input)
+    }
+}
 
 
 /**

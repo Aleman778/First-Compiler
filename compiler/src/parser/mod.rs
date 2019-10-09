@@ -32,5 +32,6 @@ pub trait Parser: Sized {
 
 
 pub mod error;
+pub mod op;
 pub mod atom;
 pub mod expr;
