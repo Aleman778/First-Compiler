@@ -47,10 +47,9 @@ pub enum Expr {
     /// Expression for function calls
     FnCall(ExprFnCall),
     /// Expression for integer literals
-    Num(ExprLitInt),
+    Num(LitInt),
     /// Expression for boolean literals
-    Bool(ExprLitBool),
-
+    Bool(LitBool),
 }
 
 
@@ -61,7 +60,7 @@ pub enum Expr {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBinOp {
     pub left: Box<Expr>,
-    pub op: BinOp,
+    pub op: Op,
     pub right: Box<Expr>,
     pub span: Span,
 }
@@ -73,7 +72,7 @@ pub struct ExprBinOp {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprUnOp {
-    pub op: UnOp,
+    pub op: Op,
     pub right: Box<Expr>,
     pub span: Span,
 }

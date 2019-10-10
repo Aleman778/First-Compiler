@@ -70,7 +70,7 @@ impl Span {
             length: s.fragment.len(),
         }
     }
-
+    
 
     /**
      * Get the length of the entire span fragment.

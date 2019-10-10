@@ -27,7 +27,7 @@ pub struct ExprParen {
  * Literal integer struct has an i32 value.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprLitInt {
+pub struct LitInt {
     pub value: i32,
     pub span: Span,
 }
@@ -37,7 +37,7 @@ pub struct ExprLitInt {
  * Literal boolean struct has a bool value.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprLitBool {
+pub struct LitBool {
     pub value: bool,
     pub span: Span,
 }

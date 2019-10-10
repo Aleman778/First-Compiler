@@ -14,7 +14,7 @@ use parser::Parser;
 
 fn main() {
     let input = ParseSpan::new("2+3**(2*3)+4");
-    match ast::expr::Expr::parse(input.clone()) {
+    match parser::token::parse_math_expr(input.clone()) {
         Ok(ast) => println!("Ok:{:#?}", ast),
         Err(e) => {
             match e {
