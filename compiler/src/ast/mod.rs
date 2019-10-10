@@ -7,5 +7,5 @@
 pub mod span;
 pub mod op;
 pub mod base;
-pub mod atom;
+pub mod lit;
 pub mod expr;

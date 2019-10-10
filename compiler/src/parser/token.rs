@@ -1,6 +1,10 @@
 
 /***************************************************************************
  * Parses tokens that can be turned into a peekable iterator.
+ * This functionality has been moved into:
+ *   - src/parser/expr.rs
+ *   - src/parser/lit.rs
+ *   - src/parser/op.rs
  ***************************************************************************/
 
 
@@ -24,7 +28,6 @@ use nom::{
 use crate::ast::{
     span::Span,
     expr::*,
-    atom::*,
     op::*,
 };
 

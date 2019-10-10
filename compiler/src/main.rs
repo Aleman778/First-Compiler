@@ -8,13 +8,14 @@ mod ast;
 mod parser;
 
 
-use parser::ParseSpan;
-use parser::Parser;
+use crate::ast::expr::Expr;
+use crate::parser::ParseSpan;
+use crate::parser::Parser;
 
 
 fn main() {
     let input = ParseSpan::new("2+3**(2*3)+4");
-    match parser::token::parse_math_expr(input.clone()) {
+    match Expr::parse_math(input.clone()) {
         Ok(ast) => println!("Ok:{:#?}", ast),
         Err(e) => {
             match e {

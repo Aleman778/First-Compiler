@@ -12,8 +12,7 @@
  */
 use crate::ast::{
     span::Span,
-    atom::ExprIdent,
-    expr::ExprBlock,
+    expr::{ExprIdent, ExprBlock},
 };
 
 

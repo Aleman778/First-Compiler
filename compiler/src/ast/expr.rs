@@ -1,16 +1,16 @@
 #![allow(dead_code)]
 
 /***************************************************************************
- * Expressions AST sub module can be really anything from simple
- * arithmetic expressions to if statements etc.
+ * Expressions AST sub module defines all the different expressions in
+ * the squirrel language e.g. binary operations, if statements etc.
  ***************************************************************************/
 
 
 use crate::ast::{
     span::Span,
     base::Type,
+    lit::Lit,
     op::*,
-    atom::*,
 };
 
 
@@ -20,36 +20,58 @@ use crate::ast::{
  */
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
-    /// Expression for binary opeations
-    BinOp(ExprBinOp),
-    /// Expression for unary operations
-    UnOp(ExprUnOp),
-    /// Expression for local variable assignment
-    Local(ExprLocal),
-    /// Expression for mutation for variable
+    /// Expression for mutation for variable e.g. `a = calc()`.
     Assign(ExprAssign),
-    /// Expression for blocks (a.k.a. body)
+    
+    /// Expression for binary opeations e.g. `5 + a`, `b && check()`.
+    Binary(ExprBinary),
+    
+    /// Expression for blocks i.e. `{ ... }`.
     Block(ExprBlock),
-    /// Expression for if statements
+    
+    /// Expression for break statements i.e. `break;`.
+    Break(ExprBreak),
+    
+    /// Expression for function calls e.g. `foo(bar)`.
+    Call(ExprCall),
+    
+    /// Expression for continue statements e.g. `continue;`.
+    Continue(ExprContinue),
+    
+    /// Expression for identifiers e.g. `foo`, `my_function`, `__PATH__`.
+    Ident(ExprIdent),
+    
+    /// Expression for if statements e.g. `if a > 5 { a = 6; } else { a = 4; }`.
     If(ExprIf),
+    
+    /// Expression for literals e.g. '32', 'true'.
+    Lit(ExprLit),
+    
+    /// Expression for local variable assignment e.g. `let a: i32 = 5;`.
+    Local(ExprLocal),
+    
+    /// Parenthesized expression e.g. `(5 + 3)`.
+    Paren(ExprParen),
+    
+    /// Expression for return statements e.g. `return true;`, `return;`.
+    Return(ExprReturn),
+    
+    /// Expression for unary operations e.g. `-a`, `!is_err()`.
+    Unary(ExprUnary),
+    
     /// Expression for while statements
     While(ExprWhile),
-    /// Expression for return statements
-    Return(ExprReturn),
-    /// Expression for break statements
-    Break(ExprBreak),
-    /// Expression for continue statements
-    Continue(ExprContinue),
-    /// Parenthesized expression
-    Paren(ExprParen),
-    /// Expression for identifiers
-    Ident(ExprIdent),
-    /// Expression for function calls
-    FnCall(ExprFnCall),
-    /// Expression for integer literals
-    Num(LitInt),
-    /// Expression for boolean literals
-    Bool(LitBool),
+}
+
+
+/**
+ * Assignment of mutable variable, e.g. x = 5;
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprAssign {
+    pub ident: ExprIdent,
+    pub expr: Box<Expr>,
+    pub span: Span,
 }
 
 
@@ -58,7 +80,7 @@ pub enum Expr {
  * and also the operator in between, e.g. 1 + 2.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprBinOp {
+pub struct ExprBinary {
     pub left: Box<Expr>,
     pub op: Op,
     pub right: Box<Expr>,
@@ -67,13 +89,73 @@ pub struct ExprBinOp {
 
 
 /**
- * Unary operation has an operator to the left and
- * the operand to the right, e.g. !running.
+ * Block contains a vector of expressions.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprUnOp {
-    pub op: Op,
-    pub right: Box<Expr>,
+pub struct ExprBlock {
+    pub stmts: Vec<Expr>,
+    pub span: Span,
+}
+
+
+/**
+ * Breaks the loop.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprBreak {
+    pub span: Span,
+}
+
+
+/**
+ * Function call contains the identifier and arguments.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprCall {
+    pub ident: ExprIdent,
+    pub args: Vec<Expr>,
+    pub span: Span,
+}
+
+
+/**
+ * Continue to next cycle of the loop.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprContinue {
+    pub span: Span,
+}
+
+
+/**
+ * Identifier struct contains a user defined name.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprIdent {
+    pub to_string: String,
+    pub span: Span,
+}
+
+
+/**
+ * If statement has a condition and a block
+ * that is executed if condition is true otherwise the
+ * second block is optionally executed instead.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprIf {
+    pub cond: Box<Expr>,
+    pub then_block: ExprBlock,
+    pub else_block: Option<ExprBlock>,
+    pub span: Span,
+}
+
+/**
+ * 
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExprLit {
+    pub lit: Lit,
     pub span: Span,
 }
 
@@ -93,48 +175,11 @@ pub struct ExprLocal {
 
 
 /**
- * Assignment of mutable variable, e.g. x = 5;
+ * Parenthesized expressions.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprAssign {
-    pub ident: ExprIdent,
+pub struct ExprParen {
     pub expr: Box<Expr>,
-    pub span: Span,
-}
-
-
-/**
- * Block contains a vector of expressions.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprBlock {
-    pub stmts: Vec<Expr>,
-    pub span: Span,
-}
-
-
-/**
- * If statement has a condition and a block
- * that is executed if condition is true otherwise the
- * second block is optionally executed instead.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprIf {
-    pub cond: Box<Expr>,
-    pub then_block: ExprBlock,
-    pub else_block: Option<ExprBlock>,
-    pub span: Span,
-}
-
-
-/**
- * While loops includes a condition and a block that is
- * executed each time the condition is true.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct ExprWhile {
-    pub cond: Box<Expr>,
-    pub block: ExprBlock,
     pub span: Span,
 }
 
@@ -150,18 +195,24 @@ pub struct ExprReturn {
 
 
 /**
- * Breaks the loop.
+ * Unary operation has an operator to the left and
+ * the operand to the right, e.g. !running.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprBreak {
+pub struct ExprUnary {
+    pub op: Op,
+    pub right: Box<Expr>,
     pub span: Span,
 }
 
 
 /**
- * Continue to next cycle of the loop.
+ * While loops includes a condition and a block that is
+ * executed each time the condition is true.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprContinue {
+pub struct ExprWhile {
+    pub cond: Box<Expr>,
+    pub block: ExprBlock,
     pub span: Span,
 }
