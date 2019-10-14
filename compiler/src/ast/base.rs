@@ -35,7 +35,7 @@ pub struct File {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
-    ItemFn(ItemFn),
+    Fn(ItemFn),
 }
 
 
