@@ -189,7 +189,7 @@ pub struct ExprParen {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprReturn {
-    pub expr: Option<Box<Expr>>,
+    pub expr: Box<Option<Expr>>,
     pub span: Span,
 }
 

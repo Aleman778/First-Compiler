@@ -41,7 +41,14 @@ impl Parser for Expr {
         context(
             "expression",
             alt((
-                map(ExprAssign::parse, |assign| Expr::Assign(assign)),
+                map(ExprLocal::parse,    |expr_local|    Expr::Local(expr_local)),
+                map(ExprAssign::parse,   |expr_assign|   Expr::Assign(expr_assign)),
+                map(ExprIf::parse,       |expr_if|       Expr::If(expr_if)),
+                map(ExprWhile::parse,    |expr_while|    Expr::While(expr_while)),
+                map(ExprBlock::parse,    |expr_block|    Expr::Block(expr_block)),
+                map(ExprReturn::parse,   |expr_return|   Expr::Return(expr_return)),
+                map(ExprBreak::parse,    |expr_break|    Expr::Break(expr_break)),
+                map(ExprContinue::parse, |expr_continue| Expr::Continue(expr_continue)),
                 Expr::parse_atom,
             ))
         )(input)
@@ -103,7 +110,7 @@ impl Parser for ExprAssign {
                     Expr::parse_math,
                     preceded(multispace0, tag(";")),
                 )),
-                    |(id, _, expr, _)| ExprAssign{
+                    |(id, _, expr, _)| ExprAssign {
                         ident: id,
                         expr: Box::new(expr),
                         span: Span::new(input),
@@ -134,7 +141,7 @@ impl ExprBinary {
         let (mut input, mut expr_lhs) = Expr::parse_atom(input)?;
         loop {
             match peek(Op::parse)(input) {
-                Ok((span, operator)) => {
+                Ok((_span, operator)) => {
                     let (prec, assoc) = get_prec(&operator);
                     if prec < min_prec {
                         break;
@@ -145,7 +152,7 @@ impl ExprBinary {
                     };
                     let (span, operator) = Op::parse(input)?;
                     let (span, expr_rhs) = ExprBinary::climb(span, next_min_prec)?;
-                    expr_lhs = Expr::Binary(ExprBinary{
+                    expr_lhs = Expr::Binary(ExprBinary {
                         left: Box::new(expr_lhs),
                         op: operator,
                         right: Box::new(expr_rhs),
@@ -177,9 +184,10 @@ impl Parser for ExprBlock {
                 opt(Expr::parse_math)
             ),
                 |(mut stmts, ret)| {
-                    match ret {
-                        Some(expr) => stmts.push(expr),
+                    if ret.is_some() {
+                        stmts.push(ret.unwrap());
                     }
+                    
                     ExprBlock{
                         stmts: stmts,
                         span: Span::new(input),
@@ -226,7 +234,7 @@ impl Parser for ExprCall {
                 preceded(multispace0, tag(")")),
                 preceded(multispace0, tag(";")),
             )),
-                |(id, _, args, _, _)| ExprCall{
+                |(id, _, args, _, _)| ExprCall {
                     ident: id,
                     args: args,
                     span: Span::new(input),
@@ -268,8 +276,7 @@ impl Parser for ExprIdent {
             map(pair(
                 peek(alt((alpha1, tag("_")))),
                 take_while1(|c: char| is_alphanumeric(c as u8) || c == '_')),
-                |(_, s): (ParseSpan, ParseSpan)|
-                ExprIdent{
+                |(_, s): (ParseSpan, ParseSpan)| ExprIdent {
                     to_string: s.fragment.to_string(),
                     span: Span::new(s)
                 }
@@ -296,7 +303,7 @@ impl Parser for ExprIf  {
                         preceded(multispace0, ExprBlock::parse))
                     ),
                 )),
-                    |(cond, then_block, else_block)| ExprIf{
+                    |(cond, then_block, else_block)| ExprIf {
                         cond: Box::new(cond),
                         then_block: then_block,
                         else_block: else_block,
@@ -343,11 +350,12 @@ impl Parser for ExprLocal {
                     preceded(multispace0, Expr::parse_math),
                     preceded(multispace0, tag(";")),
                 )),
-                    |(mutable, ident, _, ty, _, expr, _)| ExprLocal{
+                    |(mutable, ident, _, ty, _, expr, _)| ExprLocal {
                         mutable: mutable.is_some(),
-                        ident: Box::new(ident),
+                        ident: ident,
                         ty: ty,
-                        init: Box::new(expr)
+                        init: Box::new(expr),
+                        span: Span::new(input),
                     }
                 )
             )
@@ -380,8 +388,8 @@ impl Parser for ExprReturn {
                 opt(preceded(multispace1, Expr::parse_math)),
                 preceded(multispace0, tag(";")),
             )),
-                |(_, expr, _)| ExprReturn{
-                    expr: expr,
+                |(_, expr, _)| ExprReturn {
+                    expr: Box::new(expr),
                     span: Span::new(input),
                 }
             )           
@@ -401,9 +409,10 @@ impl Parser for ExprUnary {
                 Op::parse,
                 ExprUnary::parse_unop
             ),
-                |(op, expr)| ExprUnary{
+                |(op, expr)| ExprUnary {
                     op: op,
                     right: Box::new(expr),
+                    span: Span::new(input),
                 }
             )
         )(input)
@@ -437,7 +446,7 @@ impl Parser for ExprWhile {
                     preceded(multispace1, Expr::parse_math),
                     preceded(multispace0, ExprBlock::parse)
                 ),
-                    |(cond, block)| ExprIf{
+                    |(cond, block)| ExprWhile {
                         cond: Box::new(cond),
                         block: block,
                         span: Span::new(input),

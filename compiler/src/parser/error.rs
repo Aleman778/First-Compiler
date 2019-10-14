@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /***************************************************************************
  * Error sub module for parser is used to capture more information

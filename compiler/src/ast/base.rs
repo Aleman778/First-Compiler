@@ -59,7 +59,7 @@ pub struct ItemFn {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnDecl {
     pub inputs: Vec<Argument>,
-    pub output: Type,
+    pub output: Option<Type>,
     pub span: Span,
 }
 

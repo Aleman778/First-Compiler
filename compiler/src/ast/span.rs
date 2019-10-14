@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /***************************************************************************
  * Span information for storing location data used for debugging

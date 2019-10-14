@@ -5,11 +5,10 @@
  ***************************************************************************/
 
 use nom::{
-    character::is_alphanumeric,
-    character::complete::{alpha1, multispace0},
-    bytes::complete::{take_while1, tag},
-    combinator::{map, opt, peek},
-    sequence::{delimited, preceded, terminated, pair, tuple},
+    character::complete::{multispace0, multispace1},
+    bytes::complete::tag,
+    combinator::{map, opt},
+    sequence::{delimited, preceded, pair, tuple},
     multi::{many0, separated_list},
     branch::alt,
     error::context,
@@ -30,15 +29,27 @@ use crate::parser::{
 };
 
 
+/**
+ * Parse a source file containing items such as functions.
+ */
 impl Parser for File {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "file",
+            map(many0(Item::parse),
+                |items| File {
+                    items: items,
+                    span: Span::new(input),
+                }
+            )
         )(input)
     }
 }
 
 
+/**
+ * Parse an item can atm only be a function.
+ */
 impl Parser for Item {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
@@ -49,6 +60,9 @@ impl Parser for Item {
 }
 
 
+/**
+ * Parse a function.
+ */
 impl Parser for ItemFn {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
@@ -59,7 +73,7 @@ impl Parser for ItemFn {
                 FnDecl::parse,
                 ExprBlock::parse,
             )),
-                |(_, id, decl, block)| ItemFn{
+                |(_, id, decl, block)| ItemFn {
                     ident: id,
                     decl: decl,
                     block: block,
@@ -71,26 +85,49 @@ impl Parser for ItemFn {
 }
 
 
+/**
+ * Parse a function delcaration, this includes
+ * the input arguments and optionally output type.
+ */
 impl Parser for FnDecl {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "function declaration",
-            map(tuple((
+            map(pair(
                 delimited(
                     preceded(multispace0, tag("(")),
-                    Argument::parse,
+                    separated_list(
+                        preceded(multispace0, tag(",")),
+                        Argument::parse
+                    ),
                     preceded(multispace0, tag(")"))
                 ),
-                opt(
-                    
-                ),
-            )),
-                |(args, ret)|
+                opt(pair(
+                    preceded(multispace0, tag("->")),
+                    Type::parse
+                )),
+            ),
+                |(args, ret_ty)| {
+                    let output;
+                    match ret_ty {
+                        Some(ty) => output = Some(ty.1),
+                        None => output = None,
+                    }
+                    FnDecl {
+                        inputs: args,
+                        output: output,
+                        span: Span::new(input),
+                    }
+                }
+            )
         )(input)
     }
 }
 
 
+/**
+ * Parse a function argument.
+ */
 impl Parser for Argument {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
@@ -100,7 +137,7 @@ impl Parser for Argument {
                 preceded(multispace0, tag(":")),
                 Type::parse,
             )),
-                |(id, _, ty)| Argument{
+                |(id, _, ty)| Argument {
                     ident: id,
                     ty: ty,
                     span: Span::new(input),
@@ -111,6 +148,9 @@ impl Parser for Argument {
 }
 
 
+/**
+ * Parse a type either i32 or bool.
+ */
 impl Parser for Type {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(

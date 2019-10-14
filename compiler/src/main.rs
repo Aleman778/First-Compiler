@@ -10,11 +10,9 @@ mod parser;
 
 use crate::ast::expr::Expr;
 use crate::parser::ParseSpan;
-use crate::parser::Parser;
-
 
 fn main() {
-    let input = ParseSpan::new("2+3**(2*3)+4");
+    let input = ParseSpan::new("2+3**(2*3)+-4");
     match Expr::parse_math(input.clone()) {
         Ok(ast) => println!("Ok:{:#?}", ast),
         Err(e) => {
