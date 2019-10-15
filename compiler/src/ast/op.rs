@@ -9,15 +9,15 @@ use crate::ast::span::Span;
 
 
 /**
- * Binary and unary operators operators e.g. `+`, `&&`, `!` etc.
+ * Binary  operators e.g. `+`, `&&`, `!` etc.
  */
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Op {
+pub enum BinOp {
     /// The `+` operator (addition)
     Add{span: Span},
-    /// The `-` operator (subtraction)
+    /// The `-` binary operator (subtraction)
     Sub{span: Span},
-    /// The `*` operator (multiplication/ dereferencing)
+    /// The `*` operator (multiplication)
     Mul{span: Span},
     /// The `/` operator (division)
     Div{span: Span},
@@ -41,8 +41,22 @@ pub enum Op {
     Gt{span: Span},
     /// The `>=` operator (greater than or equal to)
     Ge{span: Span},
+}
+
+
+/**
+ * Unary operators e.g. `-`, `!`, `*` etc.
+ */
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum UnOp {
+    /// The `-` unary operator (negation)
+    Neg{span: Span},
     /// The `!` operator (logical inversion)
     Not{span: Span},
+    /// The `&` operator (referencing)
+    Ref{span: Span},
+    /// The `*` operator (dereferencing)
+    Deref{span: Span},
 }
 
 
@@ -56,39 +70,57 @@ pub enum Assoc {
 
 
 /**
- * Returns the precedence and associativity of the given operator.
+ * Implementation of the binary operator node.
  */
-pub fn get_prec(op: &Op) -> (u8, Assoc) {
-    match op {
-        Op::Add{span: _} => (1, Assoc::Left),
-        Op::Sub{span: _} => (1, Assoc::Left),
-        Op::Mul{span: _} => (2, Assoc::Left),
-        Op::Div{span: _} => (2, Assoc::Left),
-        Op::Pow{span: _} => (3, Assoc::Right),
-        _ => (1, Assoc::Left),
+impl BinOp {
+    /**
+     * Returns the precedence and associativity of this operator.
+     * These are based on C++ operator precedence.
+     */
+    pub fn get_prec(&self) -> (u8, Assoc) {
+        match self {
+            // Precedence: 1 Associativity: Left-to-right
+            BinOp::And{span: _} => (1, Assoc::Left),
+            BinOp::Or{span: _}  => (1, Assoc::Left),
+            
+            // Precedence: 2 Associativity: Left-to-right
+            BinOp::Eq{span: _}  => (2, Assoc::Left),
+            BinOp::Ne{span: _}  => (2, Assoc::Left),
+            
+            // Precedence: 3 Associativity: Left-to-right
+            BinOp::Lt{span: _}  => (3, Assoc::Left),
+            BinOp::Le{span: _}  => (3, Assoc::Left),
+            BinOp::Gt{span: _}  => (3, Assoc::Left),
+            BinOp::Ge{span: _}  => (3, Assoc::Left),
+            
+            // Precedence: 4 Associativity: Left-to-right
+            BinOp::Add{span: _} => (4, Assoc::Left),
+            BinOp::Sub{span: _} => (4, Assoc::Left),
+            
+            // Precedence: 5 Associativity: Left-to-right
+            BinOp::Mul{span: _} => (5, Assoc::Left),
+            BinOp::Div{span: _} => (5, Assoc::Left),
+            BinOp::Mod{span: _} => (5, Assoc::Left),
+            
+            // Precedence: 6 Associativity: Right-to-left
+            BinOp::Pow{span: _} => (6, Assoc::Right),
+            
+        }
     }
 }
 
 
 /**
- * Returns the span info of the given binary operator.
+ * Implementation of the unary operator node.
  */
-pub fn get_span(op: &Op) -> Span {
-    match op {
-        Op::Add{span} => *span,
-        Op::Sub{span} => *span,
-        Op::Mul{span} => *span,
-        Op::Div{span} => *span,
-        Op::Pow{span} => *span,
-        Op::Mod{span} => *span,
-        Op::And{span} => *span,
-        Op::Or{span} => *span,
-        Op::Eq{span} => *span,
-        Op::Ne{span} => *span,
-        Op::Lt{span} => *span,
-        Op::Le{span} => *span,
-        Op::Gt{span} => *span,
-        Op::Ge{span} => *span,
-        Op::Not{span} => *span,
+impl UnOp {
+    /**
+     * Returns the associativity of this operator.
+     * All unary operators have precedence 7 and 
+     * are right-to-left associative.
+     * These are based on C++ operator precedence.
+     */
+    pub fn get_prec(&self) -> (u8, Assoc) {
+        (7, Assoc::Right)
     }
 }

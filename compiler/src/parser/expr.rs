@@ -87,8 +87,8 @@ impl Expr {
                 map(ExprLit::parse, |literal| Expr::Lit(literal)),
                 map(ExprParen::parse, |expr| Expr::Paren(expr)),
                 map(ExprCall::parse, |call| Expr::Call(call)),
-                map(ExprUnary::parse, |unary| Expr::Unary(unary)),
                 map(ExprIdent::parse, |ident| Expr::Ident(ident)),
+                map(ExprUnary::parse, |unary| Expr::Unary(unary)),
             ))
         )(input)
     }
@@ -140,9 +140,9 @@ impl ExprBinary {
     fn climb(input: ParseSpan, min_prec: u8) -> IResult<ParseSpan, Expr> {
         let (mut input, mut expr_lhs) = Expr::parse_atom(input)?;
         loop {
-            match peek(Op::parse)(input) {
+            match peek(BinOp::parse)(input) {
                 Ok((_span, operator)) => {
-                    let (prec, assoc) = get_prec(&operator);
+                    let (prec, assoc) = operator.get_prec();
                     if prec < min_prec {
                         break;
                     }
@@ -150,7 +150,7 @@ impl ExprBinary {
                         Assoc::Left => prec + 1,
                         Assoc::Right => prec,
                     };
-                    let (span, operator) = Op::parse(input)?;
+                    let (span, operator) = BinOp::parse(input)?;
                     let (span, expr_rhs) = ExprBinary::climb(span, next_min_prec)?;
                     expr_lhs = Expr::Binary(ExprBinary {
                         left: Box::new(expr_lhs),
@@ -406,7 +406,7 @@ impl Parser for ExprUnary {
         context(
             "unary operation",
             map(pair(
-                Op::parse,
+                UnOp::parse,
                 ExprUnary::parse_unop
             ),
                 |(op, expr)| ExprUnary {
@@ -428,7 +428,7 @@ impl ExprUnary {
      * Precedence climbing for unary operator, assume highest precedence.
      */
     fn parse_unop(input: ParseSpan) -> IResult<ParseSpan, Expr> {
-        ExprBinary::climb(input, 4)
+        ExprBinary::climb(input, 7)
     }
 }
 

@@ -82,7 +82,7 @@ pub struct ExprAssign {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBinary {
     pub left: Box<Expr>,
-    pub op: Op,
+    pub op: BinOp,
     pub right: Box<Expr>,
     pub span: Span,
 }
@@ -200,7 +200,7 @@ pub struct ExprReturn {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprUnary {
-    pub op: Op,
+    pub op: UnOp,
     pub right: Box<Expr>,
     pub span: Span,
 }
