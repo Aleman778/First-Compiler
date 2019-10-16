@@ -9,9 +9,7 @@ use utilities::ast::*;
 use compiler::{
     ast::{op::*, lit::*, expr::*, base::Type},
     parser::Parser,
-    parser::error::convert_error,
 };
-use nom::Err;
 
 
 #[test]
@@ -106,7 +104,7 @@ fn parse_block() {
 #[test]
 fn parse_break() {
     assert_eq!(
-        ExprBreak::parse(input("break;")).unwrap().1,
+        ExprBreak::parse(input("break;  ")).unwrap().1,
         ExprBreak {
             span: span(0, "break;"),
         }                
@@ -136,7 +134,7 @@ fn parse_call() {
 #[test]
 fn parse_continue() {
     assert_eq!(
-        ExprContinue::parse(input("continue;")).unwrap().1,
+        ExprContinue::parse(input("continue;  ")).unwrap().1,
         ExprContinue {
             span: span(0, "continue;"),
         }                
@@ -189,7 +187,7 @@ fn parse_if() {
                 ],
                 span: span(9, "{ true }"),
             },
-            else_block: ExprBlock{
+            else_block: Some(ExprBlock{
                 stmts: vec![
                     Expr::Return(ExprReturn {
                         expr: Box::new(Some(Expr::Lit(expr_lit_bool(false, span(23, "false"))))),
@@ -197,7 +195,7 @@ fn parse_if() {
                     }),
                 ],
                 span: span(9, "{ true }"),
-            },
+            }),
             span: span(0, "if a > 5 { true } else { false }"),
         }
     );
@@ -245,18 +243,48 @@ fn parse_local() {
 
 #[test]
 fn parse_paren() {
-    
+    assert_eq!(
+        ExprParen::parse(input("(1 + 2*3)")).unwrap().1,
+        ExprParen {
+            expr: Box::new(Expr::Binary(ExprBinary {
+                left: Box::new(Expr::Lit(expr_lit_int(1, span(1, "1")))),
+                op: BinOp::Add{span: span(3, "+")},
+                right: Box::new(Expr::Binary(ExprBinary {
+                    left: Box::new(Expr::Lit(expr_lit_int(1, span(5, "2")))),
+                    op: BinOp::Mul{span: span(6, "*")},
+                    right: Box::new(Expr::Lit(expr_lit_int(1, span(7, "3")))),
+                    span: span(5, "2*3"),
+                })),
+                span: span(1, "1 + 2*3"),
+            })),
+            span: span(0, "(1 + 2*3)"),
+        }
+    );
 }
 
 
 #[test]
 fn parse_return() {
-
+    assert_eq!(
+        ExprReturn::parse(input("return;  ")).unwrap().1,
+        ExprReturn {
+            expr: Box::new(None),
+            span: span(0, "return;"),
+        }
+    );
+    
+    assert_eq!(
+        ExprReturn::parse(input("return false;  ")).unwrap().1,
+        ExprReturn {
+            expr: Box::new(Some(Expr::Lit(expr_lit_bool(false, span(7, "false"))))),
+            span: span(0, "return;"),
+        }
+    );
 }
 
 
 #[test]
-fn parse_unop() {
+fn parse_unary() {
     assert_eq!(
         ExprUnary::parse(input("-42")).unwrap().1,
         ExprUnary {
@@ -279,5 +307,37 @@ fn parse_unop() {
 
 #[test]
 fn parse_while() {
-
+    assert_eq!(
+        ExprWhile::parse(input("while x < 10 { x = x + 1; }")).unwrap().1,
+        ExprWhile {
+            cond: Box::new(Expr::Binary(ExprBinary {
+                left: Box::new(Expr::Ident(ExprIdent {
+                    to_string: "x".to_string(),
+                    span: span(6, "x"),
+                })),
+                op: BinOp::Lt{span: span(8, "<")},
+                right: Box::new(Expr::Lit(expr_lit_int(10, span(10, "10")))),
+                span: span(6, "x < 10"),
+            })),
+            block: ExprBlock {
+                stmts: vec![
+                    Expr::Assign(ExprAssign {
+                        ident: ExprIdent{to_string: "x".to_string(), span: span(0, "x")},
+                        expr: Box::new(Expr::Binary(ExprBinary {
+                            left: Box::new(Expr::Ident(ExprIdent {
+                                to_string: "x".to_string(),
+                                span: span(19, "x"),
+                            })),
+                            op: BinOp::Add{span: span(21, "+")},
+                            right: Box::new(Expr::Lit(expr_lit_int(5, span(23, "1")))),
+                            span: span(19, "x + 1"),
+                        })),
+                        span: span(15, "x = x + 1;"),
+                    }),
+                ],
+                span: span(13, "{ x = x + 1; }"),
+            },
+            span: span(0, "while x < 10 { x = x + 1; }"),
+        }
+    );
 }
