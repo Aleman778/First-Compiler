@@ -1,9 +1,9 @@
 
 /***************************************************************************
- * Hepler sub module is used to provide helper functions for tests.
+ * Main entry of utility library.
  ***************************************************************************/
 
 
-pub mod math_eval;
 pub mod span;
+pub mod math_eval;
 pub mod ast;

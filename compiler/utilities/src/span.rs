@@ -3,18 +3,19 @@
  * Helper functions for testing the span information
  ***************************************************************************/
 
-
 extern crate compiler;
 
-
-use crate::compiler::{
+use compiler::{
     ast::span::Span,
     parser::ParseSpan,
 };
 use nom_locate::LocatedSpanEx;
 
 
-fn input(input: &str) -> ParseSpan {
+/**
+ * Returns a ParseSpan used as input to parser.
+ */
+pub fn input(input: &str) -> ParseSpan {
     ParseSpan::new(input)
 }
 

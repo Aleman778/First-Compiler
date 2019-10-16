@@ -79,30 +79,30 @@ impl BinOp {
      */
     pub fn get_prec(&self) -> (u8, Assoc) {
         match self {
-            // Precedence: 1 Associativity: Left-to-right
+            // Precedence: 1, Associativity: Left-to-right
             BinOp::And{span: _} => (1, Assoc::Left),
             BinOp::Or{span: _}  => (1, Assoc::Left),
             
-            // Precedence: 2 Associativity: Left-to-right
+            // Precedence: 2, Associativity: Left-to-right
             BinOp::Eq{span: _}  => (2, Assoc::Left),
             BinOp::Ne{span: _}  => (2, Assoc::Left),
             
-            // Precedence: 3 Associativity: Left-to-right
+            // Precedence: 3, Associativity: Left-to-right
             BinOp::Lt{span: _}  => (3, Assoc::Left),
             BinOp::Le{span: _}  => (3, Assoc::Left),
             BinOp::Gt{span: _}  => (3, Assoc::Left),
             BinOp::Ge{span: _}  => (3, Assoc::Left),
             
-            // Precedence: 4 Associativity: Left-to-right
+            // Precedence: 4, Associativity: Left-to-right
             BinOp::Add{span: _} => (4, Assoc::Left),
             BinOp::Sub{span: _} => (4, Assoc::Left),
             
-            // Precedence: 5 Associativity: Left-to-right
+            // Precedence: 5, Associativity: Left-to-right
             BinOp::Mul{span: _} => (5, Assoc::Left),
             BinOp::Div{span: _} => (5, Assoc::Left),
             BinOp::Mod{span: _} => (5, Assoc::Left),
             
-            // Precedence: 6 Associativity: Right-to-left
+            // Precedence: 6, Associativity: Right-to-left
             BinOp::Pow{span: _} => (6, Assoc::Right),
             
         }

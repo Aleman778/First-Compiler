@@ -68,10 +68,7 @@ impl Expr {
     pub fn parse_math(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "expression",
-            alt((
-                ExprBinary::parse,
-                Expr::parse_atom,
-            ))
+            preceded(multispace0, ExprBinary::parse)
         )(input)
     }
 
@@ -129,7 +126,7 @@ impl ExprBinary {
     /**
      * Parse a binary operation.
      */
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Expr> {
+    pub fn parse(input: ParseSpan) -> IResult<ParseSpan, Expr> {
         ExprBinary::climb(input, 1)
     }
 
@@ -273,13 +270,13 @@ impl Parser for ExprIdent {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "identifier",
-            map(pair(
+            preceded(multispace0, map(pair(
                 peek(alt((alpha1, tag("_")))),
                 take_while1(|c: char| is_alphanumeric(c as u8) || c == '_')),
                 |(_, s): (ParseSpan, ParseSpan)| ExprIdent {
                     to_string: s.fragment.to_string(),
                     span: Span::new(s)
-                }
+                })
             )
         )(input)
     }    
@@ -293,23 +290,21 @@ impl Parser for ExprIf  {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "if statement",
-            preceded(
-                tag("if"),
-                map(tuple((
-                    preceded(multispace1, Expr::parse_math),
-                    preceded(multispace0, ExprBlock::parse),
-                    opt(preceded(
-                        pair(multispace0, tag("else")),
-                        preceded(multispace0, ExprBlock::parse))
-                    ),
-                )),
-                    |(cond, then_block, else_block)| ExprIf {
-                        cond: Box::new(cond),
-                        then_block: then_block,
-                        else_block: else_block,
-                        span: Span::new(input),
-                    }
-                )
+            map(tuple((
+                preceded(multispace0, tag("if")),
+                preceded(multispace1, Expr::parse_math),
+                preceded(multispace0, ExprBlock::parse),
+                opt(preceded(
+                    pair(multispace0, tag("else")),
+                    preceded(multispace0, ExprBlock::parse))
+                ),
+            )),
+                |(_, cond, then_block, else_block)| ExprIf {
+                    cond: Box::new(cond),
+                    then_block: then_block,
+                    else_block: else_block,
+                    span: Span::new(input),
+                }
             )
         )(input)
     }
@@ -339,25 +334,23 @@ impl Parser for ExprLocal {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "local variable",
-            preceded(
-                tag("let"),
-                map(tuple((
-                    opt(preceded(multispace1, tag("mut"))),
-                    preceded(multispace1, ExprIdent::parse),
-                    preceded(multispace0, tag(":")),
-                    preceded(multispace0, Type::parse),
-                    preceded(multispace0, tag("=")),
-                    preceded(multispace0, Expr::parse_math),
-                    preceded(multispace0, tag(";")),
-                )),
-                    |(mutable, ident, _, ty, _, expr, _)| ExprLocal {
-                        mutable: mutable.is_some(),
-                        ident: ident,
-                        ty: ty,
-                        init: Box::new(expr),
-                        span: Span::new(input),
-                    }
-                )
+            map(tuple((
+                preceded(multispace0, tag("let")),
+                opt(preceded(multispace1, tag("mut"))),
+                preceded(multispace1, ExprIdent::parse),
+                preceded(multispace0, tag(":")),
+                preceded(multispace0, Type::parse),
+                preceded(multispace0, tag("=")),
+                preceded(multispace0, Expr::parse_math),
+                preceded(multispace0, tag(";")),
+            )),
+                |(_, mutable, ident, _, ty, _, expr, _)| ExprLocal {
+                    mutable: mutable.is_some(),
+                    ident: ident,
+                    ty: ty,
+                    init: Box::new(expr),
+                    span: Span::new(input),
+                }
             )
         )(input)
     }
@@ -369,8 +362,15 @@ impl Parser for ExprLocal {
  */
 impl Parser for ExprParen {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        map(delimited(tag("("), Expr::parse_math, preceded(multispace0,tag(")"))),
-            |expr| ExprParen{expr: Box::new(expr), span: Span::new(input)}
+        map(delimited(
+            preceded(multispace0, tag("(")),
+            Expr::parse_math,
+            preceded(multispace0, tag(")"))
+        ),
+            |expr| ExprParen{
+                expr: Box::new(expr),
+                span: Span::new(input)
+            }
         )(input)
     }
 }
@@ -440,18 +440,16 @@ impl Parser for ExprWhile {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "while loop",
-            preceded(
-                tag("while"),
-                map(pair(
-                    preceded(multispace1, Expr::parse_math),
-                    preceded(multispace0, ExprBlock::parse)
-                ),
-                    |(cond, block)| ExprWhile {
-                        cond: Box::new(cond),
-                        block: block,
-                        span: Span::new(input),
-                    }
-                )
+            map(tuple((
+                preceded(multispace0, tag("while")),
+                preceded(multispace1, Expr::parse_math),
+                preceded(multispace0, ExprBlock::parse)
+            )),
+                |(_, cond, block)| ExprWhile {
+                    cond: Box::new(cond),
+                    block: block,
+                    span: Span::new(input),
+                }
             )
         )(input)
     }

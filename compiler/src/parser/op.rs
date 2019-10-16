@@ -7,7 +7,9 @@
 use crate::ast::{op::*, span::Span};
 use crate::parser::{ParseSpan, Parser, IResult};
 use nom::{
+    character::complete::multispace0,
     bytes::complete::tag,
+    sequence::preceded,
     combinator::map,
     error::context,
     branch::alt,
@@ -21,7 +23,7 @@ impl Parser for BinOp {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "operator",
-            alt((
+            preceded(multispace0, alt((
                 map(tag("+"),  |s| BinOp::Add{span: Span::new(s)}),
                 map(tag("-"),  |s| BinOp::Sub{span: Span::new(s)}),
                 map(tag("**"), |s| BinOp::Pow{span: Span::new(s)}),
@@ -36,7 +38,7 @@ impl Parser for BinOp {
                 map(tag("<="), |s| BinOp::Le{span: Span::new(s)}),
                 map(tag(">"),  |s| BinOp::Gt{span: Span::new(s)}),
                 map(tag(">="), |s| BinOp::Ge{span: Span::new(s)}),
-            ))
+            )))
         )(input)
     }
 }
@@ -46,12 +48,12 @@ impl Parser for UnOp {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "operator",
-            alt((
+            preceded(multispace0, alt((
                 map(tag("-"),  |s| UnOp::Neg{span: Span::new(s)}),
                 map(tag("!"),  |s| UnOp::Not{span: Span::new(s)}),
                 map(tag("&"),  |s| UnOp::Ref{span: Span::new(s)}),
                 map(tag("*"),  |s| UnOp::Deref{span: Span::new(s)}),
-            ))
+            )))
         )(input)
     }    
 }

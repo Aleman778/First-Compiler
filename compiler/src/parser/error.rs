@@ -30,13 +30,18 @@ pub struct Verbose<'a> {
 
 pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String {
     let mut result = String::new();
-    result.push_str("error: ");
     for err in &error.errors {
+    result.push_str("error: ");
         match &err.kind {
             ErrorKind::ParseIntError(e) => result.push_str(&e.to_string()),
             ErrorKind::Nom(e) => result.push_str((*e).description()),
             ErrorKind::Char(e) => result.push(*e),
-            ErrorKind::Context(e) => result.push_str(e),
+            ErrorKind::Context(e) => {
+                result.push_str("expected ");
+                result.push_str(e);
+                result.push_str(" got ");
+                result.push_str(err.span.fragment(input))
+            },
         };
         result.push('\n');
         result.push_str("  --> ");
@@ -55,8 +60,7 @@ pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String
                 result.push(' ');
             }
         }
-        
-        break;
+        result.push('\n')
     }
     result
 }

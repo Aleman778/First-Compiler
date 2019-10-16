@@ -59,7 +59,7 @@ pub enum Expr {
     /// Expression for unary operations e.g. `-a`, `!is_err()`.
     Unary(ExprUnary),
     
-    /// Expression for while statements
+    /// Expression for while statements e.g. `while true { do_something(); }`.
     While(ExprWhile),
 }
 

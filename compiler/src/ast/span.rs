@@ -93,6 +93,12 @@ impl Span {
             length: length,
         }        
     }
+
+    pub fn fragment<'a>(&self, src: &ParseSpan<'a>) -> &'a str {
+        let split = src.fragment.split("\n");
+        let lines: Vec<&str> = split.collect();
+        return lines[(self.start.line - 1) as usize];
+    }
     
 
     /**

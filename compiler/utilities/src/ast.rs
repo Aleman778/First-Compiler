@@ -5,6 +5,11 @@
  ***************************************************************************/
 
 
+use compiler::ast::{
+    expr::ExprLit,
+    span::Span,
+    lit::*
+};
 
 
 /**
@@ -16,7 +21,7 @@ pub fn expr_lit_int(val: i32, span: Span) -> ExprLit {
             value: val,
             span: span
         }),
-        span: span(0, "1"),
+        span: span,
     }
 }
 
