@@ -105,7 +105,12 @@ fn parse_block() {
 
 #[test]
 fn parse_break() {
-
+    assert_eq!(
+        ExprBreak::parse(input("break;")).unwrap().1,
+        ExprBreak {
+            span: span(0, "break;"),
+        }                
+    );
 }
 
 
@@ -130,7 +135,12 @@ fn parse_call() {
 
 #[test]
 fn parse_continue() {
-    
+    assert_eq!(
+        ExprContinue::parse(input("continue;")).unwrap().1,
+        ExprContinue {
+            span: span(0, "continue;"),
+        }                
+    );    
 }
 
 
@@ -158,7 +168,39 @@ fn parse_ident() {
 
 #[test]
 fn parse_if() {
-    
+    assert_eq!(
+        ExprIf::parse(input("if a > 5 { true } else { false }")).unwrap().1,
+        ExprIf {
+            cond: Box::new(Expr::Binary(ExprBinary {
+                left: Box::new(Expr::Ident(ExprIdent {
+                    to_string: "a".to_string(),
+                    span: span(3, "a"),
+                })),
+                op: BinOp::Gt{span: span(5, ">")},
+                right: Box::new(Expr::Lit(expr_lit_int(5, span(7, "5")))),
+                span: span(3, "a > 5"),
+            })),
+            then_block: ExprBlock{
+                stmts: vec![
+                    Expr::Return(ExprReturn {
+                        expr: Box::new(Some(Expr::Lit(expr_lit_bool(true, span(9, "true"))))),
+                        span: span(9, "true"),
+                    }),
+                ],
+                span: span(9, "{ true }"),
+            },
+            else_block: ExprBlock{
+                stmts: vec![
+                    Expr::Return(ExprReturn {
+                        expr: Box::new(Some(Expr::Lit(expr_lit_bool(false, span(23, "false"))))),
+                        span: span(23, "false"),
+                    }),
+                ],
+                span: span(9, "{ true }"),
+            },
+            span: span(0, "if a > 5 { true } else { false }"),
+        }
+    );
 }
 
 
