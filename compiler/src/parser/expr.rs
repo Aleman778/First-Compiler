@@ -18,7 +18,7 @@ use nom::{
 
 
 use crate::ast::{
-    span::Span,
+    span::{LineColumn, Span},
     base::Type,
     expr::*,
     lit::*,
@@ -135,7 +135,7 @@ impl ExprBinary {
      * Parse a binary operation using precedence climbing algorithm.
      */
     fn climb(input: ParseSpan, min_prec: u8) -> IResult<ParseSpan, Expr> {
-        let (mut input, mut expr_lhs) = Expr::parse_atom(input)?;
+        let (mut output, mut expr_lhs) = Expr::parse_atom(input)?;
         loop {
             match peek(BinOp::parse)(input) {
                 Ok((_span, operator)) => {
@@ -149,18 +149,21 @@ impl ExprBinary {
                     };
                     let (span, operator) = BinOp::parse(input)?;
                     let (span, expr_rhs) = ExprBinary::climb(span, next_min_prec)?;
+                    output = span;
                     expr_lhs = Expr::Binary(ExprBinary {
                         left: Box::new(expr_lhs),
                         op: operator,
                         right: Box::new(expr_rhs),
-                        span: Span::new(span),
+                        span: Span::from_bounds(
+                            LineColumn::new(input.line, input.get_column()),
+                            LineColumn::new(output.line, output.get_column()),
+                            input.fragment.len() - output.fragment.len()),
                     });
-                    input = span;
                 },
                 _ => break,
             }
         }
-        Ok((input, expr_lhs))
+        Ok((output, expr_lhs))
     }
 }
 
@@ -184,7 +187,6 @@ impl Parser for ExprBlock {
                     if ret.is_some() {
                         stmts.push(ret.unwrap());
                     }
-                    
                     ExprBlock{
                         stmts: stmts,
                         span: Span::new(input),

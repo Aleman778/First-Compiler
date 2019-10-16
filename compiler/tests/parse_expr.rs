@@ -16,10 +16,6 @@ use nom::Err;
 
 #[test]
 fn parse_assign() {
-    match ExprAssign::parse(input("x = x + 5;")) {
-        Err(Err::Error(e)) => println!("{}", convert_error(&input("x = x + 5;"), e)),
-        _ => println!("Ok"),
-    };
     assert_eq!(
         ExprAssign::parse(input("x = x + 5;")).unwrap().1,
         ExprAssign {
@@ -27,7 +23,7 @@ fn parse_assign() {
             expr: Box::new(Expr::Binary(ExprBinary {
                 left: Box::new(Expr::Ident(ExprIdent {
                     to_string: "x".to_string(),
-                    span: span(0, "x")
+                    span: span(4, "x"),
                 })),
                 op: BinOp::Add{span: span(6, "+")},
                 right: Box::new(Expr::Lit(expr_lit_int(5, span(8, "5")))),

@@ -20,6 +20,22 @@ pub struct LineColumn {
 
 
 /**
+ * Implementation of line column struct.
+ */
+impl LineColumn {
+    /**
+     * Constructor for convenience.
+     */
+    pub fn new(line: u32, col: usize) -> Self {
+        LineColumn {
+            line: line,
+            column: col,
+        }
+    }
+}
+    
+
+/**
  * To string for lines and columns
  */
 impl std::string::ToString for LineColumn {
@@ -59,16 +75,28 @@ impl Span {
      * Constructs a new span from a parse span.
      */
     pub fn new(s: ParseSpan) -> Self {
-        Span{
-            start: LineColumn{
+        Span {
+            start: LineColumn {
                 line: s.line,
                 column: s.get_column(),
             },
-            end: LineColumn{
+            end: LineColumn {
                 line: get_end_line(&s),
                 column: get_end_column(&s),
             },
             length: s.fragment.len(),
+        }
+    }
+
+
+    /**
+     * Construcst a new span from a starting and end position.
+     */
+    pub fn from_bounds(start: LineColumn, end: LineColumn, len: usize) -> Self {
+        Span {
+            start: start,
+            end: end,
+            length: len,
         }
     }
 
@@ -81,12 +109,12 @@ impl Span {
         for span in spans {
             length += span.fragment.len();
         }
-        Span{
-            start: LineColumn{
+        Span {
+            start: LineColumn {
                 line: spans[0].line,
                 column: spans[0].get_column(),
             },
-            end: LineColumn{
+            end: LineColumn {
                 line: get_end_line(&spans[spans.len() - 1]),
                 column: get_end_column(&spans[spans.len() - 1]),
             },
@@ -94,6 +122,11 @@ impl Span {
         }        
     }
 
+        
+    /**
+     * Get the fragment of this span.
+     * @NotFullyImplemented
+     */
     pub fn fragment<'a>(&self, src: &ParseSpan<'a>) -> &'a str {
         let split = src.fragment.split("\n");
         let lines: Vec<&str> = split.collect();

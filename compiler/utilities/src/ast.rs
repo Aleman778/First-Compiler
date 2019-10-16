@@ -1,6 +1,6 @@
 
 /***************************************************************************
- * Abstract Syntax Tree helper is used to simply creations of 
+ * Abstract Syntax Tree helper is used to simplify creations of 
  * some AST structures that are often used to simplify test code.
  ***************************************************************************/
 
