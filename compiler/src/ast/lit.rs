@@ -17,7 +17,7 @@ pub enum Lit {
     /// Literal for integers e.g. 5
     Int(LitInt),
     /// Literal for booleans e.g. false
-    Bool(LitBool)
+    Bool(LitBool),
 }
 
 

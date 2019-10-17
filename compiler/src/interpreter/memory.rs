@@ -1,9 +1,6 @@
 
 /***************************************************************************
- * Main library file, imports all the modules
+ * The memory submodule defines the memory modell used by the interpreter.
  ***************************************************************************/
 
-pub mod error;
-pub mod ast;
-pub mod parser;
-pub mod interpreter;
+

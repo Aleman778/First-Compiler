@@ -10,11 +10,13 @@ mod parser;
 
 use crate::ast::expr::Expr;
 use crate::parser::ParseSpan;
+use crate::interpreter::Eval;
 
 fn main() {
-    let input = ParseSpan::new("2+3**(2*3)+-4");
-    match Expr::parse_math(input.clone()) {
-        Ok(ast) => println!("Ok:{:#?}", ast),
+    let input = ParseSpan::new("2+3");
+    let expr = Expr::parse_math(input.clone());
+    match expr {
+        Ok(ast) => println!("Parse Ok:{:#?}", ast),
         Err(e) => {
             match e {
                 nom::Err::Error(err) => println!("{}", parser::error::convert_error(&input, err)),
@@ -22,5 +24,8 @@ fn main() {
             }
         }
     }
-    // println!("{:#?}", ast::atom::Atom::parse(ParseSpan::new("aaa")));
+    match expr.eval() {
+        Ok(val) => println!("Eval Ok:{:#?}", val),
+        Err(e) => println!("Eval Err:{:#?}", e),
+    }
 }
