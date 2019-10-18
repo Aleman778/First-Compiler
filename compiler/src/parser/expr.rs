@@ -212,14 +212,16 @@ impl Parser for ExprBreak {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "break",
-            map(preceded(
-                multispace0,
-                terminated(
-                    tag("break"),
-                    preceded(multispace0, tag(";"))
-                )
+            map(pair(
+                preceded(multispace0, tag("break")),
+                preceded(multispace0, tag(";"))
             ),
-                |_| ExprBreak{span: Span::new(input)}
+                |(start, end) : (ParseSpan, ParseSpan)| ExprBreak {
+                    span: Span::from_bounds(
+                        LineColumn::new(start.line, start.get_column()),
+                        LineColumn::new(end.line, end.get_column() + 1)
+                    ),
+                }
             )
         )(input)
     }
@@ -240,10 +242,16 @@ impl Parser for ExprCall {
                 preceded(multispace0, tag(")")),
                 preceded(multispace0, tag(";")),
             )),
-                |(id, _, args, _, _)| ExprCall {
-                    ident: id,
-                    args: args,
-                    span: Span::new(input),
+                |(id, _, args, _, end)| {
+                    let rid = id.clone();
+                    ExprCall {
+                        ident: id,
+                        args: args,
+                        span: Span::from_bounds(
+                            rid.span.start,
+                            LineColumn::new(end.line, end.get_column() + 1)
+                        ),
+                    }
                 }
             )
         )(input)
@@ -258,14 +266,16 @@ impl Parser for ExprContinue {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "continue",
-            map(preceded(
-                multispace0,
-                terminated(
-                    tag("continue"),
-                    preceded(multispace0, tag(";"))
-                )
+            map(pair(
+                preceded(multispace0, tag("continue")),
+                preceded(multispace0, tag(";"))
             ),
-                |_| ExprContinue{span: Span::new(input)}
+                |(start, end) : (ParseSpan, ParseSpan)| ExprContinue {
+                    span: Span::from_bounds(
+                        LineColumn::new(start.line, start.get_column()),
+                        LineColumn::new(end.line, end.get_column() + 1)
+                    ),
+                }
             )            
         )(input)
     }
@@ -308,11 +318,20 @@ impl Parser for ExprIf  {
                     preceded(multispace0, ExprBlock::parse))
                 ),
             )),
-                |(_, cond, then_block, else_block)| ExprIf {
-                    cond: Box::new(cond),
-                    then_block: then_block,
-                    else_block: else_block,
-                    span: Span::new(input),
+                |(start, cond, then_block, else_block)| {
+                    let end = match else_block.clone() {
+                        Some(block) => block,
+                        None => then_block.clone(),
+                    };
+                    ExprIf {
+                        cond: Box::new(cond),
+                        then_block: then_block,
+                        else_block: else_block,
+                        span: Span::from_bounds(
+                            LineColumn::new(start.line, start.get_column()),
+                            end.span.end
+                        ),
+                    }
                 }
             )
         )(input)
@@ -359,12 +378,15 @@ impl Parser for ExprLocal {
                 preceded(multispace0, Expr::parse_math),
                 preceded(multispace0, tag(";")),
             )),
-                |(_, mutable, ident, _, ty, _, expr, _)| ExprLocal {
+                |(start, mutable, ident, _, ty, _, expr, end)| ExprLocal {
                     mutable: mutable.is_some(),
                     ident: ident,
                     ty: ty,
                     init: Box::new(expr),
-                    span: Span::new(input),
+                    span: Span::from_bounds(
+                        LineColumn::new(start.line, start.get_column()),
+                        LineColumn::new(end.line, end.get_column() + 1)
+                    ),
                 }
             )
         )(input)
@@ -377,14 +399,17 @@ impl Parser for ExprLocal {
  */
 impl Parser for ExprParen {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        map(delimited(
+        map(tuple((
             preceded(multispace0, tag("(")),
             Expr::parse_math,
             preceded(multispace0, tag(")"))
-        ),
-            |expr| ExprParen{
+        )),
+            |(start, expr, end)| ExprParen {
                 expr: Box::new(expr),
-                span: Span::new(input)
+                span: Span::from_bounds(
+                    LineColumn::new(start.line, start.get_column()),
+                    LineColumn::new(end.line, end.get_column() + 1)
+                ),
             }
         )(input)
     }

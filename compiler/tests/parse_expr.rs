@@ -162,6 +162,29 @@ fn parse_ident() {
 #[test]
 fn parse_if() {
     assert_eq!(
+        ExprIf::parse(input("if a > 5 { true }  ")).unwrap().1,
+        ExprIf {
+            cond: Box::new(Expr::Binary(ExprBinary {
+                left: Box::new(Expr::Ident(ExprIdent {
+                    to_string: "a".to_string(),
+                    span: span(3, "a"),
+                })),
+                op: BinOp::Gt{span: span(5, ">")},
+                right: Box::new(Expr::Lit(expr_lit_int(5, span(7, "5")))),
+                span: span(3, "a > 5"),
+            })),
+            then_block: ExprBlock{
+                stmts: vec![
+                    Expr::Lit(expr_lit_bool(true, span(11, "true"))),
+                ],
+                span: span(9, "{ true }"),
+            },
+            else_block: None,
+            span: span(0, "if a > 5 { true }"),
+        }
+    );
+    
+    assert_eq!(
         ExprIf::parse(input("if a > 5 { true } else { false }  ")).unwrap().1,
         ExprIf {
             cond: Box::new(Expr::Binary(ExprBinary {
@@ -175,21 +198,15 @@ fn parse_if() {
             })),
             then_block: ExprBlock{
                 stmts: vec![
-                    Expr::Return(ExprReturn {
-                        expr: Box::new(Some(Expr::Lit(expr_lit_bool(true, span(9, "true"))))),
-                        span: span(9, "true"),
-                    }),
+                    Expr::Lit(expr_lit_bool(true, span(11, "true"))),
                 ],
                 span: span(9, "{ true }"),
             },
             else_block: Some(ExprBlock{
                 stmts: vec![
-                    Expr::Return(ExprReturn {
-                        expr: Box::new(Some(Expr::Lit(expr_lit_bool(false, span(23, "false"))))),
-                        span: span(23, "false"),
-                    }),
+                   Expr::Lit(expr_lit_bool(false, span(25, "false"))),
                 ],
-                span: span(9, "{ true }"),
+                span: span(23, "{ false }"),
             }),
             span: span(0, "if a > 5 { true } else { false }"),
         }
@@ -201,7 +218,7 @@ fn parse_if() {
 fn parse_lit() {
     assert_eq!(
         ExprLit::parse(input("234  ")).unwrap().1,
-        expr_lit_int(234, span(0, "234  "))
+        expr_lit_int(234, span(0, "234"))
     );
     
     assert_eq!(
