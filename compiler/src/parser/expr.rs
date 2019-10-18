@@ -107,10 +107,16 @@ impl Parser for ExprAssign {
                     Expr::parse_math,
                     preceded(multispace0, tag(";")),
                 )),
-                    |(id, _, expr, _)| ExprAssign {
-                        ident: id,
-                        expr: Box::new(expr),
-                        span: Span::new(input),
+                    |(id, _, expr, end)| {
+                        let rid = id.clone();
+                        ExprAssign {
+                            ident: id,
+                            expr: Box::new(expr),
+                            span: Span::from_bounds(
+                                rid.span.start,
+                                LineColumn::new(end.line, end.get_column() + 1)
+                            ),
+                        }
                     }
                 )
             )
@@ -137,8 +143,8 @@ impl ExprBinary {
     fn climb(input: ParseSpan, min_prec: u8) -> IResult<ParseSpan, Expr> {
         let (mut output, mut expr_lhs) = Expr::parse_atom(input)?;
         loop {
-            match peek(BinOp::parse)(input) {
-                Ok((_span, operator)) => {
+            match peek(BinOp::parse)(output) {
+                Ok((_, operator)) => {
                     let (prec, assoc) = operator.get_prec();
                     if prec < min_prec {
                         break;
@@ -147,7 +153,7 @@ impl ExprBinary {
                         Assoc::Left => prec + 1,
                         Assoc::Right => prec,
                     };
-                    let (span, operator) = BinOp::parse(input)?;
+                    let (span, operator) = BinOp::parse(output)?;
                     let (span, expr_rhs) = ExprBinary::climb(span, next_min_prec)?;
                     output = span;
                     expr_lhs = Expr::Binary(ExprBinary {
@@ -156,8 +162,8 @@ impl ExprBinary {
                         right: Box::new(expr_rhs),
                         span: Span::from_bounds(
                             LineColumn::new(input.line, input.get_column()),
-                            LineColumn::new(output.line, output.get_column()),
-                            input.fragment.len() - output.fragment.len()),
+                            LineColumn::new(output.line, output.get_column())
+                        ),
                     });
                 },
                 _ => break,
@@ -175,21 +181,22 @@ impl Parser for ExprBlock {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "block statement",
-            map(pair(
-                delimited(
-                    preceded(multispace0, tag("{")),
-                    many0(Expr::parse),
-                    preceded(multispace0, tag("}"))
-                ),
-                opt(Expr::parse_math)
-            ),
-                |(mut stmts, ret)| {
+            map(tuple((
+                preceded(multispace0, tag("{")),
+                many0(Expr::parse),
+                opt(Expr::parse_math),
+                preceded(multispace0, tag("}")),
+            )),
+                |(start, mut stmts, ret, end)| {
                     if ret.is_some() {
                         stmts.push(ret.unwrap());
                     }
                     ExprBlock{
                         stmts: stmts,
-                        span: Span::new(input),
+                        span: Span::from_bounds(
+                            LineColumn::new(start.line, start.get_column()),
+                            LineColumn::new(end.line, end.get_column() + 1),
+                        ),
                     }
                 }
             )
@@ -321,8 +328,14 @@ impl Parser for ExprLit {
         context(
             "literal",
             alt((
-                map(LitInt::parse, |literal| ExprLit{lit: Lit::Int(literal), span: Span::new(input)}),
-                map(LitBool::parse, |literal| ExprLit{lit: Lit::Bool(literal), span: Span::new(input)}),
+                map(LitInt::parse, |literal| {
+                    let lit = literal.clone();
+                    ExprLit{lit: Lit::Int(literal), span: lit.span}
+                }),
+                map(LitBool::parse, |literal| {
+                    let lit = literal.clone();
+                    ExprLit{lit: Lit::Bool(literal), span: lit.span}
+                }),
             )),
         )(input)
     }

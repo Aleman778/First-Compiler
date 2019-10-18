@@ -63,7 +63,6 @@ impl fmt::Debug for LineColumn {
 pub struct Span {
     pub start: LineColumn,
     pub end: LineColumn,
-    length: usize,
 }
 
 
@@ -84,7 +83,6 @@ impl Span {
                 line: get_end_line(&s),
                 column: get_end_column(&s),
             },
-            length: s.fragment.len(),
         }
     }
 
@@ -92,14 +90,13 @@ impl Span {
     /**
      * Construcst a new span from a starting and end position.
      */
-    pub fn from_bounds(start: LineColumn, end: LineColumn, len: usize) -> Self {
+    pub fn from_bounds(start: LineColumn, end: LineColumn) -> Self {
         Span {
             start: start,
             end: end,
-            length: len,
         }
     }
-
+    
 
     /**
      * Constructs a new combined span from the given spans.
@@ -118,10 +115,9 @@ impl Span {
                 line: get_end_line(&spans[spans.len() - 1]),
                 column: get_end_column(&spans[spans.len() - 1]),
             },
-            length: length,
         }        
     }
-
+    
         
     /**
      * Get the fragment of this span.
@@ -133,14 +129,6 @@ impl Span {
         return lines[(self.start.line - 1) as usize];
     }
     
-
-    /**
-     * Get the length of the entire span fragment.
-     */
-    pub fn len(&self) -> usize {
-        self.length
-    }
-
 
     /**
      * Get the offset to the start of the span.

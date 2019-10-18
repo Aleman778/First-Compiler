@@ -4,7 +4,6 @@
  ***************************************************************************/
 
 
-use crate::ast::span::Span;
 use crate::interpreter::{
     error::RuntimeError,
     value::Val,
@@ -21,7 +20,7 @@ pub type IResult<'a, T, E = RuntimeError<'a>> = Result<T, E>;
  * Eval trait is used to define the evaluation
  * function for each AST node.
  */
-trait Eval {
+pub trait Eval {
     fn eval(&self) -> IResult<Val>;
 }
 
@@ -32,3 +31,4 @@ pub mod env;
 pub mod scope;
 pub mod memory;
 pub mod expr;
+pub mod lit;

@@ -6,6 +6,7 @@
 
 use utilities::span::*;
 use utilities::ast::*;
+use utilities::math_eval::*;
 use compiler::{
     ast::{op::*, lit::*, expr::*, base::Type},
     parser::Parser,
@@ -15,7 +16,7 @@ use compiler::{
 #[test]
 fn parse_assign() {
     assert_eq!(
-        ExprAssign::parse(input("x = x + 5;")).unwrap().1,
+        ExprAssign::parse(input("x = x + 5;  ")).unwrap().1,
         ExprAssign {
             ident: ExprIdent{to_string: "x".to_string(), span: span(0, "x")},
             expr: Box::new(Expr::Binary(ExprBinary {
@@ -36,7 +37,7 @@ fn parse_assign() {
 #[test]
 fn parse_binary() {
     assert_eq!(
-        ExprBinary::parse(input("1 + 2")).unwrap().1,
+        ExprBinary::parse(input("1 + 2  ")).unwrap().1,
         Expr::Binary(ExprBinary {
             left: Box::new(Expr::Lit(expr_lit_int(1, span(0, "1")))),
             op: BinOp::Add{span: span(2, "+")},
@@ -47,7 +48,7 @@ fn parse_binary() {
 
 
     assert_eq!(
-        ExprBinary::parse(input("true || false")).unwrap().1,
+        ExprBinary::parse(input("true || false  ")).unwrap().1,
         Expr::Binary(ExprBinary {
             left: Box::new(Expr::Lit(ExprLit {
                 lit: Lit::Bool(LitBool{value: true, span: span(0, "true")}),
@@ -55,8 +56,8 @@ fn parse_binary() {
             })),
             op: BinOp::Or{span: span(5, "||")},
             right: Box::new(Expr::Lit(ExprLit {
-                lit: Lit::Bool(LitBool{value: true, span: span(0, "true")}),
-                span: span(0, "true"),
+                lit: Lit::Bool(LitBool{value: false, span: span(8, "false")}),
+                span: span(8, "false"),
             })),
             span: span(0, "true || false"),
         })
@@ -67,16 +68,13 @@ fn parse_binary() {
 #[test]
 fn parse_block() {
     assert_eq!(
-        ExprBlock::parse(input("{ { a } { b } }")).unwrap().1,
+        ExprBlock::parse(input("{ { a } { b } }  ")).unwrap().1,
         ExprBlock {
             stmts: vec![
                 Expr::Block(ExprBlock {
                     stmts: vec![
-                        Expr::Return(ExprReturn {
-                            expr: Box::new(Some(Expr::Ident(ExprIdent {
-                                to_string: "a".to_string(),
-                                span: span(4, "a"),
-                            }))),
+                        Expr::Ident(ExprIdent {
+                            to_string: "a".to_string(),
                             span: span(4, "a"),
                         }),
                     ],
@@ -84,11 +82,8 @@ fn parse_block() {
                 }),
                 Expr::Block(ExprBlock {
                     stmts: vec![
-                        Expr::Return(ExprReturn {
-                            expr: Box::new(Some(Expr::Ident(ExprIdent {
-                                to_string: "a".to_string(),
-                                span: span(10, "b"),
-                            }))),
+                        Expr::Ident(ExprIdent {
+                            to_string: "b".to_string(),
                             span: span(10, "b"),
                         }),
                     ],
@@ -115,7 +110,7 @@ fn parse_break() {
 #[test]
 fn parse_call() {
     assert_eq!(
-        ExprCall::parse(input("my_function_10(100, 32);")).unwrap().1,
+        ExprCall::parse(input("my_function_10(100, 32);  ")).unwrap().1,
         ExprCall {
             ident: ExprIdent {
                 to_string: "my_function_10".to_string(),
@@ -145,7 +140,7 @@ fn parse_continue() {
 #[test]
 fn parse_ident() {
     assert_eq!(
-        ExprIdent::parse(input("my_function_10")).unwrap().1,
+        ExprIdent::parse(input("my_function_10  ")).unwrap().1,
         ExprIdent {
             to_string: "my_function_10".to_string(),
             span: span(0, "my_function_10"),
@@ -153,7 +148,7 @@ fn parse_ident() {
     );
     
     assert_eq!(
-        ExprIdent::parse(input("__WINDOWS10__")).unwrap().1,
+        ExprIdent::parse(input("__WINDOWS10__  ")).unwrap().1,
         ExprIdent {
             to_string: "__WINDOWS10__".to_string(),
             span: span(0, "__WINDOWS10__"),
@@ -167,7 +162,7 @@ fn parse_ident() {
 #[test]
 fn parse_if() {
     assert_eq!(
-        ExprIf::parse(input("if a > 5 { true } else { false }")).unwrap().1,
+        ExprIf::parse(input("if a > 5 { true } else { false }  ")).unwrap().1,
         ExprIf {
             cond: Box::new(Expr::Binary(ExprBinary {
                 left: Box::new(Expr::Ident(ExprIdent {
@@ -205,8 +200,8 @@ fn parse_if() {
 #[test]
 fn parse_lit() {
     assert_eq!(
-        ExprLit::parse(input("234")).unwrap().1,
-        expr_lit_int(234, span(0, "234"))
+        ExprLit::parse(input("234  ")).unwrap().1,
+        expr_lit_int(234, span(0, "234  "))
     );
     
     assert_eq!(
@@ -215,7 +210,7 @@ fn parse_lit() {
     );
 
     assert_eq!(
-        ExprLit::parse(input("true")).unwrap().1,
+        ExprLit::parse(input("true  ")).unwrap().1,
         expr_lit_bool(true, span(0, "true"))
     );
     
@@ -229,7 +224,7 @@ fn parse_lit() {
 #[test]
 fn parse_local() {
     assert_eq!(
-        ExprLocal::parse(input("let mut a: i32 = 5;")).unwrap().1,
+        ExprLocal::parse(input("let mut a: i32 = 5;  ")).unwrap().1,
         ExprLocal {
             mutable: true,
             ident: ExprIdent{to_string: "a".to_string(), span: span(8, "a")},
@@ -244,7 +239,7 @@ fn parse_local() {
 #[test]
 fn parse_paren() {
     assert_eq!(
-        ExprParen::parse(input("(1 + 2*3)")).unwrap().1,
+        ExprParen::parse(input("(1 + 2*3)  ")).unwrap().1,
         ExprParen {
             expr: Box::new(Expr::Binary(ExprBinary {
                 left: Box::new(Expr::Lit(expr_lit_int(1, span(1, "1")))),
@@ -286,7 +281,7 @@ fn parse_return() {
 #[test]
 fn parse_unary() {
     assert_eq!(
-        ExprUnary::parse(input("-42")).unwrap().1,
+        ExprUnary::parse(input("-42  ")).unwrap().1,
         ExprUnary {
             op: UnOp::Neg{span: span(0, "-")},
             right: Box::new(Expr::Lit(expr_lit_int(42, span(1, "42")))),
@@ -295,7 +290,7 @@ fn parse_unary() {
     );
 
     assert_eq!(
-        ExprUnary::parse(input("!false")).unwrap().1,
+        ExprUnary::parse(input("!false  ")).unwrap().1,
         ExprUnary {
             op: UnOp::Not{span: span(0, "!")},
             right: Box::new(Expr::Lit(expr_lit_bool(false, span(1, "false")))),
@@ -308,7 +303,7 @@ fn parse_unary() {
 #[test]
 fn parse_while() {
     assert_eq!(
-        ExprWhile::parse(input("while x < 10 { x = x + 1; }")).unwrap().1,
+        ExprWhile::parse(input("while x < 10 { x = x + 1; }  ")).unwrap().1,
         ExprWhile {
             cond: Box::new(Expr::Binary(ExprBinary {
                 left: Box::new(Expr::Ident(ExprIdent {
@@ -340,4 +335,30 @@ fn parse_while() {
             span: span(0, "while x < 10 { x = x + 1; }"),
         }
     );
+}
+
+
+#[test]
+fn parse_math_int() {
+    assert_eq!(eval_math("2+3**2*3+4"), Val::Num(33));
+    assert_eq!(eval_math("2+3**(2*3)+4"), Val::Num(735));
+    assert_eq!(eval_math("(1+(2*(3**4)))"), Val::Num(163));
+    assert_eq!(eval_math("3**5+3*4+9/3**2"), Val::Num(256));
+    assert_eq!(eval_math("3**5+3*4+(9/3)**2"), Val::Num(264));
+    assert_eq!(eval_math("3**5+3*4-(9/3)**2"), Val::Num(246));
+}
+
+
+#[test]
+fn parse_math_ineq() {
+    assert_eq!(eval_math("(5+3**2-3)>10"), Val::Bool(true));
+    assert_eq!(eval_math("(5+3**2-3)>11"), Val::Bool(false));
+    assert_eq!(eval_math("(5+3**2-3)>=11"), Val::Bool(true));
+    assert_eq!(eval_math("(5+3**2-3)>=12"), Val::Bool(false));
+    assert_eq!(eval_math("(5+3**2-3)<11"), Val::Bool(false));
+    assert_eq!(eval_math("(5+3**2-3)<11"), Val::Bool(false));
+    assert_eq!(eval_math("(5+3**2-3)<12"), Val::Bool(true));
+    assert_eq!(eval_math("(5+3**2-3)<=11"), Val::Bool(true));
+    assert_eq!(eval_math("(5+3**2-3)<=10"), Val::Bool(false));
+    assert_eq!(eval_math("(5+3**2-3)<=12"), Val::Bool(true));
 }

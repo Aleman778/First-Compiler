@@ -19,21 +19,12 @@ use crate::interpreter::{
 impl Eval for Expr {
     fn eval(&self) -> IResult<Val> {
         match self {
-            Expr::Binary(binary) => binary.eval(),
             Expr::Lit(literal) => literal.eval(),
+            _ => Ok(Val::None),
         }
     }
 }
 
-
-/**
- * Evaluates a binary expression.
- */
-impl Eval for ExprBinary {
-    fn eval(&self) -> IResult<Val> {
-        self.op.eval(self.left.eval()?, self.right.eval()?, self.span);
-    }
-}
 
 
 /**

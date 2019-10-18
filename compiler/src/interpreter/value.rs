@@ -10,9 +10,10 @@ use crate::ast::span::Span;
 /**
  * The value returned from evaluating an AST Node.
  */
+#[derive(Debug, Clone)]
 pub enum Val {
     /// I32 is a 32-bit signed integer value
-    I32 {
+    Int {
         val: i32,
         span: Span,
     },
@@ -33,6 +34,8 @@ pub enum Val {
     Void {
         span: Span,
     },
+
+    None,
 }
 
 
@@ -44,7 +47,7 @@ impl Val {
      * Constructs an i32 value.
      */
     pub fn from_i32(val: i32, span: Span) -> Self {
-        Val::I32 {
+        Val::Int {
             val: val,
             span: span,
         }

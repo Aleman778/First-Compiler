@@ -15,6 +15,7 @@ use compiler::parser::ParseSpan;
 /**
  * Value enum can either be i32 or bool.
  */
+#[derive(Debug, PartialEq)]
 pub enum Val {
     Num(i32),
     Bool(bool),
@@ -80,6 +81,7 @@ fn eval_binary(binary: ExprBinary) -> Val {
             BinOp::Add{span: _} => Val::Num(il + ir),
             BinOp::Sub{span: _} => Val::Num(il - ir),
             BinOp::Mul{span: _} => Val::Num(il * ir),
+            BinOp::Pow{span: _} => Val::Num(il.pow(ir as u32)),
             BinOp::Div{span: _} => Val::Num(il / ir),
             BinOp::Mod{span: _} => Val::Num(il % ir),
             _ => Val::Error

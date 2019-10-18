@@ -16,6 +16,7 @@ use crate::interpreter::value::Val;
  * Runtime error stores information about an error
  * that can occur during evaluation of an AST node.
  */
+#[derive(Debug)]
 pub struct RuntimeError<'a> {
     file: &'a str,
     span: Span,
@@ -26,6 +27,7 @@ pub struct RuntimeError<'a> {
 /**
  * Error kind enum defines different types of runtime errors.
  */
+#[derive(Debug)]
 pub enum ErrorKind {
     ExprBinary(BinOp, Val, Val),
     Context(&'static str),
