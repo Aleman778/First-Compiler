@@ -40,7 +40,7 @@ pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String
                 result.push_str("expected ");
                 result.push_str(e);
                 result.push_str(" got ");
-                result.push_str(err.span.fragment(input))
+                result.push_str(err.span.fragment(input).as_str())
             },
         };
         result.push('\n');

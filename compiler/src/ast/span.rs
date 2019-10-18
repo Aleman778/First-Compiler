@@ -119,10 +119,27 @@ impl Span {
      * Get the fragment of this span.
      * @NotFullyImplemented
      */
-    pub fn fragment<'a>(&self, src: &ParseSpan<'a>) -> &'a str {
+    pub fn fragment<'a>(&self, src: &ParseSpan<'a>) -> String {
         let split = src.fragment.split("\n");
         let lines: Vec<&str> = split.collect();
-        return lines[(self.start.line - 1) as usize];
+        let mut result = String::new();
+        if self.multiline() {
+            for line in self.start.line..self.end.line {
+                if line == self.start.line {
+                    let fragment = lines[(line - 1) as usize];
+                    result.push_str(&fragment[(self.start.column-1)..]);
+                } else if line == self.end.line - 1 {
+                    let fragment = lines[(line - 1) as usize];
+                    result.push_str(&fragment[..(self.end.column-1)]);
+                } else {
+                    result.push_str(&lines[(line - 1) as usize]);    
+                }
+            }
+        } else {
+            let fragment = lines[(self.start.line - 1) as usize];
+            result.push_str(&fragment[(self.start.column - 1)..(self.end.column - 1)]);
+        }
+        result
     }
     
 

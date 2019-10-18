@@ -34,10 +34,10 @@ impl Parser for BinOp {
                 map(tag("||"), |s| BinOp::Or{span: Span::new(s)}),
                 map(tag("=="), |s| BinOp::Eq{span: Span::new(s)}),
                 map(tag("!="), |s| BinOp::Ne{span: Span::new(s)}),
-                map(tag("<"),  |s| BinOp::Lt{span: Span::new(s)}),
                 map(tag("<="), |s| BinOp::Le{span: Span::new(s)}),
-                map(tag(">"),  |s| BinOp::Gt{span: Span::new(s)}),
                 map(tag(">="), |s| BinOp::Ge{span: Span::new(s)}),
+                map(tag("<"),  |s| BinOp::Lt{span: Span::new(s)}),
+                map(tag(">"),  |s| BinOp::Gt{span: Span::new(s)}),
             )))
         )(input)
     }

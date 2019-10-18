@@ -16,8 +16,8 @@ use crate::interpreter::Eval;
 
 
 fn main() {
-    let input = ParseSpan::new("  -  43   ");
-    let expr = Expr::parse(input.clone());
+    let input = ParseSpan::new("(5+3**2-3)>=11");
+    let expr = Expr::parse_math(input.clone());
     match expr {
         Ok(ast) => {
             println!("Parse Ok:{:#?}", ast);
