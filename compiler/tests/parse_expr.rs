@@ -262,9 +262,9 @@ fn parse_paren() {
                 left: Box::new(Expr::Lit(expr_lit_int(1, span(1, "1")))),
                 op: BinOp::Add{span: span(3, "+")},
                 right: Box::new(Expr::Binary(ExprBinary {
-                    left: Box::new(Expr::Lit(expr_lit_int(1, span(5, "2")))),
+                    left: Box::new(Expr::Lit(expr_lit_int(2, span(5, "2")))),
                     op: BinOp::Mul{span: span(6, "*")},
-                    right: Box::new(Expr::Lit(expr_lit_int(1, span(7, "3")))),
+                    right: Box::new(Expr::Lit(expr_lit_int(3, span(7, "3")))),
                     span: span(5, "2*3"),
                 })),
                 span: span(1, "1 + 2*3"),
@@ -289,7 +289,7 @@ fn parse_return() {
         ExprReturn::parse(input("return false;  ")).unwrap().1,
         ExprReturn {
             expr: Box::new(Some(Expr::Lit(expr_lit_bool(false, span(7, "false"))))),
-            span: span(0, "return;"),
+            span: span(0, "return false;"),
         }
     );
 }
@@ -334,14 +334,14 @@ fn parse_while() {
             block: ExprBlock {
                 stmts: vec![
                     Expr::Assign(ExprAssign {
-                        ident: ExprIdent{to_string: "x".to_string(), span: span(0, "x")},
+                        ident: ExprIdent{to_string: "x".to_string(), span: span(15, "x")},
                         expr: Box::new(Expr::Binary(ExprBinary {
                             left: Box::new(Expr::Ident(ExprIdent {
                                 to_string: "x".to_string(),
                                 span: span(19, "x"),
                             })),
                             op: BinOp::Add{span: span(21, "+")},
-                            right: Box::new(Expr::Lit(expr_lit_int(5, span(23, "1")))),
+                            right: Box::new(Expr::Lit(expr_lit_int(1, span(23, "1")))),
                             span: span(19, "x + 1"),
                         })),
                         span: span(15, "x = x + 1;"),

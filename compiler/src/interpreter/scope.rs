@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /***************************************************************************
  * The scope sbumodule defines a scope and is used with the callstack and

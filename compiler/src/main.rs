@@ -16,7 +16,7 @@ use crate::interpreter::Eval;
 
 
 fn main() {
-    let input = ParseSpan::new("x = x + 5;          ");
+    let input = ParseSpan::new("  -  43   ");
     let expr = Expr::parse(input.clone());
     match expr {
         Ok(ast) => {

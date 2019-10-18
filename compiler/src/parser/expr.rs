@@ -10,7 +10,7 @@ use nom::{
     character::complete::{alpha1, multispace0, multispace1},
     bytes::complete::{take_while1, tag},
     combinator::{map, opt, peek},
-    sequence::{delimited, preceded, terminated, pair, tuple},
+    sequence::{preceded, pair, tuple},
     multi::{many0, separated_list},
     branch::alt,
     error::context,
@@ -154,6 +154,7 @@ impl ExprBinary {
                         Assoc::Right => prec,
                     };
                     let (span, operator) = BinOp::parse(output)?;
+                    let (span, _) = multispace0(span)?;
                     let (span, expr_rhs) = ExprBinary::climb(span, next_min_prec)?;
                     output = span;
                     expr_lhs = Expr::Binary(ExprBinary {
@@ -428,9 +429,12 @@ impl Parser for ExprReturn {
                 opt(preceded(multispace1, Expr::parse_math)),
                 preceded(multispace0, tag(";")),
             )),
-                |(_, expr, _)| ExprReturn {
+                |(start, expr, end)| ExprReturn {
                     expr: Box::new(expr),
-                    span: Span::new(input),
+                    span: Span::from_bounds(
+                        LineColumn::new(start.line, start.get_column()),
+                        LineColumn::new(end.line, end.get_column() + 1)
+                    ),
                 }
             )           
         )(input)
@@ -443,32 +447,17 @@ impl Parser for ExprReturn {
  */
 impl Parser for ExprUnary {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "unary operation",
-            map(pair(
-                UnOp::parse,
-                ExprUnary::parse_unop
+        let (input, _) = multispace0(input)?;
+        let (span, op) = UnOp::parse(input)?;
+        let (span, expr) = ExprBinary::climb(span, op.get_prec().0)?;
+        Ok((span, ExprUnary {
+            op: op,
+            right: Box::new(expr),
+            span: Span::from_bounds(
+                LineColumn::new(input.line, input.get_column()),
+                LineColumn::new(span.line, span.get_column())
             ),
-                |(op, expr)| ExprUnary {
-                    op: op,
-                    right: Box::new(expr),
-                    span: Span::new(input),
-                }
-            )
-        )(input)
-    }
-}
-
-
-/**
- * Implementation of unary parser.
- */
-impl ExprUnary {
-    /**
-     * Precedence climbing for unary operator, assume highest precedence.
-     */
-    fn parse_unop(input: ParseSpan) -> IResult<ParseSpan, Expr> {
-        ExprBinary::climb(input, 7)
+        }))
     }
 }
 
@@ -485,10 +474,16 @@ impl Parser for ExprWhile {
                 preceded(multispace1, Expr::parse_math),
                 preceded(multispace0, ExprBlock::parse)
             )),
-                |(_, cond, block)| ExprWhile {
-                    cond: Box::new(cond),
-                    block: block,
-                    span: Span::new(input),
+                |(start, cond, block)| {
+                    let rblock = block.clone();
+                    ExprWhile {
+                        cond: Box::new(cond),
+                        block: block,
+                        span: Span::from_bounds(
+                            LineColumn::new(start.line, start.get_column()),
+                            rblock.span.end
+                        ),
+                    }
                 }
             )
         )(input)

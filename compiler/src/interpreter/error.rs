@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 
 /***************************************************************************
  * The error submodule of the interpreter defines the types of errors

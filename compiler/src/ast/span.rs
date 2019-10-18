@@ -102,10 +102,6 @@ impl Span {
      * Constructs a new combined span from the given spans.
      */
     pub fn combined(spans: &[&ParseSpan]) -> Self {
-        let mut length: usize = 0;
-        for span in spans {
-            length += span.fragment.len();
-        }
         Span {
             start: LineColumn {
                 line: spans[0].line,
