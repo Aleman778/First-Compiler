@@ -13,7 +13,7 @@ use crate::interp::{
 /**
  * Results used for the interpreter
  */
-pub type IResult<'a, T, E = RuntimeError<'a>> = Result<T, E>;
+pub type IResult<T, E = RuntimeError> = Result<T, E>;
 
 
 /**

@@ -6,6 +6,7 @@
  ***************************************************************************/
 
 
+use std::path::Path;
 use crate::ast::span::Span;
 use crate::parser::ParseSpan;
 
@@ -22,7 +23,7 @@ pub struct ParseError<'a> {
  * Gives context to an error e.g. location, kind, file etc.
  */
 pub struct Verbose<'a> {
-    file: &'a str,
+    file: &'a Path,
     span: Span,
     kind: ErrorKind,
 }
@@ -48,7 +49,7 @@ pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String
         };
         result.push('\n');
         
-        let file = input.extra.to_str();
+        let file = err.file.to_str();
         if file.is_some() {
             result.push_str("  --> ");
             result.push_str(file.unwrap());
@@ -109,7 +110,7 @@ impl<'a> ParseError<'a> {
     pub fn new(input: ParseSpan<'a>, kind: ErrorKind) -> Self {
         ParseError{
             errors: vec![Verbose{
-                file: "",
+                file: input.extra,
                 span: Span::new(input),
                 kind: kind,
             }],
@@ -118,8 +119,8 @@ impl<'a> ParseError<'a> {
 
 
     pub fn append(input: ParseSpan<'a>, kind: ErrorKind, mut other: Self) -> Self {
-        other.errors.push(Verbose{
-            file: "",
+        other.errors.push(Verbose {
+            file: input.extra,
             span: Span::new(input),
             kind: kind,
         });
@@ -149,7 +150,7 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
     fn from_error_kind(input: ParseSpan<'a>, kind: nom::error::ErrorKind) -> Self {
         ParseError{
             errors: vec![Verbose{
-                file: "",
+                file: input.extra,
                 span: Span::new(input),
                 kind: ErrorKind::Nom(kind),
             }],
@@ -159,7 +160,7 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
 
     fn append(input: ParseSpan<'a>, kind: nom::error::ErrorKind, mut other: Self) -> Self {
         other.errors.push(Verbose{
-            file: "",
+            file: input.extra,
             span: Span::new(input),
             kind: ErrorKind::Nom(kind),
         });
@@ -170,7 +171,7 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
     fn from_char(input: ParseSpan<'a>, c: char) -> Self {
         ParseError{
             errors: vec![Verbose{
-                file: "",
+                file: input.extra,
                 span: Span::new(input),
                 kind: ErrorKind::Char(c),
             }],
@@ -195,7 +196,7 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
 
     fn add_context(input: ParseSpan<'a>, ctx: &'static str, mut other: Self) -> Self {
         other.errors.push(Verbose{
-            file: "",
+            file: input.extra,
             span: Span::new(input),
             kind: ErrorKind::Context(ctx),
         });

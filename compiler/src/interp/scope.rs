@@ -7,6 +7,11 @@
 
 
 use std::collections::HashMap;
+use crate::ast::expr::ExprIdent;
+use crate::interp::{
+    IResult,
+    error::*,
+};
 
 
 /**
@@ -18,7 +23,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 pub struct Scope {
     /// The parent scope, used for sub-block expressions
-    parent: Box<Option<Scope>>,
+    pub parent: Box<Option<Scope>>,
 
     /// Variable memory mapper, maps strings to memory addresses
     vars: HashMap<String, usize>,
@@ -39,5 +44,22 @@ impl Scope {
         }
     }
 
-    
+
+    /**
+     * Returns the address of a given variable identifier.
+     */
+    pub fn address_of(&self, id: &ExprIdent) -> IResult<usize> {
+        match self.vars.get(id.to_string) {
+            Some(addr) => addr,
+            None => {
+                match &*self.parent {
+                    Some(parent) => parent.address_of(),
+                    None => Err(RuntimeError {
+                        span: id.span,
+                        kind: ErrorKind::ValueNotFound(id.to_string.as_str()),
+                    }),
+                }
+            },
+        }
+    }
 }

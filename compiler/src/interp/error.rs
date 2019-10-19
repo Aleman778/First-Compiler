@@ -18,8 +18,7 @@ use crate::interp::value::Val;
  * that can occur during evaluation of an AST node.
  */
 #[derive(Debug)]
-pub struct RuntimeError<'a> {
-    file: &'a str,
+pub struct RuntimeError {
     span: Span,
     kind: ErrorKind,
 }
@@ -31,5 +30,7 @@ pub struct RuntimeError<'a> {
 #[derive(Debug)]
 pub enum ErrorKind {
     ExprBinary(BinOp, Val, Val),
+    ItemNotFound(&'static str),
+    ValueNotFound(&'static str),
     Context(&'static str),
 }
