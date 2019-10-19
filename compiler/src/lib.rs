@@ -6,4 +6,4 @@
 pub mod error;
 pub mod ast;
 pub mod parser;
-pub mod interpreter;
+pub mod interp;

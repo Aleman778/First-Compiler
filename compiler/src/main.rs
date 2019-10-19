@@ -7,7 +7,7 @@
 mod error;
 mod ast;
 mod parser;
-mod interpreter;
+mod interp;
 
 
 use std::fs;

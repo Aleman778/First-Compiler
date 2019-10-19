@@ -6,7 +6,7 @@
 
 
 use crate::ast::expr::*;
-use crate::interpreter::{
+use crate::interp::{
     value::Val,
     IResult,
     Eval,

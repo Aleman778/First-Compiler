@@ -4,7 +4,7 @@
  ***************************************************************************/
 
 
-use crate::interpreter::{
+use crate::interp::{
     error::RuntimeError,
     value::Val,
 };

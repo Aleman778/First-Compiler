@@ -10,7 +10,7 @@ use crate::ast::{
     span::Span,
     op::*,
 };
-use crate::interpreter::value::Val;
+use crate::interp::value::Val;
 
 
 /**

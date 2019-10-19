@@ -7,7 +7,7 @@
 
 use std::collections::HashMap;
 use crate::ast::base::Item;
-use crate::interpreter::scope::Scope;
+use crate::interp::scope::Scope;
 
 
 /**
