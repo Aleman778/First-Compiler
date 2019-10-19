@@ -9,14 +9,14 @@ use nom::{
     character::complete::{multispace0, multispace1},
     bytes::complete::tag,
     combinator::{map, opt},
-    sequence::{delimited, preceded, pair, tuple},
+    sequence::{preceded, pair, tuple},
     multi::separated_list,
     branch::alt,
     error::context,
     Err,
 };
 use crate::ast::{
-    span::Span,
+    span::{Span, LineColumn},
     base::*,
     expr::{ExprBlock, ExprIdent},
 };
@@ -64,7 +64,7 @@ impl Parser for Item {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "item",
-            map(ItemFn::parse, |func| Item::Fn(func)),
+            map(FnItem::parse, |func| Item::Fn(func)),
         )(input)
     }
 }
@@ -73,7 +73,7 @@ impl Parser for Item {
 /**
  * Parse a function.
  */
-impl Parser for ItemFn {
+impl Parser for FnItem {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "function",
@@ -83,11 +83,17 @@ impl Parser for ItemFn {
                 FnDecl::parse,
                 ExprBlock::parse,
             )),
-                |(_, id, decl, block)| ItemFn {
-                    ident: id,
-                    decl: decl,
-                    block: block,
-                    span: Span::new(input),
+                |(start, id, decl, block)| {
+                    let block_clone = block.clone();
+                    FnItem {
+                        ident: id,
+                        decl: decl,
+                        block: block,
+                        span: Span::from_bounds(
+                            LineColumn::new(start.line, start.get_column()),
+                            block_clone.span.end
+                        ),
+                    }
                 }
             )
         )(input)
@@ -103,30 +109,38 @@ impl Parser for FnDecl {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "function declaration",
-            map(pair(
-                delimited(
-                    preceded(multispace0, tag("(")),
-                    separated_list(
-                        preceded(multispace0, tag(",")),
-                        Argument::parse
-                    ),
-                    preceded(multispace0, tag(")"))
+            map(tuple((
+                preceded(multispace0, tag("(")),
+                separated_list(
+                    preceded(multispace0, tag(",")),
+                    Argument::parse
                 ),
+                preceded(multispace0, tag(")")),
                 opt(pair(
                     preceded(multispace0, tag("->")),
                     Type::parse
                 )),
-            ),
-                |(args, ret_ty)| {
+            )),
+                |(start, args, end, ret_ty)| {
                     let output;
+                    let end_span;
                     match ret_ty {
-                        Some(ty) => output = Some(ty.1),
-                        None => output = None,
-                    }
+                        Some(ty) => {
+                            end_span = ty.1.clone().get_span().end;
+                            output = Some(ty.1);
+                        },
+                        None => {
+                            output = None;
+                            end_span = LineColumn::new(end.line, end.get_column() + 1);
+                        },  
+                    };
                     FnDecl {
                         inputs: args,
                         output: output,
-                        span: Span::new(input),
+                        span: Span::from_bounds(
+                            LineColumn::new(start.line, start.get_column()),
+                            end_span,
+                        ),
                     }
                 }
             )
@@ -147,10 +161,17 @@ impl Parser for Argument {
                 preceded(multispace0, tag(":")),
                 Type::parse,
             )),
-                |(id, _, ty)| Argument {
-                    ident: id,
-                    ty: ty,
-                    span: Span::new(input),
+                |(id, _, ty)| {
+                    let id_span = id.clone().span;
+                    let ty_span = ty.get_span();
+                    Argument {
+                        ident: id,
+                        ty: ty,
+                        span: Span::from_bounds(
+                            id_span.start,
+                            ty_span.end,
+                        ),
+                    }
                 }
             )
         )(input)

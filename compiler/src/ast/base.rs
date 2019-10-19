@@ -35,7 +35,7 @@ pub struct File {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
-    Fn(ItemFn),
+    Fn(FnItem),
 }
 
 
@@ -44,7 +44,7 @@ pub enum Item {
  * the identifier, declaration and block.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ItemFn {
+pub struct FnItem {
     pub ident: ExprIdent,
     pub decl: FnDecl,
     pub block: ExprBlock,
@@ -82,4 +82,20 @@ pub struct Argument {
 pub enum Type {
     Int32{span: Span},
     Bool{span: Span},
+}
+
+
+/**
+ * Implementation of type enum.
+ */
+impl Type {
+    /**
+     * Returns the span information from the given type.
+     */
+    pub fn get_span(&self) -> Span {
+        match self {
+            Type::Int32{span} => *span,
+            Type::Bool{span} => *span,
+        }
+    }
 }
