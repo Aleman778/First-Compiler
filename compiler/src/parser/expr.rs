@@ -241,9 +241,8 @@ impl Parser for ExprCall {
                 preceded(multispace0, tag("(")),
                 separated_list(preceded(multispace0, tag(",")), Expr::parse_math),
                 preceded(multispace0, tag(")")),
-                preceded(multispace0, tag(";")),
             )),
-                |(id, _, args, _, end)| {
+                |(id, _, args, end)| {
                     let rid = id.clone();
                     ExprCall {
                         ident: id,

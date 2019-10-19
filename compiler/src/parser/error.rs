@@ -30,6 +30,9 @@ pub struct Verbose<'a> {
 
 pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String {
     let mut result = String::new();
+    let split = input.fragment.split("\n");
+    let fragment: Vec<&str> = split.collect();
+
     for err in &error.errors {
     result.push_str("error: ");
         match &err.kind {
@@ -44,15 +47,30 @@ pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String
             },
         };
         result.push('\n');
-        result.push_str("  --> ");
-        result.push_str("src\\main.rs:");//err.file);
-        result.push_str(err.span.start.to_string().as_str());
+        
+        let file = input.extra.to_str();
+        if file.is_some() {
+            result.push_str("  --> ");
+            result.push_str(file.unwrap());
+            result.push_str(":");
+            result.push_str(err.span.start.to_string().as_str());
+        }
 
-        result.push_str("\n   |");
-        result.push_str(format!("\n{}", err.span.start.line).as_str());
-        result.push_str("  |    ");
-        result.push_str(input.fragment);
-        result.push_str("\n   |    ");
+        let line_number = format!("{}", err.span.start.line);
+        
+        result.push_str("\n");
+        for _ in 0..line_number.len() {
+            result.push(' ');
+        }
+        result.push_str(" |\n");
+        result.push_str(line_number.as_str());
+        result.push_str(" |    ");
+        result.push_str(fragment[(err.span.start.line - 1) as usize]);
+        result.push('\n');
+        for _ in 0..line_number.len() {
+            result.push(' ');
+        }
+        result.push_str(" |    ");
         for i in 1..(input.fragment.len() + 1) {
             if i >= err.span.start.column && i < err.span.end.column {
                 result.push('^');

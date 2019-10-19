@@ -10,6 +10,7 @@ use compiler::ast::{
     expr::*,
 };
 use compiler::parser::ParseSpan;
+use std::path::Path;
 
 
 /**
@@ -27,7 +28,7 @@ pub enum Val {
  * Parses and evaluates the input expression.
  */
 pub fn eval_math(input: &str) -> Val {
-    let (_, expr) = Expr::parse_math(ParseSpan::new(input)).unwrap();
+    let (_, expr) = Expr::parse_math(ParseSpan::new_extra(input, Path::new(""))).unwrap();
     eval_expr(expr)
 }
 

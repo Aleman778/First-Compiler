@@ -7,13 +7,16 @@
 
 
 use crate::parser::error::ParseError;
-use nom_locate::LocatedSpan;
+use nom_locate::LocatedSpanEx;
 use nom::Err;
+use std::path::Path;
 
 /**
- * Type alias of LocatedSpan for convenience.
+ * Type alias of LocatedSpanEx for convenience.
+ * First string is the input string, other string is
+ * the filename that is being parsed.
  */
-pub type ParseSpan<'a> = LocatedSpan<&'a str>;
+pub type ParseSpan<'a> = LocatedSpanEx<&'a str, &'a Path>;
 
 
 /**

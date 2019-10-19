@@ -10,28 +10,17 @@ mod parser;
 mod interpreter;
 
 
-use crate::ast::expr::Expr;
+use std::fs;
+use std::path::Path;
+use crate::ast::base::File;
 use crate::parser::{Parser, ParseSpan};
-use crate::interpreter::Eval;
+// use crate::interpreter::Eval;
 
 
 fn main() {
-    let input = ParseSpan::new("(5+3**2-3)>=11");
-    let expr = Expr::parse_math(input.clone());
-    match expr {
-        Ok(ast) => {
-            println!("Parse Ok:{:#?}", ast);
-            
-            match ast.1.eval() {
-                Ok(val) => println!("Eval Ok:{:#?}", val),
-                Err(e) => println!("Eval Err:{:#?}", e),
-            };
-        }
-        Err(e) => {
-            match e {
-                nom::Err::Error(err) => println!("{}", parser::error::convert_error(&input, err)),
-                _ => println!("{:#?}", e),
-            };
-        }
-    }
+    let filename = "c:/dev/sqrrl-lang/compiler/examples/primes.sq";
+    let contents = fs::read_to_string(filename).expect("file was not found");
+    let span = ParseSpan::new_extra(contents.as_str(), Path::new(filename));
+    let file = File::parse(span).unwrap();
+    println!("File AST:{:#?}", file);
 }

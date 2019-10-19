@@ -4,25 +4,24 @@
  * i.e. a file and its items an item can be for example a function.
  ***************************************************************************/
 
+
 use nom::{
     character::complete::{multispace0, multispace1},
     bytes::complete::tag,
     combinator::{map, opt},
     sequence::{delimited, preceded, pair, tuple},
-    multi::{many0, separated_list},
+    multi::separated_list,
     branch::alt,
     error::context,
+    Err,
 };
-
-
 use crate::ast::{
     span::Span,
     base::*,
     expr::{ExprBlock, ExprIdent},
 };
-
-
 use crate::parser::{
+    error::convert_error,
     ParseSpan,
     IResult,
     Parser,
@@ -34,15 +33,26 @@ use crate::parser::{
  */
 impl Parser for File {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "file",
-            map(many0(Item::parse),
-                |items| File {
-                    items: items,
-                    span: Span::new(input),
-                }
-            )
-        )(input)
+        let mut output = input;
+        let mut items = Vec::new();
+        while output.fragment.len() > 0 {
+            match Item::parse(output) {
+                Ok((input, item)) => {
+                    items.push(item);
+                    let (span, _) = multispace0(input)?;
+                    output = span;
+                },
+                Err(Err::Error(e)) => {
+                    println!("{}", convert_error(&input, e));
+                    break;
+                },
+                _ => break,
+            };
+        }
+        Ok((output, File {
+            items: items,
+            span: Span::new(input),
+        }))
     }
 }
 
