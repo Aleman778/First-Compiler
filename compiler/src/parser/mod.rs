@@ -9,20 +9,19 @@
 use crate::parser::error::ParseError;
 use nom_locate::LocatedSpanEx;
 use nom::Err;
-use std::path::Path;
 
 /**
  * Type alias of LocatedSpanEx for convenience.
  * First string is the input string, other string is
  * the filename that is being parsed.
  */
-pub type ParseSpan<'a> = LocatedSpanEx<&'a str, &'a Path>;
+pub type ParseSpan<'a> = LocatedSpanEx<&'a str, &'a str>;
 
 
 /**
  * Type aliased IResult from std::Result.
  */
-type IResult<'a, I, O, E = ParseError<'a>> = Result<(I, O), Err<E>>;
+type IResult<I, O, E = ParseError> = Result<(I, O), Err<E>>;
 
 
 /**

@@ -59,10 +59,11 @@ impl fmt::Debug for LineColumn {
  * Custom span struct only includes lines and columns from the start to
  * the end of the span location.
  */
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Span {
     pub start: LineColumn,
     pub end: LineColumn,
+    pub file: String,
 }
 
 
@@ -83,6 +84,19 @@ impl Span {
                 line: get_end_line(&s),
                 column: get_end_column(&s),
             },
+            file: s.extra.to_string(),
+        }
+    }
+
+
+    /**
+     * Constructs an empty span.
+     */
+    pub fn new_empty() -> Self {
+        Span {
+            start: LineColumn{line: 0, column: 0},
+            end: LineColumn{line: 0, column: 0},
+            file: String::new(),
         }
     }
 
@@ -90,10 +104,11 @@ impl Span {
     /**
      * Construcst a new span from a starting and end position.
      */
-    pub fn from_bounds(start: LineColumn, end: LineColumn) -> Self {
+    pub fn from_bounds(start: LineColumn, end: LineColumn, file: &str) -> Self {
         Span {
             start: start,
             end: end,
+            file: file.to_string(),
         }
     }
     
@@ -111,16 +126,16 @@ impl Span {
                 line: get_end_line(&spans[spans.len() - 1]),
                 column: get_end_column(&spans[spans.len() - 1]),
             },
+            file: spans[0].extra.to_string(),
         }        
     }
     
         
     /**
      * Get the fragment of this span.
-     * @NotFullyImplemented
      */
-    pub fn fragment<'a>(&self, src: &ParseSpan<'a>) -> String {
-        let split = src.fragment.split("\n");
+    pub fn fragment(&self, src: &str) -> String {
+        let split = source.split("\n");
         let lines: Vec<&str> = split.collect();
         let mut result = String::new();
         if self.multiline() {
@@ -156,6 +171,16 @@ impl Span {
      */
     pub fn multiline(&self) -> bool {
         self.end.line > self.start.line
+    }
+
+
+    /**
+     * Check if the given span is an empty span,
+     * i.e. points at line 0 to 0 and column 0 to 0.
+     */
+    pub fn is_empty() -> bool {
+        return self.start.line == 0 && self.end.line == 0 &&
+            self.start.column == 0 && self.end.column == 0;
     }
 }
 

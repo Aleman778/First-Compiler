@@ -6,7 +6,6 @@
  ***************************************************************************/
 
 
-use std::path::Path;
 use crate::ast::span::Span;
 use crate::parser::ParseSpan;
 
@@ -14,22 +13,21 @@ use crate::parser::ParseSpan;
 /**
  * Parse error struct holds information about the error and location
  */
-pub struct ParseError<'a> {
-    errors: Vec<Verbose<'a>>,
+pub struct ParseError {
+    errors: Vec<Verbose>,
 }
 
 
 /**
  * Gives context to an error e.g. location, kind, file etc.
  */
-pub struct Verbose<'a> {
-    file: &'a Path,
+pub struct Verbose {
     span: Span,
     kind: ErrorKind,
 }
 
 
-pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String {
+pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError) -> String {
     let mut result = String::new();
     let split = input.fragment.split("\n");
     let fragment: Vec<&str> = split.collect();
@@ -49,10 +47,10 @@ pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String
         };
         result.push('\n');
         
-        let file = err.file.to_str();
-        if file.is_some() {
+        let file = err.span.file.as_str();
+        if file.len() > 0 {
             result.push_str("  --> ");
-            result.push_str(file.unwrap());
+            result.push_str(file);
             result.push_str(":");
             result.push_str(err.span.start.to_string().as_str());
         }
@@ -85,7 +83,7 @@ pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError<'a>) -> String
 }
 
 
-impl<'a> std::fmt::Debug for ParseError<'a> {
+impl<'a> std::fmt::Debug for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for err in &self.errors {
             write!(f, "{:?}", err)?;
@@ -94,7 +92,7 @@ impl<'a> std::fmt::Debug for ParseError<'a> {
     }
 }
 
-impl<'a> std::fmt::Debug for Verbose<'a> {
+impl<'a> std::fmt::Debug for Verbose {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match &self.kind {
             ErrorKind::ParseIntError(e) => write!(f, "error: {}", e),
@@ -106,11 +104,10 @@ impl<'a> std::fmt::Debug for Verbose<'a> {
 }
 
 
-impl<'a> ParseError<'a> {
+impl<'a> ParseError {
     pub fn new(input: ParseSpan<'a>, kind: ErrorKind) -> Self {
         ParseError{
             errors: vec![Verbose{
-                file: input.extra,
                 span: Span::new(input),
                 kind: kind,
             }],
@@ -120,7 +117,6 @@ impl<'a> ParseError<'a> {
 
     pub fn append(input: ParseSpan<'a>, kind: ErrorKind, mut other: Self) -> Self {
         other.errors.push(Verbose {
-            file: input.extra,
             span: Span::new(input),
             kind: kind,
         });
@@ -146,11 +142,10 @@ impl<'a> ParseError<'a> {
 /**
  * Implementation of nom ParseErrors for my custom ParseError
  */
-impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
+impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
     fn from_error_kind(input: ParseSpan<'a>, kind: nom::error::ErrorKind) -> Self {
         ParseError{
             errors: vec![Verbose{
-                file: input.extra,
                 span: Span::new(input),
                 kind: ErrorKind::Nom(kind),
             }],
@@ -160,7 +155,6 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
 
     fn append(input: ParseSpan<'a>, kind: nom::error::ErrorKind, mut other: Self) -> Self {
         other.errors.push(Verbose{
-            file: input.extra,
             span: Span::new(input),
             kind: ErrorKind::Nom(kind),
         });
@@ -171,7 +165,6 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
     fn from_char(input: ParseSpan<'a>, c: char) -> Self {
         ParseError{
             errors: vec![Verbose{
-                file: input.extra,
                 span: Span::new(input),
                 kind: ErrorKind::Char(c),
             }],
@@ -196,7 +189,6 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError<'a> {
 
     fn add_context(input: ParseSpan<'a>, ctx: &'static str, mut other: Self) -> Self {
         other.errors.push(Verbose{
-            file: input.extra,
             span: Span::new(input),
             kind: ErrorKind::Context(ctx),
         });

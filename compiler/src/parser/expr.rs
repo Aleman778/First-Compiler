@@ -114,7 +114,8 @@ impl Parser for ExprAssign {
                             expr: Box::new(expr),
                             span: Span::from_bounds(
                                 rid.span.start,
-                                LineColumn::new(end.line, end.get_column() + 1)
+                                LineColumn::new(end.line, end.get_column() + 1),
+                                input.extra,
                             ),
                         }
                     }
@@ -163,7 +164,8 @@ impl ExprBinary {
                         right: Box::new(expr_rhs),
                         span: Span::from_bounds(
                             LineColumn::new(input.line, input.get_column()),
-                            LineColumn::new(output.line, output.get_column())
+                            LineColumn::new(output.line, output.get_column()),
+                            input.extra,
                         ),
                     });
                 },
@@ -197,6 +199,7 @@ impl Parser for ExprBlock {
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
                             LineColumn::new(end.line, end.get_column() + 1),
+                            input.extra,
                         ),
                     }
                 }
@@ -220,7 +223,8 @@ impl Parser for ExprBreak {
                 |(start, end) : (ParseSpan, ParseSpan)| ExprBreak {
                     span: Span::from_bounds(
                         LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1)
+                        LineColumn::new(end.line, end.get_column() + 1),
+                        input.extra,
                     ),
                 }
             )
@@ -249,7 +253,8 @@ impl Parser for ExprCall {
                         args: args,
                         span: Span::from_bounds(
                             rid.span.start,
-                            LineColumn::new(end.line, end.get_column() + 1)
+                            LineColumn::new(end.line, end.get_column() + 1),
+                            input.extra,
                         ),
                     }
                 }
@@ -273,7 +278,8 @@ impl Parser for ExprContinue {
                 |(start, end) : (ParseSpan, ParseSpan)| ExprContinue {
                     span: Span::from_bounds(
                         LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1)
+                        LineColumn::new(end.line, end.get_column() + 1),
+                            input.extra,
                     ),
                 }
             )            
@@ -329,7 +335,8 @@ impl Parser for ExprIf  {
                         else_block: else_block,
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
-                            end.span.end
+                            end.span.end,
+                            input.extra,
                         ),
                     }
                 }
@@ -385,7 +392,8 @@ impl Parser for ExprLocal {
                     init: Box::new(expr),
                     span: Span::from_bounds(
                         LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1)
+                        LineColumn::new(end.line, end.get_column() + 1),
+                        input.extra,
                     ),
                 }
             )
@@ -408,7 +416,8 @@ impl Parser for ExprParen {
                 expr: Box::new(expr),
                 span: Span::from_bounds(
                     LineColumn::new(start.line, start.get_column()),
-                    LineColumn::new(end.line, end.get_column() + 1)
+                    LineColumn::new(end.line, end.get_column() + 1),
+                    input.extra,
                 ),
             }
         )(input)
@@ -432,7 +441,8 @@ impl Parser for ExprReturn {
                     expr: Box::new(expr),
                     span: Span::from_bounds(
                         LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1)
+                        LineColumn::new(end.line, end.get_column() + 1),
+                        input.extra,
                     ),
                 }
             )           
@@ -454,7 +464,8 @@ impl Parser for ExprUnary {
             right: Box::new(expr),
             span: Span::from_bounds(
                 LineColumn::new(input.line, input.get_column()),
-                LineColumn::new(span.line, span.get_column())
+                LineColumn::new(span.line, span.get_column()),
+                input.extra,
             ),
         }))
     }
@@ -480,7 +491,8 @@ impl Parser for ExprWhile {
                         block: block,
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
-                            rblock.span.end
+                            rblock.span.end,
+                            input.extra,
                         ),
                     }
                 }
