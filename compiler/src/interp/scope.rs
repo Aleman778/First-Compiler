@@ -62,4 +62,12 @@ impl Scope {
             },
         }
     }
+
+
+    /**
+     * Registers the given address and identifier in the variable list.
+     */
+    pub fn register(&mut self, id: &ExprIdent, addr: usize) {
+        self.vars.insert(id.to_string, addr);
+    }
 }

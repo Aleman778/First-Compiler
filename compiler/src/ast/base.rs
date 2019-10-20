@@ -7,9 +7,6 @@
  ***************************************************************************/
 
 
-/**
- * Requires parts from other parts in the ast module.
- */
 use crate::ast::{
     span::Span,
     expr::{ExprIdent, ExprBlock},
@@ -36,6 +33,21 @@ pub struct File {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     Fn(FnItem),
+}
+
+
+/**
+ * Implementation of item.
+ */
+impl Item {
+    /**
+     * Returns the identifier string of the given item.
+     */
+    pub fn get_id(&self) -> String {
+        match self {
+            Item::Fn(func) => func.ident.to_string.clone(),
+        }
+    }
 }
 
 
@@ -94,8 +106,8 @@ impl Type {
      */
     pub fn get_span(&self) -> Span {
         match self {
-            Type::Int32{span} => *span,
-            Type::Bool{span} => *span,
+            Type::Int32{span} => span.clone(),
+            Type::Bool{span} => span.clone(),
         }
     }
 }
