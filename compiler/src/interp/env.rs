@@ -59,12 +59,9 @@ impl Env {
      * Note: there has to be a scope already on the call stack.
      */
     pub fn push_block(&mut self, new_scope: Scope) -> IResult<()> {
-        let scope = self.current();
+        let scope = self.current()?;
         scope.push(new_scope);
         Ok(())
-            // },
-            // _ => Err(RuntimeError::context(Span::new_empty(), "cannot push a block outside a function")),
-        // }
     }
 
 
@@ -72,12 +69,9 @@ impl Env {
      * Pops the latest pushed block scope.
      */
     pub fn pop_block(&mut self) -> IResult<()> {
-        let scope = self.current();
+        let scope = self.current()?;
         scope.pop();
         Ok(())
-            // }
-            // _ => Err(RuntimeError::context(Span::new_empty(), "there is no scope to pop")),
-        // }
     }
 
 
@@ -145,8 +139,12 @@ impl Env {
     /**
      * Returns a mutable reference to the highest scope in the call stack.
      */
-    fn current(&mut self) -> &mut Scope {
+    fn current(&mut self) -> IResult<&mut Scope> {
         let len = self.call_stack.len();
-        &mut self.call_stack[len - 1]
+        if len > 0 {
+            Ok(&mut self.call_stack[len - 1])
+        } else {
+            Err(RuntimeError::context(Span::new_empty(), "the call stack is empty"))
+        }
     }
 }
