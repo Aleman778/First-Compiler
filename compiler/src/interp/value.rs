@@ -25,8 +25,8 @@ pub enum Val {
         span: Span,
     },
 
-    /// Addr is an unsigned integer value of either 32- or 64-bits
-    Addr {
+    /// Reference is an unsigned integer value of either 32- or 64-bits
+    Ref {
         addr: usize,
         span: Span,
     },
@@ -36,6 +36,7 @@ pub enum Val {
         span: Span,
     },
 
+    /// None is nothing, denotes an unallocated value.
     None,
 }
 
@@ -67,10 +68,10 @@ impl Val {
 
 
     /**
-     * Constructs an address value.
+     * Constructs an reference value.
      */
-    pub fn from_addr(addr: usize, span: Span) -> Self {
-        Val::Addr {
+    pub fn from_ref(addr: usize, span: Span) -> Self {
+        Val::Ref {
             addr: addr,
             span: span,
         }
@@ -94,6 +95,17 @@ impl Val {
         match self {
             Val::Void{span: _} => true,
             _ => false,
+        }
+    }
+
+
+    pub fn get_span(&self) -> Span {
+        match self {
+            Val::Int{val: _, span}  => span.clone(),
+            Val::Bool{val: _, span} => span.clone(),
+            Val::Ref{addr: _, span} => span.clone(),
+            Val::Void{span}         => span.clone(),
+            Val::None               => Span::new_empty(),
         }
     }
 }

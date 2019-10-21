@@ -31,7 +31,7 @@ impl Eval for Lit {
  */
 impl Eval for LitInt {
     fn eval(&self) -> IResult<Val> {
-        Ok(Val::from_i32(self.value, self.span))
+        Ok(Val::from_i32(self.value, self.span.clone()))
     }
 }
 
@@ -41,6 +41,6 @@ impl Eval for LitInt {
  */
 impl Eval for LitBool {
     fn eval(&self) -> IResult<Val> {
-        Ok(Val::from_bool(self.value, self.span))
+        Ok(Val::from_bool(self.value, self.span.clone()))
     }
 }

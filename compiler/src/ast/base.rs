@@ -6,7 +6,7 @@
  * declarations. This module also 
  ***************************************************************************/
 
-
+use std::fmt;
 use crate::ast::{
     span::Span,
     expr::{ExprIdent, ExprBlock},
@@ -108,6 +108,19 @@ impl Type {
         match self {
             Type::Int32{span} => span.clone(),
             Type::Bool{span} => span.clone(),
+        }
+    }
+}
+
+
+/**
+ * Implementation of display trait for retriving the type identifier.
+ */
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Type::Int32{span: _} => write!(f, "i32"),
+            Type::Bool{span: _} => write!(f, "bool"),
         }
     }
 }

@@ -5,11 +5,10 @@
  ***************************************************************************/
 
 
-use std::path::Path;
 use std::collections::HashMap;
 use crate::ast::{
     base::{Item, FnItem},
-    expr::ExprIdent,
+    expr::{ExprIdent, ExprCall},
     span::Span,
 };
 use crate::interp::{
@@ -27,15 +26,12 @@ use crate::interp::{
  * the memory, call stack and item signatures etc.
  */
 #[derive(Debug, Clone)]
-pub struct Env<'a> {
+pub struct Env {
     /// Stores item signatures, maps strings to items
     signatures: HashMap<String, Item>,
 
     /// The call stack is a stack containing scopes
     call_stack: Vec<Scope>,
-    
-    /// Reference to the current scope
-    current: Option<&'a Scope>,
     
     /// The main memory heap storage, stores variables
     memory: Memory,
@@ -45,7 +41,7 @@ pub struct Env<'a> {
 /**
  * Implementation of the runtime environment.
  */
-impl<'a> Env<'a> {
+impl Env {
     /**
      * Constructs an empty environment.
      */
@@ -54,7 +50,6 @@ impl<'a> Env<'a> {
             signatures: HashMap::new(),
             call_stack: Vec::new(),
             memory: Memory::new(),
-            current: None,
         }
     }
 
@@ -63,16 +58,13 @@ impl<'a> Env<'a> {
      * Pushes a new block scope on the environment.
      * Note: there has to be a scope already on the call stack.
      */
-    pub fn push_block(&mut self) -> IResult<()> {
-        match self.current {
-            Some(scope) => {
-                let new_scope = Scope::new();
-                new_scope.parent = Box::new(Some(*scope));
-                self.current = Some(&new_scope);
-                Ok(())
-            },
-            _ => Err(RuntimeError::context(Span::new_empty(), "cannot push a block outside a function")),
-        }
+    pub fn push_block(&mut self, new_scope: Scope) -> IResult<()> {
+        let scope = self.current();
+        scope.push(new_scope);
+        Ok(())
+            // },
+            // _ => Err(RuntimeError::context(Span::new_empty(), "cannot push a block outside a function")),
+        // }
     }
 
 
@@ -80,20 +72,12 @@ impl<'a> Env<'a> {
      * Pops the latest pushed block scope.
      */
     pub fn pop_block(&mut self) -> IResult<()> {
-        match self.current {
-            Some(scope) => {
-                match &*scope.parent {
-                    Some(parent) => {
-                        scope.parent = Box::new(None);
-                        self.current = Some(parent);
-                        Ok(())
-                    },
-                    _ => Err(RuntimeError::context(Span::new_empty(), "cannot pop the outer most block")),
-
-                }
-            },
-            _ => Err(RuntimeError::context(Span::new_empty(), "there is no scope to pop")),
-        }
+        let scope = self.current();
+        scope.pop();
+        Ok(())
+            // }
+            // _ => Err(RuntimeError::context(Span::new_empty(), "there is no scope to pop")),
+        // }
     }
 
 
@@ -101,21 +85,26 @@ impl<'a> Env<'a> {
      * Push a function call scope on the call stack from the given id and with
      * specific argument values. The arguments are stored in the new scope.
      */
-    pub fn push_func(&mut self, func_id: &ExprIdent, values: Vec<Val>) -> IResult<FnItem> {
-        match self.load_item(func_id.to_string)? {
+    #[allow(unreachable_patterns)]
+    pub fn push_func(&mut self, call: &ExprCall, values: Vec<Val>) -> IResult<FnItem> {
+        match self.load_item(&call.ident)? {
             Item::Fn(func) => {
                 let mut new_scope = Scope::new();
-                let inputs = func.decl.inputs;
-                for i in 0..inputs.len() {
-                    let id = inputs[i].ident.to_string;
-                    let addr = self.memory.alloc(values[i]);
-                    new_scope.register(id, addr);
+                let inputs = &func.decl.inputs;
+                if inputs.len() == values.len() {
+                    for i in 0..inputs.len() {
+                        let id = &inputs[i].ident;
+                        let addr = self.memory.alloc(values[i].clone())?;
+                        new_scope.register(id, addr);
+                    }
+                    self.call_stack.push(new_scope);
+                    // self.current = Some(&new_scope);
+                    Ok(func)
+                } else {
+                    Err(RuntimeError::context(call.span.clone(), "hello world!"))
                 }
-                
-                self.call_stack.push(new_scope);
-                self.current = &new_scope;
             },
-            _ => Err(RuntimeError::item_not_found(func_id.span, func_id.to_string.as_str(), vec!["function"])),
+            _ => Err(RuntimeError::item_not_found(&call.ident, &["function"])),
         }
     }
 
@@ -145,13 +134,19 @@ impl<'a> Env<'a> {
     /**
      * Loads an item from a given identifier.
      */
-    pub fn load_item(&self, id: &ExprIdent) -> IResult<Item> {
-        match self.signatures.get(&id.to_string) {
-            Some(item) => Ok(item),
-            None => Err(RuntimeError {
-                span: id.span,
-                kind: ErrorKind::ItemNotFound(id.to_string.as_str()),
-            }),
+    pub fn load_item(&self, ident: &ExprIdent) -> IResult<Item> {
+        match self.signatures.get(&ident.to_string) {
+            Some(item) => Ok(item.clone()),
+            None => Err(RuntimeError::item_not_found(&ident, &["signature"]))
         }
+    }
+
+    
+    /**
+     * Returns a mutable reference to the highest scope in the call stack.
+     */
+    fn current(&mut self) -> &mut Scope {
+        let len = self.call_stack.len();
+        &mut self.call_stack[len - 1]
     }
 }

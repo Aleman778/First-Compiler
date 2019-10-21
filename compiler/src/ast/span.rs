@@ -5,8 +5,8 @@
  ***************************************************************************/
 
 
-use crate::parser::ParseSpan;
 use std::fmt;
+use crate::parser::ParseSpan;
 
 
 /**
@@ -36,11 +36,11 @@ impl LineColumn {
     
 
 /**
- * To string for lines and columns
+ * Display for lines and columns
  */
-impl std::string::ToString for LineColumn {
-    fn to_string(&self) -> String {
-        format!("{}:{}", self.line, self.column)
+impl fmt::Display for LineColumn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.line, self.column)
     }
 }
 
@@ -134,7 +134,7 @@ impl Span {
     /**
      * Get the fragment of this span.
      */
-    pub fn fragment(&self, src: &str) -> String {
+    pub fn fragment(&self, source: &str) -> String {
         let split = source.split("\n");
         let lines: Vec<&str> = split.collect();
         let mut result = String::new();
@@ -178,7 +178,7 @@ impl Span {
      * Check if the given span is an empty span,
      * i.e. points at line 0 to 0 and column 0 to 0.
      */
-    pub fn is_empty() -> bool {
+    pub fn is_empty(&self) -> bool {
         return self.start.line == 0 && self.end.line == 0 &&
             self.start.column == 0 && self.end.column == 0;
     }
