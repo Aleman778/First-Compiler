@@ -26,9 +26,11 @@ pub trait Eval {
 
 
 pub mod error;
+pub mod primitive;
 pub mod value;
 pub mod env;
 pub mod scope;
 pub mod memory;
 pub mod expr;
 pub mod lit;
+pub mod op;

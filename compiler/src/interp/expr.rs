@@ -5,7 +5,9 @@
  ***************************************************************************/
 
 
-use crate::ast::expr::*;
+use crate::ast::{
+    expr::*,
+};
 use crate::interp::{
     value::Val,
     IResult,
@@ -19,12 +21,24 @@ use crate::interp::{
 impl Eval for Expr {
     fn eval(&self) -> IResult<Val> {
         match self {
+            Expr::Binary(binary) => binary.eval(),
             Expr::Lit(literal) => literal.eval(),
             _ => Ok(Val::None),
         }
     }
 }
 
+
+/**
+ * Evalues a binary expression.
+ */
+impl Eval for ExprBinary {
+    fn eval(&self) -> IResult<Val> {
+        let left = self.left.eval()?;
+        let right = self.right.eval()?;
+        self.op.eval(left, right, self.span.clone())
+    }
+}
 
 
 /**

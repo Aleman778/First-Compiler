@@ -32,6 +32,17 @@ pub struct RuntimeError {
  */
 impl RuntimeError {
     /**
+     * Runtime error for binary expressions used
+     * when operator does not implement the two value types.
+     */
+    pub fn binary_expr(span: Span, op: BinOp, right: Val, left: Val) -> Self {
+        RuntimeError {
+            span: span,
+            kind: ErrorKind::BinaryExpr(op, left, right),
+        }
+    }
+    
+    /**
      * Runtime error for describing that a particular
      * item identifier of specific type is not found in this scope.
      */
