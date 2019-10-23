@@ -17,12 +17,12 @@ use crate::interp::{
 
 
 /**
- * Implementation of binary operator for binary expression evaluation
+ * Implementation of binary operator for evaluating binary expressions.
  */
 impl BinOp {
     pub fn eval(&self, left: Val, right: Val, span: Span) -> IResult<Val> {
         let left_type = left.get_type();
-        let right_type = left.get_type();
+        let right_type = right.get_type();
         let span_clone = span.clone();
         let result = match self {
             BinOp::Add{span: _} => left.add(right, span_clone),
@@ -52,6 +52,9 @@ impl BinOp {
 }
 
 
+/**
+ * Implementation of unary oprator for evaluating unary expressions.
+ */
 impl UnOp {
     pub fn eval(&self, right: Val, span: Span) -> IResult<Val> {
         let right_type = right.get_type();

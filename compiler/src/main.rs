@@ -30,7 +30,7 @@ fn main() {
     // println!("File AST:{:#?}", file);
 
     // Parse from mathematical expressions from string
-    let input = "true < false";//"2+3**2*3+4";
+    let input = "true == 3";//"2+3**2*3+4";
     let span = ParseSpan::new_extra(input, "");
     let expr = Expr::parse_math(span).unwrap().1;
     let val = expr.eval();

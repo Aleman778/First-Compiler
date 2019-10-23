@@ -44,7 +44,7 @@ pub enum Expr {
     /// Expression for if statements e.g. `if a > 5 { a = 6; } else { a = 4; }`.
     If(ExprIf),
     
-    /// Expression for literals e.g. '32', 'true'.
+    /// Expression for literals e.g. `32`, `true`.
     Lit(ExprLit),
     
     /// Expression for local variable assignment e.g. `let a: i32 = 5;`.
