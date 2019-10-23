@@ -5,6 +5,7 @@
  ***************************************************************************/
 
 
+use std::fmt;
 use crate::ast::span::Span;
 
 
@@ -105,6 +106,28 @@ impl BinOp {
             // Precedence: 6, Associativity: Right-to-left
             BinOp::Pow{span: _} => (6, Assoc::Right),
             
+        }
+    }
+}
+
+
+impl fmt::Display for BinOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BinOp::Add{span: _} => write!(f, "add"),
+            BinOp::Sub{span: _} => write!(f, "subtract"),
+            BinOp::Mul{span: _} => write!(f, "multiplicate"),
+            BinOp::Div{span: _} => write!(f, "divide"),
+            BinOp::Pow{span: _} => write!(f, "power"),
+            BinOp::Mod{span: _} => write!(f, "modolu"),
+            BinOp::And{span: _} => write!(f, "logical and"),
+            BinOp::Or{span: _} => write!(f, "logical or"),
+            BinOp::Eq{span: _} => write!(f, "compare equal"),
+            BinOp::Ne{span: _} => write!(f, "compare not equal"),
+            BinOp::Lt{span: _} => write!(f, "compare less than"),
+            BinOp::Le{span: _} => write!(f, "compare less than or equal"),
+            BinOp::Gt{span: _} => write!(f, "compare greater than"),
+            BinOp::Ge{span: _} => write!(f, "compare greater than or equal"),
         }
     }
 }

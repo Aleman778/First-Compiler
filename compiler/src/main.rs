@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
 
 /***************************************************************************
  * The main entry point of the sqrrl compiler.
@@ -28,10 +30,13 @@ fn main() {
     // println!("File AST:{:#?}", file);
 
     // Parse from mathematical expressions from string
-    let input = "2+3**2*3+4";
+    let input = "false + false";//"2+3**2*3+4";
     let span = ParseSpan::new_extra(input, "");
     let expr = Expr::parse_math(span).unwrap().1;
-    let eval = expr.eval();
+    let val = expr.eval();
     println!("Expr AST:\n{:#?}\n\n", expr);
-    println!("Evaluates to:\n{:#?}", eval);
+    match val {
+        Ok(v) => println!("Evaluates to:\n{:#?}", v),
+        Err(e) => println!("error: {}", e.kind.description()),
+    };
 }

@@ -96,8 +96,8 @@ impl IntVal {
      */
     pub fn get_span(&self) -> Span {
         match self {
-            IntVal::Int32{val: _, span: span} => span.clone(),
-            IntVal::Int64{val: _, span: span} => span.clone(),
+            IntVal::Int32{val: _, span} => span.clone(),
+            IntVal::Int64{val: _, span} => span.clone(),
         }
     }
     

@@ -22,7 +22,7 @@ use crate::interp::value::Val;
 #[derive(Debug)]
 pub struct RuntimeError {
     span: Span,
-    kind: ErrorKind,
+    pub kind: ErrorKind,
 }
 
 
@@ -114,7 +114,7 @@ impl ErrorKind {
     pub fn description(&self) -> String {
         match self {
             ErrorKind::BinaryExpr(op, left, right)
-                => format!("cannot {:?} `{:?}` to `{:?}`", op, left, right),
+                => format!("cannot {} `{}` to `{}`", op, left.get_type(), right.get_type()),
             ErrorKind::ItemNotFound(id, items)
                 => format!("cannot find {:?} `{}` in this scope", items, id),
             ErrorKind::MemoryError(msg)

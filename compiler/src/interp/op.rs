@@ -5,17 +5,14 @@
  ***************************************************************************/
 
 
-use std::ops;
 use crate::ast::{
     span::Span,
-    expr::*,
     op::*,
 };
 use crate::interp::{
     value::Val,
     RuntimeError,
     IResult,
-    Eval,
 };
 
 
