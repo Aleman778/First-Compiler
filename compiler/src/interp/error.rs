@@ -12,7 +12,6 @@ use crate::ast::{
     base::Type,
     op::*,
 };
-use crate::interp::value::Val;
 
 
 /**
@@ -21,7 +20,7 @@ use crate::interp::value::Val;
  */
 #[derive(Debug)]
 pub struct RuntimeError {
-    span: Span,
+    pub span: Span,
     pub kind: ErrorKind,
 }
 
@@ -31,17 +30,6 @@ pub struct RuntimeError {
  * factory methods for creating error messages.
  */
 impl RuntimeError {
-    /**
-     * Runtime error for binary expressions used
-     * when operator does not implement the two value types.
-     */
-    pub fn binary_expr(span: Span, op: BinOp, right: Val, left: Val) -> Self {
-        RuntimeError {
-            span: span,
-            kind: ErrorKind::BinaryExpr(op, left, right),
-        }
-    }
-    
     /**
      * Runtime error for describing that a particular
      * item identifier of specific type is not found in this scope.
@@ -96,7 +84,8 @@ impl RuntimeError {
  */
 #[derive(Debug)]
 pub enum ErrorKind {
-    BinaryExpr(BinOp, Val, Val),
+    BinaryExpr(BinOp, Type, Type),
+    UnaryExpr(UnOp, Type),
     ItemNotFound(String, &'static [&'static str]),
     MemoryError(&'static str),
     TypeError(Type, Type),
@@ -114,7 +103,9 @@ impl ErrorKind {
     pub fn description(&self) -> String {
         match self {
             ErrorKind::BinaryExpr(op, left, right)
-                => format!("cannot {} `{}` to `{}`", op, left.get_type(), right.get_type()),
+                => format!("cannot {} `{}` to `{}`", op, left, right),
+            ErrorKind::UnaryExpr(op, right)
+                => format!("cannot {} `{}`", op, right),
             ErrorKind::ItemNotFound(id, items)
                 => format!("cannot find {:?} `{}` in this scope", items, id),
             ErrorKind::MemoryError(msg)
@@ -133,10 +124,11 @@ impl ErrorKind {
     pub fn error_code(&self) -> u32 {
         match self {
             ErrorKind::BinaryExpr(_, _, _) => 1,
-            ErrorKind::ItemNotFound(_, _)  => 2,
-            ErrorKind::MemoryError(_)      => 3,
-            ErrorKind::TypeError(_, _)     => 4,
-            ErrorKind::Context(_)          => 5,
+            ErrorKind::UnaryExpr(_, _)     => 2,
+            ErrorKind::ItemNotFound(_, _)  => 3,
+            ErrorKind::MemoryError(_)      => 4,
+            ErrorKind::TypeError(_, _)     => 5,
+            ErrorKind::Context(_)          => 6,
         }
     }
 }

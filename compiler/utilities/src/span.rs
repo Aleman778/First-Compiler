@@ -10,14 +10,13 @@ use compiler::{
     parser::ParseSpan,
 };
 use nom_locate::LocatedSpanEx;
-use std::path::Path;
 
 
 /**
  * Returns a ParseSpan used as input to parser.
  */
 pub fn input(input: &str) -> ParseSpan {
-    ParseSpan::new_extra(input, Path::new(""))
+    ParseSpan::new_extra(input, "")
 }
 
 
@@ -29,7 +28,7 @@ pub fn output(offset: usize, frag: &str) -> ParseSpan {
         offset: offset,
         line: 1,
         fragment: frag,
-        extra: Path::new(""),
+        extra: "",
     }
 }
 

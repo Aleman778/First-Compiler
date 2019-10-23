@@ -22,13 +22,19 @@ pub enum IntVal {
 
 
 /**
- * Implementation of the integer values.
+ * Implementation of the integer values and their
+ * respective operation implementations.
  */
 impl IntVal {
+    /***********************************************************************
+     * Integer binary operations
+     ***********************************************************************/
+
+    
     /**
-     * Add binary operation for integers.
+     * Add (addition) binary operation for integers.
      */
-    pub fn add(&self, rhs: &IntVal, span: Span) -> Option<Val> {
+    pub fn add(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
             IntVal::Int32{val, span: _} => Some(Val::from_i32(val + rhs.get_i32()?, span)),
             IntVal::Int64{val, span: _} => Some(Val::from_i64(val + rhs.get_i64()?, span)),
@@ -37,9 +43,9 @@ impl IntVal {
 
 
     /**
-     * Sub binary operation for integers.
+     * Sub (subtraction) binary operation for integers.
      */
-    pub fn sub(&self, rhs: &IntVal, span: Span) -> Option<Val> {
+    pub fn sub(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
             IntVal::Int32{val, span: _} => Some(Val::from_i32(val - rhs.get_i32()?, span)),
             IntVal::Int64{val, span: _} => Some(Val::from_i64(val - rhs.get_i64()?, span)),
@@ -48,9 +54,9 @@ impl IntVal {
 
 
     /**
-     * Div binary operation for integers.
+     * Div (division) binary operation for integers.
      */
-    pub fn div(&self, rhs: &IntVal, span: Span) -> Option<Val> {
+    pub fn div(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
             IntVal::Int32{val, span: _} => Some(Val::from_i32(val / rhs.get_i32()?, span)),
             IntVal::Int64{val, span: _} => Some(Val::from_i64(val / rhs.get_i64()?, span)),
@@ -59,9 +65,9 @@ impl IntVal {
 
     
     /**
-     * Mul binary operation for integers.
+     * Mul (multiplication) binary operation for integers.
      */
-    pub fn mul(&self, rhs: &IntVal, span: Span) -> Option<Val> {
+    pub fn mul(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
             IntVal::Int32{val, span: _} => Some(Val::from_i32(val * rhs.get_i32()?, span)),
             IntVal::Int64{val, span: _} => Some(Val::from_i64(val * rhs.get_i64()?, span)),
@@ -70,9 +76,9 @@ impl IntVal {
 
 
     /**
-     * Pow binary operation for integers.
+     * Pow (power of) binary operation for integers.
      */
-    pub fn pow(&self, rhs: &IntVal, span: Span) -> Option<Val> {
+    pub fn pow(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
             IntVal::Int32{val, span: _} => Some(Val::from_i32(val.pow(rhs.get_i32()? as u32), span)),
             IntVal::Int64{val, span: _} => Some(Val::from_i64(val.pow(rhs.get_i32()? as u32), span)),
@@ -81,9 +87,9 @@ impl IntVal {
 
     
     /**
-     * Mod binary operation for integers.
+     * Mod (modulo) binary operation for integers.
      */
-    pub fn modulo(&self, rhs: &IntVal, span: Span) -> Option<Val> {
+    pub fn r#mod(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
             IntVal::Int32{val, span: _} => Some(Val::from_i32(val % rhs.get_i32()?, span)),
             IntVal::Int64{val, span: _} => Some(Val::from_i64(val % rhs.get_i64()?, span)),
@@ -91,6 +97,94 @@ impl IntVal {
     }
 
 
+    /**
+     * Eq (equal) binary operation for integers.
+     */
+    pub fn eq(self, rhs: IntVal, span: Span) -> Option<Val> {
+        match self {
+            IntVal::Int32{val, span: _} => Some(Val::from_bool(val == rhs.get_i32()?, span)),
+            IntVal::Int64{val, span: _} => Some(Val::from_bool(val == rhs.get_i64()?, span)),
+        }
+    }
+
+
+    /**
+     * Ne (not equal) binary operation for integers.
+     */
+    pub fn ne(self, rhs: IntVal, span: Span) -> Option<Val> {
+        match self {
+            IntVal::Int32{val, span: _} => Some(Val::from_bool(val != rhs.get_i32()?, span)),
+            IntVal::Int64{val, span: _} => Some(Val::from_bool(val != rhs.get_i64()?, span)),
+        }
+    }
+
+
+    /**
+     * Lt (less than) binary operation for integers.
+     */
+    pub fn lt(self, rhs: IntVal, span: Span) -> Option<Val> {
+        match self {
+            IntVal::Int32{val, span: _} => Some(Val::from_bool(val < rhs.get_i32()?, span)),
+            IntVal::Int64{val, span: _} => Some(Val::from_bool(val < rhs.get_i64()?, span)),
+        }
+    }
+    
+
+    /**
+     * Le (less than or equal)  binary operation for integers.
+     */
+    pub fn le(self, rhs: IntVal, span: Span) -> Option<Val> {
+        match self {
+            IntVal::Int32{val, span: _} => Some(Val::from_bool(val <= rhs.get_i32()?, span)),
+            IntVal::Int64{val, span: _} => Some(Val::from_bool(val <= rhs.get_i64()?, span)),
+        }
+    }
+
+    
+    /**
+     * Gt (greater than) binary operation for integers.
+     */
+    pub fn gt(self, rhs: IntVal, span: Span) -> Option<Val> {
+        match self {
+            IntVal::Int32{val, span: _} => Some(Val::from_bool(val > rhs.get_i32()?, span)),
+            IntVal::Int64{val, span: _} => Some(Val::from_bool(val > rhs.get_i64()?, span)),
+        }
+    }
+
+    
+    /**
+     * Ge (greater than or equal) binary operation for integers.
+     */
+    pub fn ge(self, rhs: IntVal, span: Span) -> Option<Val> {
+        match self {
+            IntVal::Int32{val, span: _} => Some(Val::from_bool(val >= rhs.get_i32()?, span)),
+            IntVal::Int64{val, span: _} => Some(Val::from_bool(val >= rhs.get_i64()?, span)),
+        }
+    }
+
+
+    /***********************************************************************
+     * Integer unary operations
+     ***********************************************************************/
+
+
+    /**
+     * Neg (negation) unary operation for integers.
+     */
+    pub fn neg(self, span: Span) -> Option<Val> {
+        match self {
+            IntVal::Int32{val, span: _} => Some(Val::from_i32(-val, span)),
+            IntVal::Int64{val, span: _} => Some(Val::from_i64(-val, span)),
+        }
+    }
+    
+
+    
+    /***********************************************************************
+     * Helper methods
+     ***********************************************************************/
+    
+    
     /**
      * Returns the span information of the integer value.
      */
@@ -103,7 +197,7 @@ impl IntVal {
     
     
     /**
-     * Get i32 value from integer value
+     * Get i32 value from integer value.
      */
     fn get_i32(&self) -> Option<i32> {
         match self {
@@ -114,7 +208,7 @@ impl IntVal {
 
 
     /**
-     * Get the i64 value
+     * Get the i64 value.
      */
     fn get_i64(&self) -> Option<i64> {
         match self {

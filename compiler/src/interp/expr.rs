@@ -22,6 +22,7 @@ impl Eval for Expr {
     fn eval(&self) -> IResult<Val> {
         match self {
             Expr::Binary(binary) => binary.eval(),
+            Expr::Unary(unary) => unary.eval(),
             Expr::Lit(literal) => literal.eval(),
             _ => Ok(Val::None),
         }
@@ -30,13 +31,24 @@ impl Eval for Expr {
 
 
 /**
- * Evalues a binary expression.
+ * Evaluates a binary expression.
  */
 impl Eval for ExprBinary {
     fn eval(&self) -> IResult<Val> {
         let left = self.left.eval()?;
         let right = self.right.eval()?;
         self.op.eval(left, right, self.span.clone())
+    }
+}
+
+
+/**
+ * Evaluates a unary expression.
+ */
+impl Eval for ExprUnary {
+    fn eval(&self) -> IResult<Val> {
+        let right = self.right.eval()?;
+        self.op.eval(right, self.span.clone())
     }
 }
 

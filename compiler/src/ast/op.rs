@@ -121,13 +121,13 @@ impl fmt::Display for BinOp {
             BinOp::Pow{span: _} => write!(f, "power"),
             BinOp::Mod{span: _} => write!(f, "modolu"),
             BinOp::And{span: _} => write!(f, "logical and"),
-            BinOp::Or{span: _} => write!(f, "logical or"),
-            BinOp::Eq{span: _} => write!(f, "compare equal"),
-            BinOp::Ne{span: _} => write!(f, "compare not equal"),
-            BinOp::Lt{span: _} => write!(f, "compare less than"),
-            BinOp::Le{span: _} => write!(f, "compare less than or equal"),
-            BinOp::Gt{span: _} => write!(f, "compare greater than"),
-            BinOp::Ge{span: _} => write!(f, "compare greater than or equal"),
+            BinOp::Or{span: _}  => write!(f, "logical or"),
+            BinOp::Eq{span: _}  => write!(f, "compare equal"),
+            BinOp::Ne{span: _}  => write!(f, "compare not equal"),
+            BinOp::Lt{span: _}  => write!(f, "compare less than"),
+            BinOp::Le{span: _}  => write!(f, "compare less than or equal"),
+            BinOp::Gt{span: _}  => write!(f, "compare greater than"),
+            BinOp::Ge{span: _}  => write!(f, "compare greater than or equal"),
         }
     }
 }
@@ -145,5 +145,17 @@ impl UnOp {
      */
     pub fn get_prec(&self) -> (u8, Assoc) {
         (7, Assoc::Right)
+    }
+}
+
+
+impl fmt::Display for UnOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UnOp::Neg{span: _}   => write!(f, "negate"),
+            UnOp::Not{span: _}   => write!(f, "invert"),
+            UnOp::Ref{span: _}   => write!(f, "dereference"),
+            UnOp::Deref{span: _} => write!(f, "reference"),
+        }
     }
 }

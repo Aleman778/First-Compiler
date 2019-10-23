@@ -19,7 +19,7 @@ pub fn expr_lit_int(val: i32, span: Span) -> ExprLit {
     ExprLit {
         lit: Lit::Int(LitInt {
             value: val,
-            span: span
+            span: span.clone(),
         }),
         span: span,
     }
@@ -33,7 +33,7 @@ pub fn expr_lit_bool(val: bool, span: Span) -> ExprLit {
     ExprLit {
         lit: Lit::Bool(LitBool {
             value: val,
-            span: span
+            span: span.clone(),
         }),
         span: span,
     }
