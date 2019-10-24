@@ -8,6 +8,7 @@
 use crate::ast::lit::*;
 use crate::interp::{
     value::Val,
+    env::Env,
     IResult,
     Eval,
 };
@@ -17,10 +18,10 @@ use crate::interp::{
  * Evaluates a literal.
  */
 impl Eval for Lit {
-    fn eval(&self) -> IResult<Val> {
+    fn eval(&self, env: &mut Env) -> IResult<Val> {
         match self {
-            Lit::Int(literal) => literal.eval(),
-            Lit::Bool(literal) => literal.eval(),
+            Lit::Int(literal) => literal.eval(env),
+            Lit::Bool(literal) => literal.eval(env),
         }
     }
 }
@@ -30,7 +31,7 @@ impl Eval for Lit {
  * Evaluates an int literal.
  */
 impl Eval for LitInt {
-    fn eval(&self) -> IResult<Val> {
+    fn eval(&self, _env: &mut Env) -> IResult<Val> {
         Ok(Val::from_i32(self.value, self.span.clone()))
     }
 }
@@ -40,7 +41,7 @@ impl Eval for LitInt {
  * Evaluates a boolean literal.
  */
 impl Eval for LitBool {
-    fn eval(&self) -> IResult<Val> {
+    fn eval(&self, _env: &mut Env) -> IResult<Val> {
         Ok(Val::from_bool(self.value, self.span.clone()))
     }
 }

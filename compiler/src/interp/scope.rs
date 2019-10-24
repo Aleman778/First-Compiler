@@ -48,14 +48,20 @@ impl Scope {
     /**
      * Returns the address of a given variable identifier.
      */
-    pub fn address_of(&self, id: &ExprIdent) -> IResult<usize> {
+    pub fn address_of(&self, id: &ExprIdent, backtrack: bool) -> IResult<usize> {
         match &*self.child {
             Some(child) => {
-                match child.address_of(id) {
+                match child.address_of(id, backtrack) {
                     Ok(addr) => Ok(addr),
-                    Err(_) => self.find_mem(id),
+                    Err(e) => {
+                        if backtrack {
+                            self.find_mem(id)
+                        } else {
+                            Err(e)
+                        }
+                    }
                 }
-            }
+            },
             None => self.find_mem(id),
         }
     }

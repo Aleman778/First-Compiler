@@ -92,7 +92,6 @@ impl Env {
                         new_scope.register(id, addr);
                     }
                     self.call_stack.push(new_scope);
-                    // self.current = Some(&new_scope);
                     Ok(func)
                 } else {
                     Err(RuntimeError::context(call.span.clone(), "hello world!"))
@@ -102,6 +101,28 @@ impl Env {
         }
     }
 
+
+    /**
+     * Push the main function scope on the call stack.
+     */
+    #[allow(unreachable_patterns)]
+    pub fn push_main(&mut self) -> IResult<FnItem> {
+        match self.signatures.get("main") {
+            Some(item) => {
+                match item {
+                    Item::Fn(func) => {
+                        let new_scope = Scope::new();
+                        self.call_stack.push(new_scope);
+                        Ok(func.clone())
+                            
+                    },
+                    _ => Err(RuntimeError::context(Span::new_empty(), "there is no main function")),
+                }
+            }
+            None => Err(RuntimeError::context(Span::new_empty(), "there is no main function")),
+        }
+    }
+    
 
     /**
      * Pops and removes the the latest function call scope of the call stack
@@ -119,7 +140,7 @@ impl Env {
      */
     pub fn store_item(&mut self, item: Item) {
         let key = item.get_id();
-        if self.signatures.contains_key(&key) {
+        if !self.signatures.contains_key(&key) {
             self.signatures.insert(key, item);
         }
     }
@@ -135,6 +156,26 @@ impl Env {
         }
     }
 
+
+    /**
+     * Stores a variable into memory and registers it in the current scope.
+     * Note: if trying to store to previously allocated variable then
+     * that value will be overwritten with the provided value (shadowing).
+     */
+    pub fn store_var(&mut self, ident: &ExprIdent, val: Val) -> IResult<()> {
+        let len = self.call_stack.len();
+        let scope = &mut self.call_stack[len - 1];
+        let prev = scope.address_of(&ident, false);
+        match prev {
+            Ok(addr) => self.memory.store(addr, val),
+            Err(_) => {
+                let addr = self.memory.alloc(val)?;
+                scope.register(&ident, addr);
+                Ok(())
+            },
+        }
+    }
+    
     
     /**
      * Returns a mutable reference to the highest scope in the call stack.

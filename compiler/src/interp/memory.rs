@@ -3,7 +3,7 @@
  * The memory submodule defines the memory modell used by the interpreter.
  ***************************************************************************/
 
-
+use std::fmt;
 use crate::ast::span::Span;
 use crate::interp::{
     error::RuntimeError,
@@ -15,7 +15,7 @@ use crate::interp::{
 /**
  * The main memory storage for interpreter.
  */
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Memory {
     /// The data storage vector of values
     data: Vec<Val>,
@@ -86,7 +86,7 @@ impl Memory {
      * Stores a new value at a specific memory address.
      * Note: has to be an already allocated address.
      */
-    pub fn store(&mut self, val: Val, addr: usize) -> IResult<()> {
+    pub fn store(&mut self, addr: usize, val: Val) -> IResult<()> {
         if addr < self.data.capacity() {
             let prev = &self.data[addr];
             match prev {
@@ -147,5 +147,15 @@ impl Memory {
             Val::None => false,
             _ => true,
         }
+    }
+}
+
+
+/**
+ * Formatting the memory so it does print the entire memory state.
+ */
+impl fmt::Debug for Memory {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Memory {{\n\tcapacity: {}\n\tnext: {}\n}}", self.data.len(), self.next)
     }
 }
