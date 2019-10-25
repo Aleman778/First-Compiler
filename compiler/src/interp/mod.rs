@@ -36,3 +36,4 @@ pub mod base;
 pub mod expr;
 pub mod lit;
 pub mod op;
+pub mod debug;

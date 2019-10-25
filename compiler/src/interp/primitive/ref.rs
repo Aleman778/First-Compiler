@@ -4,6 +4,7 @@
  ***************************************************************************/
 
 
+use std::fmt;
 use crate::ast::span::Span;
 use crate::interp::value::Val;
 
@@ -27,5 +28,15 @@ impl RefVal {
      */
     pub fn deref(self) -> Option<Val> {
         unimplemented!();
+    }
+}
+
+
+/**
+ * Formatting of references.
+ */
+impl fmt::Display for RefVal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "ref {}", self.addr)
     }
 }

@@ -151,7 +151,7 @@ pub struct ExprIf {
 }
 
 /**
- * 
+ * Literal expression .
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprLit {

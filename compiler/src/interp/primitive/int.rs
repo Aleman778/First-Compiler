@@ -3,7 +3,7 @@
  * Primitive data types implementations for integer
  ***************************************************************************/
 
-
+use std::fmt;
 use crate::ast::span::Span;
 use crate::interp::value::Val;
 
@@ -214,6 +214,19 @@ impl IntVal {
         match self {
             IntVal::Int64{val, span: _} => Some(*val),
             _ => None,
+        }
+    }
+}
+
+
+/**
+ * Formatting display of integer values e.g. 34i32
+ */
+impl fmt::Display for IntVal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IntVal::Int32{val, span: _} => write!(f, "{} (i32)", val),
+            IntVal::Int64{val, span: _} => write!(f, "{} (i64)", val),
         }
     }
 }

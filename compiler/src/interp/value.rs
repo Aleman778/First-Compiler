@@ -5,6 +5,7 @@
  ***************************************************************************/
 
 
+use std::fmt;
 use crate::ast::{
     span::Span,
     base::Type,
@@ -33,6 +34,12 @@ pub enum Val {
     /// Void is an empty value
     Void(Span),
 
+    /// Continue has no value, it continues to next iteration.
+    Continue(Span),
+
+    /// Break has no value, it breaks out of a loop.
+    Break(Span),
+    
     /// None is nothing, denotes an unallocated value.
     None,
 }
@@ -298,15 +305,18 @@ impl Val {
     /***********************************************************************
      * Helper methods
      ***********************************************************************/
-    
+
 
     /**
-     * Returns true if the value is of type void, false otherwise.
+     * Returns true of this instance has a value.
      */
-    pub fn is_void(&self) -> bool {
+    pub fn has_value(&self) -> bool {
         match self {
-            Val::Void(_) => true,
-            _ => false,
+            Val::Continue(_) => false,
+            Val::Break(_)    => false,
+            Val::Void(_)     => false,
+            Val::None        => false,
+            _                => true,
         }
     }
 
@@ -374,11 +384,13 @@ impl Val {
      */
     pub fn get_span(&self) -> Span {
         match self {
-            Val::Int(val)   => val.get_span(),
-            Val::Bool(val)  => val.span.clone(),
-            Val::Ref(val)   => val.span.clone(),
-            Val::Void(span) => span.clone(),
-            Val::None       => Span::new_empty(),
+            Val::Int(val)       => val.get_span(),
+            Val::Bool(val)      => val.span.clone(),
+            Val::Ref(val)       => val.span.clone(),
+            Val::Void(span)     => span.clone(),
+            Val::Continue(span) => span.clone(),
+            Val::Break(span)    => span.clone(),
+            Val::None           => Span::new_empty(),
         }
     }
 
@@ -392,6 +404,21 @@ impl Val {
             Val::Int(val) => Type::Int32{span: val.get_span().clone()},
             Val::Bool(val) => Type::Bool{span: val.span.clone()},
             _ => panic!("has no type"), //TODO: Add more flexible type system to avoid panic.
+        }
+    }
+}
+
+
+impl fmt::Display for Val {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Val::Int(val)    => write!(f, "{}", val),
+            Val::Bool(val)   => write!(f, "{}", val),
+            Val::Ref(val)    => write!(f, "{}", val),
+            Val::Void(_)     => write!(f, "Void"),
+            Val::Continue(_) => write!(f, "Continue"),
+            Val::Break(_)    => write!(f, "Break"),
+            Val::None        => write!(f, "None"),
         }
     }
 }

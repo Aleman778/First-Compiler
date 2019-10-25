@@ -49,7 +49,7 @@ impl Parser for Expr {
                 map(ExprReturn::parse,   |expr_return|   Expr::Return(expr_return)),
                 map(ExprBreak::parse,    |expr_break|    Expr::Break(expr_break)),
                 map(ExprContinue::parse, |expr_continue| Expr::Continue(expr_continue)),
-                Expr::parse_atom,
+                map(ExprCall::parse,     |expr_call|     Expr::Call(expr_call)),
             ))
         )(input)
     }
@@ -81,11 +81,11 @@ impl Expr {
         context(
             "expression",
             alt((
-                map(ExprLit::parse, |literal| Expr::Lit(literal)),
-                map(ExprParen::parse, |expr| Expr::Paren(expr)),
-                map(ExprCall::parse, |call| Expr::Call(call)),
-                map(ExprIdent::parse, |ident| Expr::Ident(ident)),
-                map(ExprUnary::parse, |unary| Expr::Unary(unary)),
+                map(ExprLit::parse,       |literal| Expr::Lit(literal)),
+                map(ExprParen::parse,     |expr|    Expr::Paren(expr)),
+                map(ExprCall::parse_term, |call|    Expr::Call(call)),
+                map(ExprIdent::parse,     |ident|   Expr::Ident(ident)),
+                map(ExprUnary::parse,     |unary|   Expr::Unary(unary)),
             ))
         )(input)
     }
@@ -235,9 +235,29 @@ impl Parser for ExprBreak {
 
 /**
  * Parse function call.
+ * Used for parsing expressions.
  */
 impl Parser for ExprCall {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+        map(pair(
+            ExprCall::parse_term,
+            preceded(multispace0, tag(";"))
+        ),
+            |(mut call, end)| {
+                call.span.end = LineColumn::new(end.line, end.get_column() + 1);
+                call
+            }    
+        )(input)
+    }
+}
+
+
+/**
+ * Parse function call as terminal.
+ * Used for parsing atoms.
+ */
+impl ExprCall {
+    fn parse_term(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "function call",
             map(tuple((
@@ -260,8 +280,10 @@ impl Parser for ExprCall {
                 }
             )
         )(input)
+    
     }
 }
+
 
 
 /**

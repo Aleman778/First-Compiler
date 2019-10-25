@@ -6,8 +6,14 @@
  ***************************************************************************/
 
 
-use std::collections::HashMap;
-use crate::ast::expr::ExprIdent;
+use std::collections::{
+    hash_map::Values,
+    HashMap
+};
+use crate::ast::{
+    span::Span,
+    expr::ExprIdent,
+};
 use crate::interp::{
     IResult,
     error::*,
@@ -65,6 +71,14 @@ impl Scope {
             None => self.find_mem(id),
         }
     }
+
+    
+    /**
+     * Returns the registered addresses.
+     */
+    pub fn addresses(&self) -> Values<'_, String, usize> {
+        self.vars.values()
+    }
     
 
     /**
@@ -90,10 +104,14 @@ impl Scope {
 
 
     /**
-     * Pops the outer most scope.
+     * Pops the outer most scope. Returns the popped scope.
      */
-    pub fn pop(&mut self) {
-        self.pop_impl();
+    pub fn pop(&mut self) -> IResult<Scope> {
+        let (opt, _) = self.pop_impl();
+        match opt {
+            Some(scope) => Ok(scope.clone()),
+            None => Err(RuntimeError::context(Span::new_empty(), "cannot pop the function scope"))
+        }
     }
 
     
@@ -101,15 +119,17 @@ impl Scope {
      * Pop implementation returns true if the outer most
      * scope has been reached and should be popped.
      */
-    fn pop_impl(&mut self) -> bool {
+    fn pop_impl(&mut self) -> (Option<Scope>, bool) {
         match &mut *self.child {
             Some(child) => {
-                if child.pop_impl() {
+                let (mut scope, found) = child.pop_impl();
+                if found {
+                    scope = Some(child.clone());
                     self.child = Box::new(None);
                 }
-                false
+                (scope, false)
             },
-            None => true,
+            None => (None, true),
         }
     }    
 

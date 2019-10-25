@@ -3,7 +3,7 @@
  * Primitive data type implementation for boolean
  ***************************************************************************/
 
-
+use std::fmt;
 use crate::ast::span::Span;
 use crate::interp::value::Val;
 
@@ -68,5 +68,15 @@ impl BoolVal {
      */
     pub fn not(&self, span: Span) -> Option<Val> {
         Some(Val::from_bool(!self.val, span))
+    }
+}
+
+
+/**
+ * Formatting of boolean values.
+ */
+impl fmt::Display for BoolVal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.val)
     }
 }

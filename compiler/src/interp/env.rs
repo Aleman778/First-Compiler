@@ -5,6 +5,7 @@
  ***************************************************************************/
 
 
+use std::fmt;
 use std::collections::HashMap;
 use crate::ast::{
     base::{Item, FnItem},
@@ -25,7 +26,7 @@ use crate::interp::{
  * Environment stores runtime information such as
  * the memory, call stack and item signatures etc.
  */
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Env {
     /// Stores item signatures, maps strings to items
     signatures: HashMap<String, Item>,
@@ -66,11 +67,16 @@ impl Env {
 
 
     /**
-     * Pops the latest pushed block scope.
+     * Pops the latest pushed block scope. The variables
+     * in this scope are freed, they go out of scope.
      */
     pub fn pop_block(&mut self) -> IResult<()> {
-        let scope = self.current()?;
-        scope.pop();
+        let len = self.call_stack.len();
+        let scope = &mut self.call_stack[len - 1];
+        let popped = scope.pop()?;
+        for addr in popped.addresses() {
+            self.memory.free(*addr)?;
+        }
         Ok(())
     }
 
@@ -79,25 +85,19 @@ impl Env {
      * Push a function call scope on the call stack from the given id and with
      * specific argument values. The arguments are stored in the new scope.
      */
-    #[allow(unreachable_patterns)]
-    pub fn push_func(&mut self, call: &ExprCall, values: Vec<Val>) -> IResult<FnItem> {
-        match self.load_item(&call.ident)? {
-            Item::Fn(func) => {
-                let mut new_scope = Scope::new();
-                let inputs = &func.decl.inputs;
-                if inputs.len() == values.len() {
-                    for i in 0..inputs.len() {
-                        let id = &inputs[i].ident;
-                        let addr = self.memory.alloc(values[i].clone())?;
-                        new_scope.register(id, addr);
-                    }
-                    self.call_stack.push(new_scope);
-                    Ok(func)
-                } else {
-                    Err(RuntimeError::context(call.span.clone(), "hello world!"))
-                }
-            },
-            _ => Err(RuntimeError::item_not_found(&call.ident, &["function"])),
+    pub fn push_func(&mut self, func: &FnItem, values: Vec<Val>) -> IResult<()> {
+        let mut new_scope = Scope::new();
+        let inputs = &func.decl.inputs;
+        if inputs.len() == values.len() {
+            for i in 0..inputs.len() {
+                let id = &inputs[i].ident;
+                let addr = self.memory.alloc(values[i].clone())?;
+                new_scope.register(id, addr);
+            }
+            self.call_stack.push(new_scope);
+            Ok(())
+        } else {
+            Err(RuntimeError::context(func.span.clone(), "incorrect number of values provided"))
         }
     }
 
@@ -105,7 +105,6 @@ impl Env {
     /**
      * Push the main function scope on the call stack.
      */
-    #[allow(unreachable_patterns)]
     pub fn push_main(&mut self) -> IResult<FnItem> {
         match self.signatures.get("main") {
             Some(item) => {
@@ -129,8 +128,13 @@ impl Env {
      */
     pub fn pop_func(&mut self) -> IResult<()> {
         match self.call_stack.pop() {
-            Some(_) => Ok(()),
-            None => Err(RuntimeError::context(Span::new_empty(), "cannot pop an empty call stack"))
+            Some(scope) => {
+                for addr in scope.addresses() {
+                    self.memory.free(*addr)?;
+                }
+                Ok(())
+            },
+            None => Err(RuntimeError::context(Span::new_empty(), "cannot pop an empty call stack")),
         }
     }
 
@@ -175,6 +179,26 @@ impl Env {
             },
         }
     }
+
+    
+    /**
+     * Assigns an already allocated mutable variable and updates the memory.
+     */
+    pub fn assign_var(&mut self, ident: &ExprIdent, val: Val) -> IResult<()> {
+        let scope = self.current()?;
+        let addr = scope.address_of(&ident, true)?;
+        self.memory.store(addr, val)
+    }
+
+
+    /**
+     * Loads an already allocated variable from the given identifier.
+     */
+    pub fn load_var(&mut self, ident: &ExprIdent) -> IResult<Val> {
+        let scope = self.current()?;
+        let addr = scope.address_of(&ident, false)?;
+        self.memory.load(addr)
+    }
     
     
     /**
@@ -187,5 +211,16 @@ impl Env {
         } else {
             Err(RuntimeError::context(Span::new_empty(), "the call stack is empty"))
         }
+    }
+}
+
+
+/**
+ * Formatting the runtime environment.
+ */
+impl fmt::Debug for Env {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Env: {{\n    signatures: {:?},\n    call_stack: {:#?},\n    memory: {:?}\n}}",
+        self.signatures.keys(), self.call_stack, self.memory)
     }
 }

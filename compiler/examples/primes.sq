@@ -8,6 +8,7 @@ fn is_prime(n: i32) -> bool {
     }
     let i: i32 = 2;
     while i < n {
+        trace();
         if n % i == 0 {
             return false;
         }

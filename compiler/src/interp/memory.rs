@@ -56,13 +56,15 @@ impl Memory {
      * Allocates a value and returns the memory address.
      */
     pub fn alloc(&mut self, val: Val) -> IResult<usize> {
-        if self.next < self.data.capacity() {
+        if !val.has_value() {
+            Err(RuntimeError::memory_error(val.get_span(), "cannot store empty value"))
+        } else if self.next < self.data.capacity() {
             self.data[self.next] = val;
             let addr = self.next;
             self.find_next();
             Ok(addr)
         } else {
-            Err(RuntimeError::context(val.get_span(), "out of memory error"))
+            Err(RuntimeError::memory_error(val.get_span(), "out of memory error"))
         }
     }
 
@@ -74,7 +76,7 @@ impl Memory {
         if addr < self.data.capacity() {
             match self.data.get(addr) {
                 Some(val) => Ok(val.clone()),
-                None => Err(RuntimeError::memory_error(Span::new_empty(), "reading unallocated memory"))
+                None => Err(RuntimeError::memory_error(Span::new_empty(), "reading unallocated memory")),
             }
         } else {
             Err(RuntimeError::memory_error(Span::new_empty(), "reading out of bounds"))
@@ -156,6 +158,12 @@ impl Memory {
  */
 impl fmt::Debug for Memory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Memory {{\n\tcapacity: {}\n\tnext: {}\n}}", self.data.len(), self.next)
+        let mut data_string = String::new();
+        for i in 0..(self.next+1) {
+            data_string.push_str(format!("\t    {}: {}\n", i, self.data[i]).as_str());
+        }
+        data_string.pop();
+        write!(f, "Memory {{\n\tcapacity: {}\n\tnext: {}\n\tdata: {{\n{}\n\t}}\n    }}",
+               self.data.len(), self.next, data_string)
     }
 }
