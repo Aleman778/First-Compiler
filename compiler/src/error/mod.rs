@@ -68,12 +68,12 @@ pub fn convert_error(description: &str, span: &Span, source: &str, _explanation:
     result.push_str(format!("error: {}\n", description).as_str());
     if !span.is_empty() {
         if !span.file.len() > 0 {
-            result.push_str(format!(" --> {}:{}\n", span.file, span.start.to_string()).as_str());
+            let spacing = format!("{}", span.end.line).len();
+            result.push_str(format!("{}--> {}:{}\n", " ".repeat(spacing).as_str(), span.file, span.start.to_string()).as_str());
             if source.len() > 0 {
                 let fragment = span.fragment(source);
                 let split = fragment.split("\n");
                 let lines: Vec<&str> = split.collect();
-                let spacing = format!("{}", span.end.line).len();
                 result.push_str(display_line(spacing, span.start.line, "").as_str());
                 for line in lines {
                     result.push_str(display_line(spacing, span.start.line, line).as_str());

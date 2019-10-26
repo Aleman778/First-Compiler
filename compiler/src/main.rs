@@ -43,8 +43,8 @@ fn main() {
     let val = expr.eval(&mut env);
     // println!("Expr AST:\n{:#?}\n\n", expr);
     match val {
-        Ok(v) => println!("Evaluates to:\n{:#?}", v),
+        Ok(_) => println!("Ok"),
         Err(e) => println!("{}", convert_error(e.kind.description().as_str(), &e.span, contents.as_str(), "")),
     };
-    println!("Env: {:#?}", env);
+    // println!("Env: {:#?}", env);
 }

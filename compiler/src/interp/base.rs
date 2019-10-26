@@ -41,6 +41,7 @@ impl Item {
     /**
      * Evaluates a function item.
      */
+    #[allow(unreachable_patterns)]
     pub fn eval_func(&self, values: Vec<Val>, env: &mut Env) -> IResult<Val> {
         match self {
             Item::Fn(func) => func.eval(values, env),
@@ -57,9 +58,9 @@ impl Item {
 
 impl FnItem {
     fn eval(&self, values: Vec<Val>, env: &mut Env) -> IResult<Val> {
-        env.push_func(&self, values);
+        env.push_func(&self, values)?;
         let result = self.block.eval(env)?;
-        env.pop_func();
+        env.pop_func()?;
         Ok(result)
     }
 }

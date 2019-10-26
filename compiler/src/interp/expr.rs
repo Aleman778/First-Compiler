@@ -37,7 +37,7 @@ impl Eval for Expr {
             Expr::Lit(expr)      => expr.eval(env),
             Expr::Local(expr)    => expr.eval(env), 
             Expr::Paren(expr)    => expr.eval(env),
-            Expr::Return(expr)    => expr.eval(env),
+            Expr::Return(expr)   => expr.eval(env),
             Expr::Unary(expr)    => expr.eval(env),
             Expr::While(expr)    => expr.eval(env),
         }
@@ -239,6 +239,7 @@ impl Eval for ExprWhile {
                         match val {
                             Val::Continue(_) => continue,
                             Val::Break(_) => break,
+                            Val::None => continue,
                             _ => return Ok(val),
                         };
                     } else {

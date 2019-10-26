@@ -92,11 +92,11 @@ impl Memory {
         if addr < self.data.capacity() {
             let prev = &self.data[addr];
             match prev {
-                Val::None => {
+                Val::None => Err(RuntimeError::memory_error(val.get_span(), "cannot update unallocated memory")),
+                _ => {
                     self.data[addr] = val;
                     Ok(())
                 },
-                _ => Err(RuntimeError::memory_error(val.get_span(), "cannot update unallocated memory")),
             }
         } else {
             Err(RuntimeError::memory_error(Span::new_empty(), "writing out of bounds"))

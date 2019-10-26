@@ -9,7 +9,7 @@ use std::fmt;
 use std::collections::HashMap;
 use crate::ast::{
     base::{Item, FnItem},
-    expr::{ExprIdent, ExprCall},
+    expr::{ExprIdent},
     span::Span,
 };
 use crate::interp::{
@@ -196,7 +196,7 @@ impl Env {
      */
     pub fn load_var(&mut self, ident: &ExprIdent) -> IResult<Val> {
         let scope = self.current()?;
-        let addr = scope.address_of(&ident, false)?;
+        let addr = scope.address_of(&ident, true)?;
         self.memory.load(addr)
     }
     
