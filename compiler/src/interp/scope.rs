@@ -6,6 +6,7 @@
  ***************************************************************************/
 
 
+use std::fmt;
 use std::collections::{
     hash_map::Values,
     HashMap
@@ -26,13 +27,16 @@ use crate::interp::{
  * The outer block is always defined inside the call stack for
  * the environment.
  */
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Scope {
     /// The child scope, used for sub-block expressions
     child: Box<Option<Scope>>,
 
     /// Variable memory mapper, maps strings to memory addresses
     vars: HashMap<String, usize>,
+
+    /// The location in code where this scope was created from.
+    pub span: Span,
 }
 
 
@@ -43,10 +47,11 @@ impl Scope {
     /**
      * Constructs a new scope.
      */
-    pub fn new() -> Self {
+    pub fn new(span: Span) -> Self {
         Scope {
             child: Box::new(None),
             vars: HashMap::new(),
+            span: span,
         }
     }
 
@@ -143,5 +148,12 @@ impl Scope {
             Some(addr) => Ok(*addr),
             None => Err(RuntimeError::context(ident.span.clone(), "not found in this scope")),
         }
+    }
+}
+
+
+impl fmt::Debug for Scope {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "scope: {:?}", self.vars)
     }
 }

@@ -69,7 +69,7 @@ pub fn convert_error(description: &str, span: &Span, source: &str, _explanation:
     if !span.is_empty() {
         if !span.file.len() > 0 {
             let spacing = format!("{}", span.end.line).len();
-            result.push_str(format!("{}--> {}:{}\n", " ".repeat(spacing).as_str(), span.file, span.start.to_string()).as_str());
+            result.push_str(format!("{}--> {}\n", " ".repeat(spacing).as_str(), span.location()).as_str());
             if source.len() > 0 {
                 let fragment = span.fragment(source);
                 let split = fragment.split("\n");

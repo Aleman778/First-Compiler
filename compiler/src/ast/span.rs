@@ -133,10 +133,20 @@ impl Span {
                 }
             }
         } else {
+            println!("{}", source);
             let fragment = lines[(self.start.line - 1) as usize];
             result.push_str(&fragment[(self.start.column - 1)..(self.end.column - 1)]);
         }
         result
+    }
+
+
+    /**
+     * Returns a string containing the location i.e. file:line:col.
+     * e.g. src/main.rs:10:4
+     */
+    pub fn location(&self) -> String {
+        format!("{}:{}", self.file, self.start.to_string())
     }
     
 

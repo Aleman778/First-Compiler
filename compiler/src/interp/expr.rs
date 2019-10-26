@@ -141,14 +141,14 @@ impl Eval for ExprIf {
         match value.get_bool() {
             Some(cond) => {
                 if cond {
-                    env.push_block(Scope::new())?;
+                    env.push_block(Scope::new(self.then_block.span.clone()))?;
                     let result = self.then_block.eval(env);
                     env.pop_block()?;
                     result
                 } else {
                     match self.else_block.clone() {
                         Some(block) => {
-                            env.push_block(Scope::new())?;
+                            env.push_block(Scope::new(block.span.clone()))?;
                             let result = block.eval(env);
                             env.pop_block()?;
                             result
@@ -233,7 +233,7 @@ impl Eval for ExprWhile {
             match value.get_bool() {
                 Some(cond) => {
                     if cond {
-                        env.push_block(Scope::new())?;
+                        env.push_block(Scope::new(self.block.span.clone()))?;
                         let val = self.block.eval(env)?;
                         env.pop_block()?;
                         match val {

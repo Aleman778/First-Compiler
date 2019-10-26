@@ -36,6 +36,9 @@ pub struct Env {
     
     /// The main memory heap storage, stores variables
     memory: Memory,
+
+    /// The program source code.
+    source: String,
 }
 
 
@@ -46,11 +49,12 @@ impl Env {
     /**
      * Constructs an empty environment.
      */
-    pub fn new() -> Self {
+    pub fn new(source: String) -> Self {
         Env {
             signatures: HashMap::new(),
             call_stack: Vec::new(),
             memory: Memory::new(),
+            source: source,
         }
     }
 
@@ -86,7 +90,7 @@ impl Env {
      * specific argument values. The arguments are stored in the new scope.
      */
     pub fn push_func(&mut self, func: &FnItem, values: Vec<Val>) -> IResult<()> {
-        let mut new_scope = Scope::new();
+        let mut new_scope = Scope::new(func.span.clone());
         let inputs = &func.decl.inputs;
         if inputs.len() == values.len() {
             for i in 0..inputs.len() {
@@ -110,7 +114,7 @@ impl Env {
             Some(item) => {
                 match item {
                     Item::Fn(func) => {
-                        let new_scope = Scope::new();
+                        let new_scope = Scope::new(func.span.clone());
                         self.call_stack.push(new_scope);
                         Ok(func.clone())
                             
@@ -212,15 +216,35 @@ impl Env {
             Err(RuntimeError::context(Span::new_empty(), "the call stack is empty"))
         }
     }
+
+
+    /**
+     * Returns the dump of the call stack.
+     */
+    fn stack_dump(&self) -> String {
+        let mut dump = String::new();
+        let mut index = 0;
+        let split = self.source.split("\n");
+        let lines: Vec<&str> = split.collect();
+        for scope in &self.call_stack {
+            let fragment = lines[(scope.span.start.line - 1) as usize];
+            dump.push_str(format!("\t{}: {}\n", index, fragment).as_str());
+            dump.push_str(format!("\t    {:?}\n", scope).as_str());
+            dump.push_str(format!("{}{}\n\n", " ".repeat(12).as_str(), scope.span.location()).as_str());
+            index += 1;
+        }
+        dump.pop();
+        return dump;
+    }
 }
 
 
 /**
- * Formatting the runtime environment.
+ * Formatting tracing of the runtime environment.
  */
 impl fmt::Debug for Env {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Env: {{\n    signatures: {:?},\n    call_stack: {:#?},\n    memory: {:?}\n}}",
-        self.signatures.keys(), self.call_stack, self.memory)
+        write!(f, "Trace: {{\n    signatures: {:?},\n    call_stack: \n{}\n    memory: {:?}\n}}",
+        self.signatures.keys(), self.stack_dump(), self.memory)
     }
 }
