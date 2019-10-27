@@ -5,6 +5,7 @@
 
 
 use std::fmt;
+use std::cmp;
 use crate::ast::span::Span;
 use crate::interp::value::Val;
 
@@ -28,6 +29,16 @@ impl RefVal {
      */
     pub fn deref(self) -> Option<Val> {
         unimplemented!();
+    }
+}
+
+
+/**
+ * Partial equality of referenced values.
+ */
+impl cmp::PartialEq for RefVal {
+    fn eq(&self, other: &RefVal) -> bool {
+        self.addr == other.addr
     }
 }
 

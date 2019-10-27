@@ -4,6 +4,7 @@
  ***************************************************************************/
 
 use std::fmt;
+use std::cmp;
 use crate::ast::span::Span;
 use crate::interp::value::Val;
 
@@ -227,6 +228,19 @@ impl fmt::Display for IntVal {
         match self {
             IntVal::Int32{val, span: _} => write!(f, "{} (i32)", val),
             IntVal::Int64{val, span: _} => write!(f, "{} (i64)", val),
+        }
+    }
+}
+
+
+/**
+ * Partial equality of referenced values.
+ */
+impl cmp::PartialEq for IntVal {
+    fn eq(&self, other: &IntVal) -> bool {
+        match self {
+            IntVal::Int32{val, span: _} => *val == other.get_i32().unwrap(),
+            IntVal::Int64{val, span: _} => *val == other.get_i64().unwrap(),
         }
     }
 }

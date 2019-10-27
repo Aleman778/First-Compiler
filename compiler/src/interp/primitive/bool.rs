@@ -4,6 +4,7 @@
  ***************************************************************************/
 
 use std::fmt;
+use std::cmp;
 use crate::ast::span::Span;
 use crate::interp::value::Val;
 
@@ -78,5 +79,15 @@ impl BoolVal {
 impl fmt::Display for BoolVal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.val)
+    }
+}
+
+
+/**
+ * Partial equality of referenced values.
+ */
+impl cmp::PartialEq for BoolVal {
+    fn eq(&self, other: &BoolVal) -> bool {
+        self.val == other.val
     }
 }

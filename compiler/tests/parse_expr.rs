@@ -110,7 +110,7 @@ fn parse_break() {
 #[test]
 fn parse_call() {
     assert_eq!(
-        ExprCall::parse(input("my_function_10(100, 32)  ")).unwrap().1,
+        ExprCall::parse(input("my_function_10(100, 32);  ")).unwrap().1,
         ExprCall {
             ident: ExprIdent {
                 to_string: "my_function_10".to_string(),
@@ -120,7 +120,7 @@ fn parse_call() {
                 Expr::Lit(expr_lit_int(100, span(15, "100"))),
                 Expr::Lit(expr_lit_int(32, span(20, "32"))),
             ],
-            span: span(0, "my_function_10(100, 32)"),
+            span: span(0, "my_function_10(100, 32);"),
         }
     );
 }

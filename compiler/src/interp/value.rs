@@ -6,6 +6,7 @@
 
 
 use std::fmt;
+use std::cmp;
 use crate::ast::{
     span::Span,
     base::Type,
@@ -322,6 +323,54 @@ impl Val {
 
 
     /**
+     * Returns true if val is continue, otherwise false.
+     */
+    pub fn is_continue(&self) -> bool {
+        if let Val::Continue(_) = self {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+
+    /**
+     * Returns true if val is break, otherwise false.
+     */    
+    pub fn is_break(&self) -> bool {
+        if let Val::Break(_) = self {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+
+    /**
+     * Returns true if val is void, otherwise false.
+     */
+    pub fn is_void(&self) -> bool {
+        if let Val::Void(_) = self {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+
+    /**
+     * Returns true if val is none, otherwise false.
+     */
+    pub fn is_none(&self) -> bool {
+        if let Val::None = self {
+            return true;
+        } else {
+            return false;
+        }
+    }
+    
+
+    /**
      * Returns the integer value, if value is not of integer
      * type then None is returned instead.
      */
@@ -376,6 +425,18 @@ impl Val {
     pub fn get_bool(&self) -> Option<bool> {
         Some(self.get_bool_val()?.val)
     }
+
+
+    /**
+     * Returns the reference value, if value is not of reference
+     * type the None is returned instead.
+     */
+    pub fn get_ref_val(&self) -> Option<RefVal> {
+        match self {
+            Val::Ref(val) => Some(val.clone()),
+            _ => None,
+        }
+    }
     
 
     /**
@@ -419,6 +480,21 @@ impl fmt::Display for Val {
             Val::Continue(_) => write!(f, "Continue"),
             Val::Break(_)    => write!(f, "Break"),
             Val::None        => write!(f, "None"),
+        }
+    }
+}
+
+
+impl cmp::PartialEq for Val {
+    fn eq(&self, other: &Val) -> bool {
+        match self {
+            Val::Int(val) => val == &other.get_int_val().unwrap(),
+            Val::Bool(val) => val == &other.get_bool_val().unwrap(),
+            Val::Ref(val) => val == &other.get_ref_val().unwrap(),
+            Val::Void(_) => other.is_void(),
+            Val::Continue(_) => other.is_continue(),
+            Val::Break(_) => other.is_break(),
+            Val::None => other.is_none(),
         }
     }
 }
