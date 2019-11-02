@@ -33,7 +33,7 @@ pub struct Scope {
     child: Box<Option<Scope>>,
 
     /// Variable memory mapper, maps strings to memory addresses
-    vars: HashMap<String, usize>,
+    symbols: HashMap<String, usize>,
 
     /// The location in code where this scope was created from.
     pub span: Span,
@@ -50,7 +50,7 @@ impl Scope {
     pub fn new(span: Span) -> Self {
         Scope {
             child: Box::new(None),
-            vars: HashMap::new(),
+            symbols: HashMap::new(),
             span: span,
         }
     }
@@ -82,7 +82,7 @@ impl Scope {
      * Returns the registered addresses.
      */
     pub fn addresses(&self) -> Values<'_, String, usize> {
-        self.vars.values()
+        self.symbols.values()
     }
     
 
@@ -92,7 +92,7 @@ impl Scope {
     pub fn register(&mut self, id: &ExprIdent, addr: usize) -> Option<usize> {
         match &mut *self.child {
             Some(child) => child.register(id, addr),
-            None => self.vars.insert(id.to_string.clone(), addr),
+            None => self.symbols.insert(id.to_string.clone(), addr),
         }
     }
 
@@ -144,7 +144,7 @@ impl Scope {
      * Returns memory error if not found in this scope.
      */
     fn find_mem(&self, ident: &ExprIdent) -> IResult<usize> {
-        match self.vars.get(&ident.to_string) {
+        match self.symbols.get(&ident.to_string) {
             Some(addr) => Ok(*addr),
             None => Err(RuntimeError::context(ident.span.clone(), "not found in this scope")),
         }
@@ -152,8 +152,15 @@ impl Scope {
 }
 
 
+/**
+ * Debug formatting of scopes.
+ */
 impl fmt::Debug for Scope {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "scope: {:?}", self.vars)
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Scope")
+            .field("at", &format_args!("{}", &self.span.location()))
+            .field("symbols", &self.symbols)
+            .field("block", &self.child)
+            .finish()
     }
 }

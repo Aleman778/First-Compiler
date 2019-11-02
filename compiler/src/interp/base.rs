@@ -11,7 +11,7 @@ use crate::ast::{
 use crate::interp::{
     error::RuntimeError,
     value::Val,
-    env::Env,
+    env::RuntimeEnv,
     debug::*,
     IResult,
     Eval,
@@ -22,12 +22,12 @@ use crate::interp::{
  * Evaluates a source file and executes the main method.
  */
 impl Eval for File {
-    fn eval(&self, env: &mut Env) -> IResult<Val> {
+    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         for item in &self.items {
             env.store_item(item.clone());
         }
         let func = env.push_main()?;
-        func.block.eval(env)?;
+        func.block.eval(env, false)?;
         env.pop_func()?;
         Ok(Val::None)
     }
@@ -42,7 +42,7 @@ impl Item {
      * Evaluates a function item.
      */
     #[allow(unreachable_patterns)]
-    pub fn eval_func(&self, values: Vec<Val>, env: &mut Env) -> IResult<Val> {
+    pub fn eval_func(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
         match self {
             Item::Fn(func) => func.eval(values, env),
             Item::ForeignFn(func) => func.eval(values, env),
@@ -57,9 +57,9 @@ impl Item {
  */
 
 impl FnItem {
-    fn eval(&self, values: Vec<Val>, env: &mut Env) -> IResult<Val> {
+    fn eval(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
         env.push_func(&self, values)?;
-        let result = self.block.eval(env)?;
+        let result = self.block.eval(env, false)?;
         env.pop_func()?;
         Ok(result)
     }
@@ -70,7 +70,7 @@ impl FnItem {
  * Evaluates a foreign function item.
  */
 impl ForeignFnItem {
-    fn eval(&self, values: Vec<Val>, env: &mut Env) -> IResult<Val> {
+    fn eval(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
         match self.ident.to_string.as_str() {
             "trace" => {
                 trace(env);

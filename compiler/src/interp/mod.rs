@@ -7,7 +7,7 @@
 use crate::interp::{
     error::RuntimeError,
     value::Val,
-    env::Env,
+    env::RuntimeEnv,
 };
 
 
@@ -22,7 +22,7 @@ pub type IResult<T, E = RuntimeError> = Result<T, E>;
  * function for each AST node.
  */
 pub trait Eval {
-    fn eval(&self, env: &mut Env) -> IResult<Val>;
+    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val>;
 }
 
 

@@ -5,7 +5,7 @@
 
 
 use crate::interp::{
-    env::Env,
+    env::RuntimeEnv,
 };
 use crate::ast::{
     span::Span,
@@ -90,8 +90,8 @@ pub fn debug_functions() -> Vec<Item> {
 /**
  * Prints the environment
  */
-pub fn trace(env: &mut Env) {
-    println!("{:?}", env)
+pub fn trace(env: &mut RuntimeEnv) {
+    println!("{:#?}", env)
 }
 
 

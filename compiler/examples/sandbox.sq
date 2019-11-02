@@ -1,14 +1,16 @@
 fn main() {
     let a: i32 = 5;
     let b: i32 = sub(a, 3);
+    print_int(b);
 }
 
 fn sub(a: i32, b: i32) -> i32 {
     let c: i32 = 10;
     {
-        trace();
         let d: i32 = a - b + c;
         print_int(d);
+        trace();
     }
+    trace();
     return c;
 }

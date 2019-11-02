@@ -27,7 +27,7 @@ use crate::interp::{
  * the memory, call stack and item signatures etc.
  */
 #[derive(Clone)]
-pub struct Env {
+pub struct RuntimeEnv {
     /// Stores item signatures, maps strings to items
     signatures: HashMap<String, Item>,
 
@@ -45,12 +45,12 @@ pub struct Env {
 /**
  * Implementation of the runtime environment.
  */
-impl Env {
+impl RuntimeEnv {
     /**
      * Constructs an empty environment.
      */
     pub fn new(source: String) -> Self {
-        Env {
+        RuntimeEnv {
             signatures: HashMap::new(),
             call_stack: Vec::new(),
             memory: Memory::new(),
@@ -216,35 +216,18 @@ impl Env {
             Err(RuntimeError::context(Span::new_empty(), "the call stack is empty"))
         }
     }
-
-
-    /**
-     * Returns the dump of the call stack.
-     */
-    fn stack_dump(&self) -> String {
-        let mut dump = String::new();
-        let mut index = 0;
-        let split = self.source.split("\n");
-        let lines: Vec<&str> = split.collect();
-        for scope in &self.call_stack {
-            let fragment = lines[(scope.span.start.line - 1) as usize];
-            dump.push_str(format!("\t{}: {}\n", index, fragment).as_str());
-            dump.push_str(format!("\t    {:?}\n", scope).as_str());
-            dump.push_str(format!("{}{}\n\n", " ".repeat(12).as_str(), scope.span.location()).as_str());
-            index += 1;
-        }
-        dump.pop();
-        return dump;
-    }
 }
 
 
 /**
  * Formatting tracing of the runtime environment.
  */
-impl fmt::Debug for Env {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Trace: {{\n    signatures: {:?},\n    call_stack: \n{}\n    memory: {:?}\n}}",
-        self.signatures.keys(), self.stack_dump(), self.memory)
+impl fmt::Debug for RuntimeEnv {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Trace:")
+            .field("signatures", &format_args!("{:?}", self.signatures.keys()))
+            .field("call_stack", &self.call_stack)
+            .field("memory", &self.memory)
+            .finish()
     }
 }

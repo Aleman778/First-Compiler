@@ -21,14 +21,14 @@ use crate::ast::{
 use crate::parser::{Parser, ParseSpan};
 use crate::interp::{
     debug::debug_functions,
-    env::Env,
+    env::RuntimeEnv,
     Eval,
 };
 
 
 fn main() {
     // Parse from file
-    let filename = "c:/dev/sqrrl-lang/compiler/examples/factorial.sq";
+    let filename = "c:/dev/sqrrl-lang/compiler/examples/sandbox.sq";
     let contents = fs::read_to_string(filename).expect("file was not found");
     let span = ParseSpan::new_extra(contents.as_str(), filename);
     let mut expr = File::parse(span).unwrap().1;
@@ -39,7 +39,7 @@ fn main() {
     // let input = "true == 3";//"2+3**2*3+4";
     // let span = ParseSpan::new_extra(input, "");
     // let expr = Expr::parse_math(span).unwrap().1;
-    let mut env = Env::new(contents.clone());
+    let mut env = RuntimeEnv::new(contents.clone());
     let val = expr.eval(&mut env);
     // println!("Expr AST:\n{:#?}\n\n", expr);
     match val {

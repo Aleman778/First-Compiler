@@ -150,6 +150,21 @@ impl Memory {
             _ => true,
         }
     }
+
+
+    /**
+     * Dumps the memory from address 0 to the last allocated address.
+     */
+    fn memory_dump(&self) -> String {
+        let mut dump = String::new();
+        dump.push_str("[");
+        for i in 0..self.next {
+            dump.push_str(format!("\n    [{}] = {},", i, self.data[i]).as_str());
+        }
+        dump.pop();
+        dump.push_str("\n]");
+        return dump;
+    }
 }
 
 
@@ -158,12 +173,10 @@ impl Memory {
  */
 impl fmt::Debug for Memory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut data_string = String::new();
-        for i in 0..(self.next+1) {
-            data_string.push_str(format!("\t    {}: {}\n", i, self.data[i]).as_str());
-        }
-        data_string.pop();
-        write!(f, "Memory {{\n\tcapacity: {}\n\tnext: {}\n\tdata: {{\n{}\n\t}}\n    }}",
-               self.data.len(), self.next, data_string)
+        f.debug_struct("Memory")
+            .field("capacity", &self.data.len())
+            .field("next", &self.next)
+            .field("data", &format_args!("{}", self.memory_dump()))
+            .finish()
     }
 }

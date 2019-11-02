@@ -18,7 +18,7 @@ use compiler::{
     interp::{
         Eval,
         IResult,
-        env::Env,
+        env::RuntimeEnv,
         value::Val,
     },
 };
@@ -29,7 +29,7 @@ use compiler::{
  */
 pub fn interp_math(input: &str) -> IResult<Val> {
     let expr = Expr::parse_math(ParseSpan::new_extra(input, "")).unwrap().1;
-    let mut env = Env::new(input.to_string());
+    let mut env = RuntimeEnv::new(input.to_string());
     expr.eval(&mut env)
 }
 
@@ -38,22 +38,24 @@ pub fn interp_math(input: &str) -> IResult<Val> {
  * Interprets an expression.
  */
 pub fn interp_expr(input: &str) -> IResult<Val> {
-    let mut env = Env::new("".to_string());
+    let mut env = RuntimeEnv::new("".to_string());
     setup_env(&mut env);
     let expr = Expr::parse(ParseSpan::new_extra(input, "")).unwrap().1;
     expr.eval(&mut env)
 }
 
 
+/**
+ * Interprets a file source and after that interprets teh input string.
+ */
 pub fn interp_file(file: &str, input: &str) -> IResult<Val> {
     let span = ParseSpan::new_extra(file, "");
     let file = File::parse(span).unwrap().1;
     let expr = Expr::parse(ParseSpan::new_extra(input, "")).unwrap().1;
-    let mut env = Env::new("".to_string());
+    let mut env = RuntimeEnv::new("".to_string());
     setup_env(&mut env);
     file.eval(&mut env)?;
     expr.eval(&mut env)
-        
 }
 
 
@@ -61,7 +63,7 @@ pub fn interp_file(file: &str, input: &str) -> IResult<Val> {
 /**
  * Setup the environment.
  */
-pub fn setup_env(env: &mut Env) {
+pub fn setup_env(env: &mut RuntimeEnv) {
     let main = FnItem::parse(ParseSpan::new_extra("fn main() {}", "")).unwrap().1;
     env.store_item(Item::Fn(main));
     env.push_main().unwrap();

@@ -71,8 +71,8 @@ pub fn convert_error(description: &str, span: &Span, source: &str, _explanation:
             let spacing = format!("{}", span.end.line).len();
             result.push_str(format!("{}--> {}\n", " ".repeat(spacing).as_str(), span.location()).as_str());
             if source.len() > 0 {
-                let fragment = span.fragment(source);
-                let split = fragment.split("\n");
+                // let fragment = span.fragment(source);
+                let split = source.split("\n");
                 let lines: Vec<&str> = split.collect();
                 result.push_str(display_line(spacing, span.start.line, "").as_str());
                 for line in lines {
@@ -94,6 +94,12 @@ fn display_line(spacing: usize, line: u32, code: &str) -> String {
         result.push_str(format!(" |\n").as_str())
     } else {
         result.push_str(format!("{} |    {}\n", line, code).as_str())
+        // for i in 1..(fragment.len() + 1) {
+        // if i >= span.start.column && i < span.end.column {
+            // result.push('^');
+        // } else {
+            // result.push(' ');
+        // }
     }
     result
 }
