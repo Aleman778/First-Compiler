@@ -9,14 +9,9 @@ use crate::interp::{
 };
 use crate::ast::{
     span::Span,
-    base::{
-        ForeignFnItem,
-        Argument,
-        FnDecl,
-        Item,
-        Type
-    },
     expr::ExprIdent,
+    ty::Type,
+    base::*,
 };
 
 

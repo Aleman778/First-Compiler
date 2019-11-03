@@ -9,7 +9,7 @@ use std::fmt;
 use std::cmp;
 use crate::ast::{
     span::Span,
-    base::Type,
+    ty::Type,
 };
 use crate::interp::primitive::{
     int::IntVal,
@@ -470,6 +470,9 @@ impl Val {
 }
 
 
+/**
+ * Display formatting for values.
+ */
 impl fmt::Display for Val {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -485,6 +488,9 @@ impl fmt::Display for Val {
 }
 
 
+/**
+ * Comparing partial equality of values.
+ */
 impl cmp::PartialEq for Val {
     fn eq(&self, other: &Val) -> bool {
         match self {

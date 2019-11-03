@@ -108,9 +108,35 @@ impl BinOp {
             
         }
     }
+
+
+    /**
+     * Returns the token string used by the given operator.
+     */
+    pub fn token(&self) -> &'static str {
+        match self {
+            BinOp::Add{span: _} => "+",
+            BinOp::Sub{span: _} => "-",
+            BinOp::Mul{span: _} => "*",
+            BinOp::Div{span: _} => "/",
+            BinOp::Pow{span: _} => "**",
+            BinOp::Mod{span: _} => "%",
+            BinOp::And{span: _} => "&&",
+            BinOp::Or{span: _}  => "||",
+            BinOp::Eq{span: _}  => "==",
+            BinOp::Ne{span: _}  => "!=",
+            BinOp::Lt{span: _}  => "<",
+            BinOp::Le{span: _}  => "<=",
+            BinOp::Gt{span: _}  => ">",
+            BinOp::Ge{span: _}  => ">=",
+        }
+    }
 }
 
 
+/**
+ * Display formatting for binary oprators, displays the name of the operator.
+ */
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -146,16 +172,32 @@ impl UnOp {
     pub fn get_prec(&self) -> (u8, Assoc) {
         (7, Assoc::Right)
     }
+
+
+    /**
+     * Returns the token string used by the given operator.
+     */
+    pub fn token(&self) -> &'static str {
+        match self {
+            UnOp::Neg{span: _}   => "-",
+            UnOp::Not{span: _}   => "!",
+            UnOp::Ref{span: _}   => "&",
+            UnOp::Deref{span: _} => "*",
+        }
+    }
 }
 
 
+/**
+ * Display formatting for unary operators, displays the name of operator.
+ */
 impl fmt::Display for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UnOp::Neg{span: _}   => write!(f, "negate"),
             UnOp::Not{span: _}   => write!(f, "invert"),
-            UnOp::Ref{span: _}   => write!(f, "dereference"),
-            UnOp::Deref{span: _} => write!(f, "reference"),
+            UnOp::Ref{span: _}   => write!(f, "reference"),
+            UnOp::Deref{span: _} => write!(f, "dereference"),
         }
     }
 }

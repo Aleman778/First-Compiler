@@ -7,63 +7,11 @@
 
 use crate::ast::span::Span;
 
-/*
-/**
- * ErrorFormatter is used for formatting any
- * errors into rust-like error messages.
- */
-struct ErrorFormatter<'a> {
-    severity: &'a str,
-    description: &'a str,
-    formatters: Vec<CodeFormatter<'a>>,    
-}
-
-
-struct CodeFormatter<'a> {
-    span: &'a[&'a Span],
-    marker: &'a str,
-    
-}
-
-
-/**
- * Implementation of ErrorFormatter.
- */
-impl ErrorFormatter {
-    /**
-     * Constructs am empty error formatter.
-     */
-    pub fn new() -> Self {
-        ErrorFormatter {
-            severity: "error",
-            description: "",
-            formatters: Vec::new(),
-        }
-    }
-
-    
-    /**
-     * 
-     */
-    fn format(&self) -> String {
-        let mut result = String::new();
-        result.push_str(format!("{}: {}", description));
-        for f in formatters {
-            result = f.format(result)
-        }
-    }
-}
-
-
-// impl CodeFormatter {
-    // fn format(&self, 
-// }
-*/
 
 /**
  * Converts error information into 
  */
-pub fn convert_error(description: &str, span: &Span, source: &str, _explanation: &str) -> String {
+pub fn convert_error(description: &str, span: &Span, source: &str, explanation: &str) -> String {
     let mut result = String::new();
     result.push_str(format!("error: {}\n", description).as_str());
     if !span.is_empty() {
@@ -71,22 +19,27 @@ pub fn convert_error(description: &str, span: &Span, source: &str, _explanation:
             let spacing = format!("{}", span.end.line).len();
             result.push_str(format!("{}--> {}\n", " ".repeat(spacing).as_str(), span.location()).as_str());
             if source.len() > 0 {
-                // let fragment = span.fragment(source);
                 let split = source.split("\n");
-                let lines: Vec<&str> = split.collect();
+                let fragments: Vec<&str> = split.collect();
                 result.push_str(display_line(spacing, span.start.line, "").as_str());
-                for line in lines {
-                    result.push_str(display_line(spacing, span.start.line, line).as_str());
+                for line in span.start.line..(span.end.line + 1) {
+                    result.push_str(display_line(spacing, line, fragments[(line - 1) as usize]).as_str());
                 }
-                result.push_str(display_line(spacing, span.start.line, "").as_str());
+                result.push_str(mark_span(spacing, span, "^").as_str());
+                if explanation.len() > 0 {
+                    result.push_str(explanation)
+                }
+                result.push('\n');
             }
         }
     }
-
     result
 }
 
 
+/**
+ * Display the code efter vertical line.
+ */
 fn display_line(spacing: usize, line: u32, code: &str) -> String {
     let mut result = String::new();
     if code.len() < 1 {
@@ -94,44 +47,19 @@ fn display_line(spacing: usize, line: u32, code: &str) -> String {
         result.push_str(format!(" |\n").as_str())
     } else {
         result.push_str(format!("{} |    {}\n", line, code).as_str())
-        // for i in 1..(fragment.len() + 1) {
-        // if i >= span.start.column && i < span.end.column {
-            // result.push('^');
-        // } else {
-            // result.push(' ');
-        // }
     }
     result
 }
 
 
-
-// fn code() {
-    // result.push_str("\n");
-    // for _ in 0..line_number.len() {
-        // result.push(' ');
-    // }
-    // result.push_str(" |\n");
-    // result.push_str(line_number.as_str());
-    // result.push_str(" |    ");
-    // result.push_str(fragment[(span.start.line - 1) as usize]);
-    // result.push('\n');
-    // for _ in 0..line_number.len() {
-        // result.push(' ');
-    // }
-    // result.push_str(" |    ");
-    // for i in 1..(fragment.len() + 1) {
-        // if i >= span.start.column && i < span.end.column {
-            // result.push('^');
-        // } else {
-            // result.push(' ');
-        // }
-    // }
-    // result.push('\n');    
-// }
-
-
-fn error_code_multiline() {
-    
+/**
+ * Mark code using the span information after the vertical line.
+ */
+fn mark_span(spacing: usize, span: &Span, marker: &str) -> String {
+    let mut result = " ".repeat(spacing);
+    let before = " ".repeat(span.start.column - 1);
+    let length = span.end.column - span.start.column;
+    let underline = marker.repeat(length);
+    result.push_str(format!(" |    {}{} ", before, underline).as_str());
+    result
 }
-

@@ -6,10 +6,11 @@
  * declarations. This module also 
  ***************************************************************************/
 
-use std::fmt;
+
 use crate::ast::{
     span::Span,
     expr::{ExprIdent, ExprBlock},
+    ty::Type,
 };
 
 
@@ -122,43 +123,4 @@ pub struct Argument {
     pub ident: ExprIdent,
     pub ty: Type,
     pub span: Span,
-}
-
-
-/**
- * Type enum currently only supports i32 and bool.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub enum Type {
-    Int32{span: Span},
-    Bool{span: Span},
-}
-
-
-/**
- * Implementation of type enum.
- */
-impl Type {
-    /**
-     * Returns the span information from the given type.
-     */
-    pub fn get_span(&self) -> Span {
-        match self {
-            Type::Int32{span} => span.clone(),
-            Type::Bool{span} => span.clone(),
-        }
-    }
-}
-
-
-/**
- * Implementation of display trait for retriving the type identifier.
- */
-impl fmt::Display for Type {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Type::Int32{span: _} => write!(f, "i32"),
-            Type::Bool{span: _} => write!(f, "bool"),
-        }
-    }
 }

@@ -9,7 +9,7 @@
 use crate::ast::{
     span::Span,
     expr::ExprIdent,
-    base::Type,
+    ty::Type,
     op::*,
 };
 

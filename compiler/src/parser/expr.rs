@@ -19,7 +19,7 @@ use nom::{
 
 use crate::ast::{
     span::{LineColumn, Span},
-    base::Type,
+    ty::Type,
     expr::*,
     lit::*,
     op::*,

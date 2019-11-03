@@ -10,6 +10,7 @@ use crate::parser::error::ParseError;
 use nom_locate::LocatedSpanEx;
 use nom::Err;
 
+
 /**
  * Type alias of LocatedSpanEx for convenience.
  * First string is the input string, other string is
@@ -38,3 +39,4 @@ pub mod base;
 pub mod op;
 pub mod lit;
 pub mod expr;
+pub mod ty;

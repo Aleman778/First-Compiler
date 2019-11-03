@@ -7,13 +7,13 @@
 
 use crate::ast::{
     span::Span,
-    base::Type,
+    ty::Type,
     expr::*,
 };
 use crate::interp::{
     error::RuntimeError,
-    scope::Scope,
     value::Val,
+    scope::Scope,
     env::RuntimeEnv,
     IResult,
     Eval,

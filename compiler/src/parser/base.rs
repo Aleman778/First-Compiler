@@ -11,7 +11,6 @@ use nom::{
     combinator::{map, opt},
     sequence::{preceded, pair, tuple},
     multi::separated_list,
-    branch::alt,
     error::context,
     Err,
 };
@@ -19,6 +18,7 @@ use crate::ast::{
     span::{Span, LineColumn},
     base::*,
     expr::{ExprBlock, ExprIdent},
+    ty::Type,
 };
 use crate::parser::{
     error::convert_error,
@@ -127,7 +127,7 @@ impl Parser for FnDecl {
                     let end_span;
                     match ret_ty {
                         Some(ty) => {
-                            end_span = ty.1.clone().get_span().end;
+                            end_span = ty.1.get_span().end;
                             output = Some(ty.1);
                         },
                         None => {
@@ -174,21 +174,5 @@ impl Parser for Argument {
                 }
             )
         )(input)
-    }
-}
-
-
-/**
- * Parse a type either i32 or bool.
- */
-impl Parser for Type {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "type",
-            alt((
-                map(preceded(multispace0, tag("i32")), |s| Type::Int32{span: Span::new(s)}),
-                map(preceded(multispace0, tag("bool")), |s| Type::Bool{span: Span::new(s)}),
-            ))
-        )(input)    
     }
 }
