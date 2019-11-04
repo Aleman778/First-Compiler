@@ -3,12 +3,9 @@
  * Helper functions for testing the span information
  ***************************************************************************/
 
-extern crate compiler;
 
-use compiler::{
-    ast::span::Span,
-    parser::ParseSpan,
-};
+use sqrrl::sqrrlc_ast::span::Span;
+use sqrrl::sqrrlc_parser::ParseSpan;
 use nom_locate::LocatedSpanEx;
 
 

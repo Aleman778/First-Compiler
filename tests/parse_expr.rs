@@ -7,9 +7,12 @@
 use utilities::span::*;
 use utilities::ast::*;
 use utilities::math_eval::*;
-use compiler::{
-    ast::{op::*, lit::*, expr::*, base::Type},
-    parser::Parser,
+use sqrrl::sqrrlc_parser::Parser;
+use sqrrl::sqrrlc_ast::{
+    op::*,
+    lit::*,
+    expr::*,
+    ty::*,
 };
 
 

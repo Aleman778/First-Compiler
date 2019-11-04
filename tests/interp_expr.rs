@@ -5,7 +5,7 @@
 
 
 use utilities::interp::*;
-use compiler::interp::value::Val;
+use sqrrl::sqrrlc_interp::value::Val;
 
 
 #[test]

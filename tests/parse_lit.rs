@@ -5,10 +5,8 @@
 
 
 use utilities::span::*;
-use compiler::{
-    ast::lit::*,
-    parser::Parser,
-};
+use sqrrl::sqrrlc_ast::lit::*;
+use sqrrl::sqrrlc_parser::Parser;
 
 
 #[test]

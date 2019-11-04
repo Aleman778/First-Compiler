@@ -5,7 +5,7 @@
  ***************************************************************************/
 
 
-use compiler::ast::{
+use sqrrl::sqrrlc_ast::{
     expr::ExprLit,
     span::Span,
     lit::*

@@ -5,10 +5,12 @@
 
 
 use utilities::span::*;
-use compiler::{
-    ast::{expr::*, base::*, base::Type},
-    parser::Parser,
+use sqrrl::sqrrlc_ast::{
+    expr::*,
+    base::*,
+    ty::*,
 };
+use sqrrl::sqrrlc_parser::Parser;
 
 
 #[test]

@@ -4,23 +4,20 @@
  ***************************************************************************/
 
 
-use compiler::{
-    ast::{
-        span::Span,
-        base::{
-            File,
-            Item,
-            FnItem
-        },
-        expr::Expr,
-    },
-    parser::{Parser, ParseSpan},
-    interp::{
-        Eval,
-        IResult,
-        env::RuntimeEnv,
-        value::Val,
-    },
+use sqrrl::sqrrlc_ast::{
+    span::Span,
+    base::{File, Item, FnItem},
+    expr::Expr,
+};
+use sqrrl::sqrrlc_parser::{
+    Parser,
+    ParseSpan,
+};
+use sqrrl::sqrrlc_interp::{
+    Eval,
+    IResult,
+    env::RuntimeEnv,
+    value::Val,
 };
 
 
