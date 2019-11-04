@@ -7,9 +7,9 @@
 use crate::error::convert_error;
 use crate::ast::span::Span;
 use crate::type_checker::{
-    symbol_table::SymbolTable,
     error::TypeError,
 };
+use crate::sqrrlc::symbol_table::SymbolTable;
 
 
 /**

@@ -7,8 +7,15 @@
 
 use crate::ast::ty::Type;
 use crate::type_checker::{
+    error::TypeError,
     env::TypeEnv,
 };
+
+
+/**
+ * Type alias of result to use type errors as default.
+ */
+pub type IResult<T, E = TypeError> = Result<T, E>;
 
 
 /**
@@ -25,4 +32,3 @@ pub mod error;
 pub mod expr;
 pub mod lit;
 pub mod op;
-pub mod symbol_table;
