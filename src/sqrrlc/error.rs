@@ -21,7 +21,7 @@ pub struct Error {
  * The different kinds of errors that can occur.
  */
 pub enum ErrorKind {
-    OutOfScope(&'static str, &'static [&'static str]),
+    OutOfScope(String, &'static [&'static str]),
     Context(&'static str),
 }
 

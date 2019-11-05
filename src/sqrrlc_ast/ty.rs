@@ -106,7 +106,7 @@ impl fmt::Display for Type {
             Type::Int32{span: _} => write!(f, "i32"),
             Type::Bool{span: _} => write!(f, "bool"),
             Type::Reference(reference) => write!(f, "{}", reference),
-            Type::None => write!(f, "none"),
+            Type::None => write!(f, "()"),
         }
     }
 }
