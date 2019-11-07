@@ -51,7 +51,6 @@ impl Parser for UnOp {
             preceded(multispace0, alt((
                 map(tag("-"),  |s| UnOp::Neg{span: Span::new(s)}),
                 map(tag("!"),  |s| UnOp::Not{span: Span::new(s)}),
-                map(tag("&"),  |s| UnOp::Ref{span: Span::new(s)}),
                 map(tag("*"),  |s| UnOp::Deref{span: Span::new(s)}),
             )))
         )(input)

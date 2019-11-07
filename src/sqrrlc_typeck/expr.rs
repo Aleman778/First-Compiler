@@ -63,16 +63,8 @@ impl TypeChecker for ExprBinary {
     fn check_type(&self, env: &mut TypeEnv) -> Type {
         let left = self.left.check_type(env);
         let right = self.right.check_type(env);
-        let ret = left.clone();
-        match self.op.check_type(&left, &right) {
-            Some(error) => env.err(error),
-            None => {
-                if right != left {
-                    env.err(TypeError::mismatched_types(&left, &right));
-                }
-            }
-        };
-        ret
+        self.op.check_type(&left, &right, env);
+        left.clone()
     }
 }
 
@@ -105,17 +97,15 @@ impl TypeChecker for ExprBlock {
 impl TypeChecker for ExprCall {
     fn check_type(&self, env: &mut TypeEnv) -> Type {
         let types = env.get_types(&self.ident);
-        for i in 0..min(types.len() - 1, self.args.len()) {
-            let arg = self.args[i].check_type(env);
-            if arg != types[i] {
-                env.err(TypeError::mismatched_types(&types[i], &arg));
+        if types.len() > 0 {
+            for i in 0..min(types.len() - 1, self.args.len()) {
+                let arg = self.args[i].check_type(env);
+                if arg != types[i] {
+                    env.err(TypeError::mismatched_types(&types[i], &arg));
+                }
             }
         }
-        if types.len() > 0 {
-            types[0].clone()
-        } else {
-            Type::None
-        }
+        Type::None
     }
 }
 
@@ -145,10 +135,10 @@ impl TypeChecker for ExprIf {
         if cond_type != cond_expected {
             env.err(TypeError::mismatched_types(&cond_expected, &cond_type));
         }
-        let then_type = self.then_block.check_type(env);
+        self.then_block.check_type(env);
         match &self.else_block {
-            Some(block) => block.check_type(env),
-            None => then_type,
+            Some(block) => { block.check_type(env); },
+            None => { },
         };
         Type::None
     }
@@ -194,14 +184,14 @@ impl TypeChecker for ExprParen {
  */
 impl TypeChecker for ExprReturn {
     fn check_type(&self, env: &mut TypeEnv) -> Type {
-        match *self.expr {
+        match &*self.expr {
             Some(expr) => {
                 let ret_ty = expr.check_type(env);
-                check_return_type(ret_ty);
+                env.check_return_type(ret_ty);
+                Type::None
             },
-            None => {},
-        };
-        Type::None
+            None => Type::None,
+        }
     }
 }
 
@@ -211,8 +201,9 @@ impl TypeChecker for ExprReturn {
  */
 impl TypeChecker for ExprUnary {
     fn check_type(&self, env: &mut TypeEnv) -> Type {
-        
-        Type::None
+        let ty = self.right.check_type(env);
+        self.op.check_type(&ty, env);
+        ty
     }
 }
 
@@ -222,6 +213,12 @@ impl TypeChecker for ExprUnary {
  */
 impl TypeChecker for ExprWhile {
     fn check_type(&self, env: &mut TypeEnv) -> Type {
+        let cond_expected = Type::Bool{span: Span::new_empty()};
+        let cond_type = self.cond.check_type(env);
+        if cond_expected != cond_type {
+            env.err(TypeError::mismatched_types(&cond_expected, &cond_type));
+        }
+        self.block.check_type(env);
         Type::None
     }
 }

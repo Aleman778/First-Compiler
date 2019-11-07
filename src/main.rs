@@ -39,6 +39,7 @@ fn main() {
 
     let mut symbols = SymbolTable::new(expr.span.clone());
     expr.gen_sym_table(&mut symbols);
+    // println!("{:#?}", symbols);
     let mut env = TypeEnv::new(symbols);
     expr.check_type(&mut env);
     env.done(&contents);

@@ -19,12 +19,13 @@ pub type IResult<T, E = TypeError> = Result<T, E>;
 
 
 /**
- * Type checker trait should be implemented for 
- * each AST node that evaluates to a type or handles types.
+ * The type checker trait should be implemented for every AST node
+ * that handles types and can generate a type error.
  */
 pub trait TypeChecker {
     fn check_type(&self, env: &mut TypeEnv) -> Type;
 }
+
 
 
 pub mod env;

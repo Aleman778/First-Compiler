@@ -6,6 +6,8 @@
  ***************************************************************************/
 
 
+use std::fmt;
+use std::rc::{Weak, Rc};
 use std::collections::HashMap;
 use crate::sqrrlc_ast::{
     expr::{Expr, ExprBlock, ExprIdent, ExprLocal},
@@ -20,31 +22,117 @@ use crate::sqrrlc::{
 
 
 /**
- * Symbol table represents the data storage for symbols, where the identifiers
- * are mapped to a symbol. The symbol table is using a tree structure to
- * handle scoping. 
+ * Symbol table is a data structure used for storing
+ * information about symbols in a program. The table is
+ * divided up into scopes that are stored linearly in the
+ * same order they occure in the source code.
+ */
+struct SymbolTable {
+    /// The list of scopes in this table.
+    scopes: Vec<Scope>,
+
+    /// Pointer to the current scope in the list.
+    curr_ptr: usize,
+
+    /// Pointer to the next scope in the list to process.
+    next_ptr: usize,
+}
+
+
+/**
+ * The scope struct defines a part of the symbol table that is 
+ * valid for this given scope. Scopes are stored within the
+ * Symbol Table struct.
+ */
+#[derive(Clone)]
+pub struct Scope {
+    /// Maps identifiers to symbols.
+    symbols: HashMap<String, Symbol>,
+    
+    /// The identifier used by this scope e.g. function name.
+    ident: ExprIdent,
+
+    /// The span location of this scope.
+    span: Span,
+
+    /// Pointer to the previous scope in the symbol table.
+    prev_ptr: usize,
+}
+
+
+/**
+ * Symbol is a simple entry in the symbol table.
+ * Each symbol has a kind and entries in the table.
  */
 #[derive(Debug, Clone)]
-pub struct SymbolTable {
-    parent: Option<Box<SymbolTable>>,
-    children: Vec<SymbolTable>,
-    symbols: HashMap<String, Symbol>,
-    ident: ExprIdent,
-    span: Span,
-    next: usize,
+pub struct Symbol {
+    /// The kind of symbol e.g. function, variable etc.
+    pub kind: SymbolKind,
+
+    /// The list of types associated with this symbol (used for type checking).
+    pub types: Vec<Type>,
+}
+
+
+
+/**
+ * The kind of symbol represented by the symbol struct.
+ * This enum defines the different types of symbol types.
+ */
+#[derive(Debug, Clone)]
+pub enum SymbolKind {
+    Function,
+    Variable,
+}
+
+
+impl SymbolTable {
+    /**
+     * Creates a new empty symbol table.
+     * The global scope is initialized by default.
+     */
+    pub fn new(Span: span) -> Self {
+        SymbolTable {
+            scopes: vec![Scope::new()],
+        }
+    }
+    
+
+    /**
+     * Push a new symbol table as a child to this table.
+     */
+    pub fn push_scope(&mut self, mut table: SymbolTable) {
+        table.parent = self.as_weak();
+        let rc_table = Rc::new(table);
+        self.children.push(rc_table);
+    }
+
+    
+    /**
+     * Returns the next scope in this symbol table.
+     */
+    pub fn next_scope(&mut self) -> Option<SymbolTable> {
+    }
+
+
+    /**
+     * Returns the parent scope, if current scope is 
+     */
+    pub fn parent_scope(&self) -> Option<SymbolTable> {
+    }
 }
 
 
 /**
  * Implementation of the symbol table.
  */
-impl SymbolTable {
+impl Scope {
     /**
      * Creates a new empty symbol table with spcific identifier.
      */
-    pub fn new_ident(span: Span, ident: ExprIdent) -> Self {
+    pub fn new_ident(span: Span) -> Self {
         SymbolTable {
-            parent: None,
+            parent: Weak::new(),
             children: Vec::new(),
             symbols: HashMap::new(),
             ident: ident,
@@ -67,15 +155,6 @@ impl SymbolTable {
 
 
     /**
-     * Push a new symbol table as a child to this table.
-     */
-    pub fn push_table(&mut self, mut table: SymbolTable) {
-        table.parent = Some(Box::new(self.clone()));
-        self.children.push(table);
-    }
-
-
-    /**
      * Push a new symbol entry to this table.
      */
     pub fn push_symbol(&mut self, ident: String, sym: Symbol) {
@@ -89,7 +168,7 @@ impl SymbolTable {
     pub fn find_symbol(&mut self, ident: &ExprIdent) -> Result<Symbol> {
         match self.symbols.get(&ident.to_string) {
             Some(sym) => Ok(sym.clone()),
-            None => match self.parent.clone() {
+            None => match self.parent_table() {
                 Some(mut parent) => parent.find_symbol(ident),
                 None => Err(Error {
                     span: ident.span.clone(),
@@ -99,42 +178,14 @@ impl SymbolTable {
         }
     }
 
-    
-    /**
-     * Returns the next symbol table in the list.
-     */
-    pub fn next_table(&mut self) -> SymbolTable {
-        let table = self.children[self.next].clone();
-        self.next += 1;
-        return table;
-    }
-
 
     /**
-     * Returns the parent symbol table.
+     * Returns the identifier of this symbol table, thie identifier
+     * is empty if none was specified in the constructor.
      */
-    pub fn parent_table(&self) -> Option<SymbolTable> {
-        match &self.parent {
-            Some(parent) => Some(*parent.clone()),
-            None => None,
-        }
-    }
-
-
     pub fn get_ident(&self) -> ExprIdent {
         return self.ident.clone();
     }
-}
-
-
-/**
- * Symbol is a simple entry in the symbol table.
- * Each symbol has a kind and entries in the table.
- */
-#[derive(Debug, Clone)]
-pub struct Symbol {
-    pub kind: SymbolKind,
-    pub types: Vec<Type>,
 }
 
 
@@ -159,17 +210,6 @@ impl Symbol {
     pub fn push_type(&mut self, ty: Type) {
         self.types.push(ty);
     }
-}
-
-
-/**
- * The kind of symbol represented by the symbol struct.
- * This enum defines the different types of symbol types.
- */
-#[derive(Debug, Clone)]
-pub enum SymbolKind {
-    Function,
-    Variable,
 }
 
 
@@ -231,11 +271,9 @@ impl GenSymbolTable for FnItem {
  */
 impl GenSymbolTable for ForeignFnItem {
     fn gen_sym_table(&self, current: &mut SymbolTable) {
-        let mut new_table = SymbolTable::new_ident(self.span.clone(), self.ident.clone());
         let mut symbol = Symbol::new(SymbolKind::Function);
-        self.decl.gen_sym_table(&mut new_table, &mut symbol);
+        self.decl.gen_sym_table(current, &mut symbol);
         current.push_symbol(self.ident.to_string.clone(), symbol);
-        current.push_table(new_table);
     }
 }
 
@@ -298,5 +336,21 @@ impl GenSymbolTable for ExprLocal {
         let mut symbol = Symbol::new(SymbolKind::Variable);
         symbol.push_type(self.ty.clone());
         current.push_symbol(self.ident.to_string.clone(), symbol);
+    }
+}
+
+
+/**
+ * Debug formatting for improving the printing.
+ */
+impl fmt::Debug for SymbolTable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("Symbol Table")
+            .field("children", &self.children)
+            .field("symbols", &self.symbols)
+            .field("ident", &self.ident.to_string)
+            .field("span", &self.span)
+            .field("next", &self.next)
+            .finish()
     }
 }

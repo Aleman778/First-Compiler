@@ -37,9 +37,9 @@ impl TypeEnv {
      * Creates a new empry type checker environment.
      * Takes in the symbol table representing the global scope.
      */
-    pub fn new(global: SymbolTable) -> Self {
+    pub fn new(table: SymbolTable) -> Self {
         TypeEnv {
-            current: global,
+            current: table,
             errors: Vec::new(),
         }
     }
@@ -49,7 +49,10 @@ impl TypeEnv {
      * Go to the next scope in the current children scopes.
      */
     pub fn next_scope(&mut self) {
-        self.current = self.current.next_table();
+        match self.current.next_table() {
+            Some(table) => self.current = table,
+            None => { },
+        };
     }
 
 
@@ -59,7 +62,7 @@ impl TypeEnv {
     pub fn pop_scope(&mut self) {
         match self.current.parent_table() {
             Some(table) => self.current = table,
-            None => {},
+            None => { },
         };
     }
 
@@ -72,25 +75,6 @@ impl TypeEnv {
             Ok(symbol) => symbol.types,
             Err(_) => Vec::new(),
         }
-    }
-
-
-    /**
-     * Checks is two types are the same, the first argument is the
-     * expected type and the second argument is the found type.
-     */
-    pub fn check_same_type(&mut self, expected: Type, found: Type) {
-        if expected != found {
-            self.err(TypeError::mismatched_types(&expected, &found))
-        }
-    }
-
-
-    /**
-     * Check if two types are the same and they both match the specified type.
-     */
-    pub fn check_same_and_specific_type() {
-        
     }
 
 

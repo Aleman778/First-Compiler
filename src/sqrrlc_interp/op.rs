@@ -62,7 +62,6 @@ impl UnOp {
         let result = match self {
             UnOp::Neg{span: _}   => right.neg(span_clone),
             UnOp::Not{span: _}   => right.not(span_clone),
-            UnOp::Ref{span: _}   => right.r#ref(span_clone),
             UnOp::Deref{span: _} => right.deref(span_clone),
         };
 

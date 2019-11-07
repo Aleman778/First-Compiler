@@ -55,6 +55,7 @@ pub enum ErrorKind {
     BinOpNotImplemented(BinOp, Type, Type),
     UnOpNotImplemented(UnOp, Type),
     MismatchedType(Type, Type),
+    Context(&'static str),
 }
 
 
@@ -73,6 +74,8 @@ impl ErrorKind {
                 => format!("cannot {} `{}`", op, right),
             ErrorKind::MismatchedType(_, _)
                 => String::from("mismatched types"),
+            ErrorKind::Context(ctx)
+                => format!("{}", ctx),
         }
     }
 

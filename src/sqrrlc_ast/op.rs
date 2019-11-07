@@ -54,8 +54,6 @@ pub enum UnOp {
     Neg{span: Span},
     /// The `!` operator (logical inversion)
     Not{span: Span},
-    /// The `&` operator (referencing)
-    Ref{span: Span},
     /// The `*` operator (dereferencing)
     Deref{span: Span},
 }
@@ -181,7 +179,6 @@ impl UnOp {
         match self {
             UnOp::Neg{span: _}   => "-",
             UnOp::Not{span: _}   => "!",
-            UnOp::Ref{span: _}   => "&",
             UnOp::Deref{span: _} => "*",
         }
     }
@@ -196,7 +193,6 @@ impl fmt::Display for UnOp {
         match self {
             UnOp::Neg{span: _}   => write!(f, "negate"),
             UnOp::Not{span: _}   => write!(f, "invert"),
-            UnOp::Ref{span: _}   => write!(f, "reference"),
             UnOp::Deref{span: _} => write!(f, "dereference"),
         }
     }
