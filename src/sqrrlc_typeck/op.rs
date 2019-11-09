@@ -5,7 +5,7 @@
 
 
 use crate::sqrrlc_ast::{
-    ty::Type,
+    ty::*,
     op::*,
 };
 use crate::sqrrlc_typeck::{
@@ -23,7 +23,7 @@ impl BinOp {
      * types supported for this operator. Reports an error if this operator
      * does not implement the given types.
      */
-    pub fn check_type(&self, lhs_ty: &Type, rhs_ty: &Type, env: &mut TypeEnv) {
+    pub fn check_type(&self, lhs_ty: &Ty, rhs_ty: &Ty, env: &mut TypeEnv) {
         let (span, ok) = match self {
             BinOp::Add{span} => (span.clone(), lhs_ty.check_int(rhs_ty)),
             BinOp::Sub{span} => (span.clone(), lhs_ty.check_int(rhs_ty)),
@@ -57,10 +57,10 @@ impl UnOp {
      * Check the type given agains the implemented types supported for this operator.
      * Reports an error if this operator is not implemented for the given type.
      */
-    pub fn check_type(&self, ty: &Type, env: &mut TypeEnv) {
+    pub fn check_type(&self, ty: &Ty, env: &mut TypeEnv) {
         let (span, ok) = match self {
-            UnOp::Neg{span} => (span.clone(), ty.is_i32()),
-            UnOp::Not{span} => (span.clone(), ty.is_bool()),
+            UnOp::Neg{span} => (span.clone(), ty.is_int()),
+            UnOp::Not{span} => (span.clone(), ty.kind == TyKind::Bool),
             UnOp::Deref{span} => (span.clone(), ty.get_ref().is_some()),
         };
         if !ok {
@@ -74,14 +74,18 @@ impl UnOp {
 /**
  * Check type operator implementations.
  */
-impl Type {
+impl Ty {
     /**
      * Checks if this is an integer type and if the rhs type
      * is also the same type of integer.
      */
-    fn check_int(&self, rhs_ty: &Type) -> bool {
-        match self {
-            Type::Int32{span: _} => rhs_ty.is_i32(),
+    fn check_int(&self, rhs_ty: &Ty) -> bool {
+        match &self.kind {
+            TyKind::Int(int) =>
+                match int {
+                    IntTy::I32 => rhs_ty.is_i32(),
+                    IntTy::I64 => rhs_ty.is_i64(),
+                },
             _ => false,
         }
     }
@@ -91,9 +95,20 @@ impl Type {
      * Checks if this is a boolean type and that the rhs type is
      * also a boolean.
      */
-    fn check_bool(&self, rhs_ty: &Type) -> bool {
-        match self {
-            Type::Bool{span: _} => rhs_ty.is_bool(),
+    fn check_bool(&self, rhs_ty: &Ty) -> bool {
+        match self.kind {
+            TyKind::Bool => rhs_ty.is_bool(),
+            _ => false,
+        }
+    }
+
+
+    /**
+     * Check if this type is an integer type.
+     */
+    fn is_int(&self) -> bool{
+        match &self.kind {
+            TyKind::Int(_) => true,
             _ => false,
         }
     }

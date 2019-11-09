@@ -7,7 +7,7 @@
 use crate::sqrrlc_ast::{
     span::Span,
     expr::ExprIdent,
-    ty::Type,
+    ty::*,
     base::*,
 };
 use crate::sqrrlc_interp::{
@@ -27,7 +27,7 @@ pub fn debug_functions() -> Vec<Item> {
             },
             decl: FnDecl {
                 inputs: Vec::new(),
-                output: None,
+                output: Ty::new(),
                 span: Span::new_empty(),
             },
             span: Span::new_empty(),
@@ -44,13 +44,14 @@ pub fn debug_functions() -> Vec<Item> {
                             to_string: "val".to_string(),
                             span: Span::new_empty(),
                         },
-                        ty: Type::Int32{
+                        ty: Ty {
+                            kind: TyKind::Int(IntTy::I32),
                             span: Span::new_empty(),
                         },
                         span: Span::new_empty(),
                     }
                 ],
-                output: None,
+                output: Ty::new(),
                 span: Span::new_empty(),
             },
             span: Span::new_empty(),
@@ -67,13 +68,14 @@ pub fn debug_functions() -> Vec<Item> {
                             to_string: "val".to_string(),
                             span: Span::new_empty(),
                         },
-                        ty: Type::Bool{
+                        ty: Ty {
+                            kind: TyKind::Bool,
                             span: Span::new_empty(),
                         },
                         span: Span::new_empty(),
                     }
                 ],
-                output: None,
+                output: Ty::new(),
                 span: Span::new_empty(),
             },
             span: Span::new_empty(),

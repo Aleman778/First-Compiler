@@ -5,7 +5,10 @@
 
 use std::fmt;
 use std::cmp;
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc_ast::{
+    span::Span,
+    ty::*,
+};
 use crate::sqrrlc_interp::value::Val;
 
 
@@ -193,6 +196,23 @@ impl IntVal {
         match self {
             IntVal::Int32{val: _, span} => span.clone(),
             IntVal::Int64{val: _, span} => span.clone(),
+        }
+    }
+
+
+    /**
+     * Get the type information for this integer value.
+     */
+    pub fn get_type(&self) -> Ty {
+        match self {
+            IntVal::Int32{val: _, span} => Ty {
+                kind: TyKind::Int(IntTy::I32),
+                span: span.clone(),
+            },
+            IntVal::Int64{val: _, span} => Ty {
+                kind: TyKind::Int(IntTy::I64),
+                span: span.clone(),
+            },
         }
     }
     

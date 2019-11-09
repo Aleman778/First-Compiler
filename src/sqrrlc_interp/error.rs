@@ -9,7 +9,7 @@
 use crate::sqrrlc_ast::{
     span::Span,
     expr::ExprIdent,
-    ty::Type,
+    ty::*,
     op::*,
 };
 
@@ -58,7 +58,7 @@ impl RuntimeError {
      * Type errors occur when the expected type differs
      * from the actual type, type checker will prevent these.
      */
-    pub fn type_error(span: Span, expected: Type, actual: Type) -> Self {
+    pub fn type_error(span: Span, expected: TyKind, actual: Ty) -> Self {
         RuntimeError {
             span: span,
             kind: ErrorKind::TypeError(expected, actual),
@@ -84,11 +84,11 @@ impl RuntimeError {
  */
 #[derive(Debug)]
 pub enum ErrorKind {
-    BinaryExpr(BinOp, Type, Type),
-    UnaryExpr(UnOp, Type),
+    BinaryExpr(BinOp, Ty, Ty),
+    UnaryExpr(UnOp, Ty),
     ItemNotFound(String, &'static [&'static str]),
     MemoryError(&'static str),
-    TypeError(Type, Type),
+    TypeError(TyKind, Ty),
     Context(&'static str),
 }
 

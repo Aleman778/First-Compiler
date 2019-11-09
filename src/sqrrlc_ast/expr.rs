@@ -9,7 +9,7 @@
 use crate::sqrrlc_ast::{
     span::Span,
     lit::Lit,
-    ty::Type,
+    ty::Ty,
     op::*,
 };
 
@@ -168,7 +168,7 @@ pub struct ExprLit {
 pub struct ExprLocal {
     pub mutable: bool,
     pub ident: ExprIdent,
-    pub ty: Type,
+    pub ty: Ty,
     pub init: Box<Expr>,
     pub span: Span,
 }

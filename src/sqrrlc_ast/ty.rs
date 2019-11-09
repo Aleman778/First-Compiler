@@ -14,13 +14,45 @@ use crate::sqrrlc_ast::span::Span;
  * Can be an integer, boolean or reference.
  */
 #[derive(Debug, Clone)]
-pub enum Type {
-    /// The type path
-    Int32{span: Span},
-    Bool{span: Span},
-    Reference(TypeReference),
+pub struct Ty {
+    pub kind: TyKind,
+    pub span: Span,
+}
+
+
+/**
+ * The different kinds of types supported.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub enum TyKind {
+    /// Different kinds of integer types e.g. `i32`.
+    Int(IntTy),
+
+    /// Boolean type defined by `bool`.
+    Bool,
+
+    /// Type reference is defined by `&` and another type.
+    Ref(TypeRef),
+
+    /// Infer means that no specific type was given and should infer to something.
+    Infer,
+
+    /// This type has no type, used for functions that does not return anything.
     None,
 }
+
+
+/**
+ * The different kinds of integer types.
+ * The number defines the number of bits.
+ * Default inferred type is `i32`.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub enum IntTy {
+    I32,
+    I64,
+}
+
 
 
 /**
@@ -28,9 +60,9 @@ pub enum Type {
  * e.g. `&mut i32` defines a mutable i32 type reference.
  */
 #[derive(Debug, Clone)]
-pub struct TypeReference {
+pub struct TypeRef {
     pub mutability: bool,
-    pub elem: Box<Type>,
+    pub elem: Box<Ty>,
     pub span: Span,
 }
 
@@ -38,26 +70,40 @@ pub struct TypeReference {
 /**
  * Implementation of type enum.
  */
-impl Type {
+impl Ty {
     /**
-     * Returns clone of the span information.
+     * Creates an empty type with kind `TyKind::None` and empty span.
      */
-    pub fn get_span(&self) -> Span {
-        match self {
-            Type::Int32{span} => span.clone(),
-            Type::Bool{span} => span.clone(),
-            Type::Reference(reference) => reference.span.clone(),
-            Type::None => Span::new_empty(),
-        }
+    pub fn new() -> Self {
+        Ty{kind: TyKind::None, span: Span::new_empty()}
     }
 
-
+    
     /**
      * Returns true if type is i32.
      */
     pub fn is_i32(&self) -> bool {
-        match self {
-            Type::Int32{span: _} => true,
+        match &self.kind {
+            TyKind::Int(int) =>
+                match int {
+                    IntTy::I32 => true,
+                    _ => false,
+                },
+            _ => false,
+        }
+    }
+
+    
+    /**
+     * Returns true if type is i64.
+     */
+    pub fn is_i64(&self) -> bool {
+        match &self.kind {
+            TyKind::Int(int) =>
+                match int {
+                    IntTy::I64 => true,
+                    _ => false,
+                },
             _ => false,
         }
     }
@@ -67,8 +113,8 @@ impl Type {
      * Returns true if type is i32.
      */
     pub fn is_bool(&self) -> bool {
-        match self {
-            Type::Bool{span: _} => true,
+        match self.kind {
+            TyKind::Bool => true,
             _ => false,
         }
     }
@@ -77,9 +123,9 @@ impl Type {
     /**
      * Returns the type reference or None if type is not a reference.
      */
-    pub fn get_ref<'a>(&'a self) -> Option<&'a TypeReference> {
-        match self {
-            Type::Reference(reference) => Some(reference),
+    pub fn get_ref<'a>(&'a self) -> Option<&'a TypeRef> {
+        match &self.kind {
+            TyKind::Ref(r) => Some(&r),
             _ => None,
         }
     }
@@ -89,8 +135,8 @@ impl Type {
      * Returns true if this has no type.
      */
     pub fn is_none(&self) -> bool {
-        match self {
-            Type::None => true,
+        match self.kind {
+            TyKind::None => true,
             _ => false,
         }
     }
@@ -98,15 +144,39 @@ impl Type {
 
 
 /**
- * Implementation of display trait for retrieving the type identifier.
+ * Display formatting for types.
  */
-impl fmt::Display for Type {
+impl fmt::Display for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.kind)
+    }
+}
+
+
+/**
+ * Dispaly formatting for the different kinds of types.
+ */
+impl fmt::Display for TyKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Type::Int32{span: _} => write!(f, "i32"),
-            Type::Bool{span: _} => write!(f, "bool"),
-            Type::Reference(reference) => write!(f, "{}", reference),
-            Type::None => write!(f, "()"),
+            TyKind::Int(int) => write!(f, "{}", int),
+            TyKind::Bool => write!(f, "bool"),
+            TyKind::Ref(r) => write!(f, "{}", r),
+            TyKind::Infer => write!(f, "infer"),
+            TyKind::None => write!(f, "()")
+        }
+    }
+}
+
+
+/**
+ * Display formatting for integer types.
+ */
+impl fmt::Display for IntTy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IntTy::I32 => f.write_str("i32"),
+            IntTy::I64 => f.write_str("i64"),
         }
     }
 }
@@ -115,7 +185,7 @@ impl fmt::Display for Type {
 /**
  * Display formatting of type references.
  */
-impl fmt::Display for TypeReference {
+impl fmt::Display for TypeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut prefix = String::from("&");
         if self.mutability {
@@ -129,17 +199,9 @@ impl fmt::Display for TypeReference {
 /**
  * Comparing partial equality of types.
  */
-impl cmp::PartialEq for Type {
-    fn eq(&self, other: &Type) -> bool {
-        match self {
-            Type::Int32{span: _} => other.is_i32(),
-            Type::Bool{span: _} => other.is_bool(),
-            Type::Reference(self_ref) => match other.get_ref() {
-                Some(other_ref) => self_ref == other_ref,
-                None => false,
-            },
-            Type::None => other.is_none(),
-        }
+impl cmp::PartialEq for Ty {
+    fn eq(&self, other: &Ty) -> bool {
+        self.kind == other.kind
     }
 }
 
@@ -147,8 +209,8 @@ impl cmp::PartialEq for Type {
 /**
  * Comparing partial equality of type references.
  */
-impl cmp::PartialEq for TypeReference {
-    fn eq(&self, other: &TypeReference) -> bool {
+impl cmp::PartialEq for TypeRef {
+    fn eq(&self, other: &TypeRef) -> bool {
         self.elem == other.elem
     }
 }

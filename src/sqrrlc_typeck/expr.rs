@@ -6,8 +6,7 @@
 
 use std::cmp::min;
 use crate::sqrrlc_ast::{
-    span::Span,
-    ty::Type,
+    ty::*,
     expr::*,
 };
 use crate::sqrrlc_typeck::{
@@ -21,7 +20,7 @@ use crate::sqrrlc_typeck::{
  * Genreal type checker implementation for expressions.
  */
 impl TypeChecker for Expr {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         match self {
             Expr::Assign(expr) => expr.check_type(env),
             Expr::Binary(expr) => expr.check_type(env),
@@ -35,7 +34,7 @@ impl TypeChecker for Expr {
             Expr::Return(expr) => expr.check_type(env),
             Expr::Unary(expr)  => expr.check_type(env),
             Expr::While(expr)  => expr.check_type(env),
-            _ => Type::None,
+            _ => Ty::new(),
         }
     }
 }
@@ -45,13 +44,13 @@ impl TypeChecker for Expr {
  * Type checker implementation for assignment expressions.
  */
 impl TypeChecker for ExprAssign {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         let prev = self.ident.check_type(env);
         let new = self.expr.check_type(env);
         if prev != new {
-            env.err(TypeError::mismatched_types(&prev, &new));
+            env.err(TypeError::mismatched_types(prev.kind, &new));
         }
-        Type::None
+        Ty::new()
     }
 }
 
@@ -60,7 +59,7 @@ impl TypeChecker for ExprAssign {
  * Type checker implementation for binary expressions.
  */
 impl TypeChecker for ExprBinary {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         let left = self.left.check_type(env);
         let right = self.right.check_type(env);
         self.op.check_type(&left, &right, env);
@@ -73,20 +72,20 @@ impl TypeChecker for ExprBinary {
  * Type checker implementation for block expressions.
  */
 impl TypeChecker for ExprBlock {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         env.next_scope();
         for i in 0..self.stmts.len() {
             let ret_ty = self.stmts[i].check_type(env);
-            if ret_ty != Type::None {
+            if ret_ty.kind != TyKind::None {
                 if i == self.stmts.len() - 1 {
-                    env.check_return_type(ret_ty);
+                    env.check_ret_ty(ret_ty);
                 } else {
-                    env.err(TypeError::mismatched_types(&Type::None, &ret_ty));
+                    env.err(TypeError::mismatched_types(TyKind::None, &ret_ty));
                 }
             }
         }
-        env.pop_scope();
-        Type::None
+        env.prev_scope();
+        Ty::new()
     }
 }
 
@@ -95,17 +94,27 @@ impl TypeChecker for ExprBlock {
  * Type checker implementation for function call expressions.
  */
 impl TypeChecker for ExprCall {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
-        let types = env.get_types(&self.ident);
-        if types.len() > 0 {
-            for i in 0..min(types.len() - 1, self.args.len()) {
-                let arg = self.args[i].check_type(env);
-                if arg != types[i] {
-                    env.err(TypeError::mismatched_types(&types[i], &arg));
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
+        match env.find_fn_symbol(&self.ident) {
+            Some(fn_sym) => {
+                let fn_inputs = fn_sym.inputs.clone();
+                let fn_output = fn_sym.output.clone();
+                let mut arg_tys = Vec::new();
+                for i in 0..min(self.args.len(), fn_inputs.len()) {
+                    let ty = self.args[i].check_type(env);
+                    arg_tys.push(ty);
                 }
-            }
+                for i in 0..min(arg_tys.len(), fn_inputs.len()) {
+                    if fn_inputs[i] != arg_tys[i] {
+                        env.err(TypeError::mismatched_types(fn_inputs[i].kind.clone(), &arg_tys[i]));
+                    }
+                }
+                let mut out_ty = fn_output.clone();
+                out_ty.span = self.span.clone();
+                out_ty
+            },
+            None => Ty::new(),
         }
-        Type::None
     }
 }
 
@@ -114,12 +123,14 @@ impl TypeChecker for ExprCall {
  * Type checker implementation for identifier expressions.
  */
 impl TypeChecker for ExprIdent {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
-        let types = env.get_types(&self);
-        if types.len() == 1 {
-            types[0].clone()
-        } else {
-            Type::None
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
+        match env.find_var_symbol(&self) {
+            Some(var) => {
+                let mut id_ty = var.ty.clone();
+                id_ty.span = self.span.clone();
+                id_ty
+            },
+            None => Ty::new(),
         }
     }
 }
@@ -129,18 +140,17 @@ impl TypeChecker for ExprIdent {
  * Type checker implementation for if expressions.
  */
 impl TypeChecker for ExprIf {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
-        let cond_expected = Type::Bool{span: Span::new_empty()};
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         let cond_type = (*self.cond).check_type(env);
-        if cond_type != cond_expected {
-            env.err(TypeError::mismatched_types(&cond_expected, &cond_type));
+        if cond_type.kind != TyKind::Bool {
+            env.err(TypeError::mismatched_types(TyKind::Bool, &cond_type));
         }
         self.then_block.check_type(env);
         match &self.else_block {
             Some(block) => { block.check_type(env); },
             None => { },
         };
-        Type::None
+        Ty::new()
     }
 }
 
@@ -149,7 +159,7 @@ impl TypeChecker for ExprIf {
  * Type checker implementation for literal expressions.
  */
 impl TypeChecker for ExprLit {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         self.lit.check_type(env)
     }
 }
@@ -159,12 +169,12 @@ impl TypeChecker for ExprLit {
  * Type checker implementation for let binding expressions.
  */
 impl TypeChecker for ExprLocal {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         let init_ty = self.init.check_type(env);
         if init_ty != self.ty {
-            env.err(TypeError::mismatched_types(&self.ty, &init_ty));
+            env.err(TypeError::mismatched_types(self.ty.kind.clone(), &init_ty));
         }
-        Type::None
+        Ty::new()
     }
 }
 
@@ -173,7 +183,7 @@ impl TypeChecker for ExprLocal {
  * Type checker implementation for parenthesized expressions.
  */
 impl TypeChecker for ExprParen {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         (*self.expr).check_type(env)
     }
 }
@@ -183,14 +193,14 @@ impl TypeChecker for ExprParen {
  * Type checker implementation for return expressions.
  */
 impl TypeChecker for ExprReturn {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         match &*self.expr {
             Some(expr) => {
                 let ret_ty = expr.check_type(env);
-                env.check_return_type(ret_ty);
-                Type::None
+                env.check_ret_ty(ret_ty);
+                Ty::new()
             },
-            None => Type::None,
+            None => Ty::new(),
         }
     }
 }
@@ -200,7 +210,7 @@ impl TypeChecker for ExprReturn {
  * Type checker implementation for unary expressions.
  */
 impl TypeChecker for ExprUnary {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         let ty = self.right.check_type(env);
         self.op.check_type(&ty, env);
         ty
@@ -212,13 +222,12 @@ impl TypeChecker for ExprUnary {
  * Type checker implementation for while expressions.
  */
 impl TypeChecker for ExprWhile {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
-        let cond_expected = Type::Bool{span: Span::new_empty()};
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         let cond_type = self.cond.check_type(env);
-        if cond_expected != cond_type {
-            env.err(TypeError::mismatched_types(&cond_expected, &cond_type));
+        if cond_type.kind != TyKind::Bool {
+            env.err(TypeError::mismatched_types(TyKind::Bool, &cond_type));
         }
         self.block.check_type(env);
-        Type::None
+        Ty::new()
     }
 }

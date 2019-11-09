@@ -10,7 +10,7 @@
 use crate::sqrrlc_ast::{
     span::Span,
     expr::{ExprIdent, ExprBlock},
-    ty::Type,
+    ty::Ty,
 };
 
 
@@ -110,7 +110,7 @@ pub struct ForeignFnItem {
 #[derive(Debug, Clone, PartialEq)]
 pub struct FnDecl {
     pub inputs: Vec<Argument>,
-    pub output: Option<Type>,
+    pub output: Ty,
     pub span: Span,
 }
 
@@ -121,6 +121,6 @@ pub struct FnDecl {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Argument {
     pub ident: ExprIdent,
-    pub ty: Type,
+    pub ty: Ty,
     pub span: Span,
 }

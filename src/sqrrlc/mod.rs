@@ -1,7 +1,7 @@
 
 /***************************************************************************
  * Sqrrl compiler main module contains common data structures and
- * is the where the driver is located.
+ * is the where the driver that runs the compiler is located.
  ***************************************************************************/
 
 
@@ -12,4 +12,4 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 
 pub mod error;
-pub mod symbol_table;
+pub mod symbol;

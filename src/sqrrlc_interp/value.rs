@@ -9,7 +9,7 @@ use std::fmt;
 use std::cmp;
 use crate::sqrrlc_ast::{
     span::Span,
-    ty::Type,
+    ty::*,
 };
 use crate::sqrrlc_interp::primitive::{
     int::IntVal,
@@ -460,11 +460,12 @@ impl Val {
      * Returns the type of this value.
      * TODO: Int value should not have type Int32?
      */
-    pub fn get_type(&self) -> Type {
+    pub fn get_type(&self) -> Ty {
         match self {
-            Val::Int(val) => Type::Int32{span: val.get_span().clone()},
-            Val::Bool(val) => Type::Bool{span: val.span.clone()},
-            _ => panic!("has no type"), //TODO: Add more flexible type system to avoid panic.
+            Val::Int(val) => val.get_type(),
+            Val::Bool(val) => val.get_type(),
+            Val::Ref(val) => val.get_type(),
+            _ => Ty::new(),
         }
     }
 }

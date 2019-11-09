@@ -5,7 +5,7 @@
 
 
 use crate::sqrrlc_ast::{
-    ty::Type,
+    ty::Ty,
     base::*,
 };
 use crate::sqrrlc_typeck::{
@@ -18,11 +18,11 @@ use crate::sqrrlc_typeck::{
  * Check the entire file for type errors.
  */
 impl TypeChecker for File {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         for item in &self.items {
             item.check_type(env);
         }
-        Type::None
+        Ty::new()
     }
 }
 
@@ -31,12 +31,12 @@ impl TypeChecker for File {
  * Check this function item for type erros.
  */
 impl TypeChecker for Item {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         match self {
             Item::Fn(func) => { func.check_type(env); },
             _ => { },
         };
-        Type::None
+        Ty::new()
     }
 }
 
@@ -45,8 +45,8 @@ impl TypeChecker for Item {
  * Check the contents of this function for type errors.
  */
 impl TypeChecker for FnItem {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         self.block.check_type(env);
-        Type::None
+        Ty::new()
     }
 }

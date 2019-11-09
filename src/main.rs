@@ -23,7 +23,10 @@ use sqrrl::sqrrlc_typeck::{
     env::TypeEnv,
     TypeChecker,
 };
-use sqrrl::sqrrlc::symbol_table::*;
+use sqrrl::sqrrlc::symbol::{
+    generator::*,
+    table::SymbolTable,
+};
 
 
 
@@ -37,9 +40,9 @@ fn main() {
     let mut expr = File::parse(span).unwrap().1;
     expr.extend(debug_functions());
 
-    let mut symbols = SymbolTable::new(expr.span.clone());
-    expr.gen_sym_table(&mut symbols);
+    let symbols = gen_sym_table(&expr);
     // println!("{:#?}", symbols);
+    
     let mut env = TypeEnv::new(symbols);
     expr.check_type(&mut env);
     env.done(&contents);

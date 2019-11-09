@@ -5,13 +5,14 @@
 
 
 use crate::sqrrlc::{
-    symbol_table::SymbolTable,
     error::convert_error,
+    symbol::table::SymbolTable,
+    symbol::*,
 };
 use crate::sqrrlc_ast::{
     expr::ExprIdent,
-    ty::Type,
-};
+    ty::Ty,
+};   
 use crate::sqrrlc_typeck::{
     error::TypeError,
 };
@@ -22,7 +23,7 @@ use crate::sqrrlc_typeck::{
  */
 pub struct TypeEnv {
     /// The symbol table currently checking in.
-    current: SymbolTable,
+    table: SymbolTable,
 
     /// Error stack holds all errors encountered during type checking.
     errors: Vec<TypeError>,
@@ -39,7 +40,7 @@ impl TypeEnv {
      */
     pub fn new(table: SymbolTable) -> Self {
         TypeEnv {
-            current: table,
+            table: table,
             errors: Vec::new(),
         }
     }
@@ -49,49 +50,67 @@ impl TypeEnv {
      * Go to the next scope in the current children scopes.
      */
     pub fn next_scope(&mut self) {
-        match self.current.next_table() {
-            Some(table) => self.current = table,
-            None => { },
-        };
+        self.table.next_scope();
     }
 
 
     /**
      * Pop the current scope and go the parent scope.
      */
-    pub fn pop_scope(&mut self) {
-        match self.current.parent_table() {
-            Some(table) => self.current = table,
-            None => { },
-        };
+    pub fn prev_scope(&mut self) {
+        self.table.prev_scope();
     }
 
 
     /**
      * Returns list of types from the given identifier in the current symbol table.
      */
-    pub fn get_types(&mut self, ident: &ExprIdent) -> Vec<Type> {
-        match self.current.find_symbol(ident) {
-            Ok(symbol) => symbol.types,
-            Err(_) => Vec::new(),
+    pub fn find_symbol(&mut self, ident: &ExprIdent) -> Option<&Symbol> {
+        match self.table.find_symbol(ident) {
+            Ok(symbol) => Some(symbol),
+            Err(_) => None,
         }
     }
 
 
     /**
-     * Checks if the given type is the same as the current functions return type.
+     * Tries to find a variable symbol with the given identifier.
      */
-    pub fn check_return_type(&mut self, ty: Type) {
-        let ident = self.current.get_ident();
-        let fn_types = self.get_types(&ident);
-        match fn_types.last() {
-            Some(fn_ty_ref) => {
-                let fn_return_ty = fn_ty_ref.clone();
-                if ty != fn_return_ty {
-                    self.err(TypeError::mismatched_types(&ty, fn_ty_ref));
+    pub fn find_var_symbol(&mut self, ident: &ExprIdent) -> Option<&VarSymbol> {
+        match self.find_symbol(ident) {
+            Some(symbol) => match symbol {
+                Symbol::Var(var) => Some(&var),
+                _ => None,
+            },
+            None => None,
+        }
+    }
+
+
+    /**
+     * Tries to find a function symbol with the given identifier.
+     */
+    pub fn find_fn_symbol(&mut self, ident: &ExprIdent) -> Option<&FnSymbol> {
+        match self.table.find_fn_symbol(ident) {
+            Ok(fn_sym) => Some(fn_sym),
+            Err(_) => None
+        }
+    }
+
+
+    /**
+     * Check the return type agains the return type of the current function.
+     */
+    pub fn check_ret_ty(&mut self, ret_ty: Ty) {
+        let ident = self.table.current_id();
+        match self.table.find_fn_symbol(&ident) {
+            Ok(fn_sym) => {
+                let fn_ret_ty = fn_sym.output.clone();
+                if fn_ret_ty != ret_ty {
+                    self.err(TypeError::mismatched_types(fn_ret_ty.kind, &ret_ty));
                 }
             },
-            None => {},
+            Err(_) => { },
         };
     }
     

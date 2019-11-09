@@ -6,7 +6,10 @@
 
 use std::fmt;
 use std::cmp;
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc_ast::{
+    span::Span,
+    ty::*,
+};
 use crate::sqrrlc_interp::value::Val;
 
 
@@ -24,12 +27,34 @@ pub struct RefVal {
  * Implementation of reference to provide operations.
  */
 impl RefVal {
+    /***********************************************************************
+     * Reference unary operations
+     ***********************************************************************/
+
+    
     /**
      * Dereferencing unary operator.
      */
     pub fn deref(self) -> Option<Val> {
         unimplemented!();
     }
+
+
+    /***********************************************************************
+     * Helper methods
+     ***********************************************************************/
+    
+    
+    /**
+     * Get the type information for this boolean value.
+     * TODO: fix type kind should be reference.
+     */
+    pub fn get_type(&self) -> Ty {
+        Ty {
+            kind: TyKind::None,
+            span: self.span.clone(),
+        }
+    }    
 }
 
 

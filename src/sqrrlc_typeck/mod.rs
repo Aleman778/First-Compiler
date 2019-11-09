@@ -5,7 +5,7 @@
  ***************************************************************************/
 
 
-use crate::sqrrlc_ast::ty::Type;
+use crate::sqrrlc_ast::ty::Ty;
 use crate::sqrrlc_typeck::{
     error::TypeError,
     env::TypeEnv,
@@ -23,7 +23,7 @@ pub type IResult<T, E = TypeError> = Result<T, E>;
  * that handles types and can generate a type error.
  */
 pub trait TypeChecker {
-    fn check_type(&self, env: &mut TypeEnv) -> Type;
+    fn check_type(&self, env: &mut TypeEnv) -> Ty;
 }
 
 

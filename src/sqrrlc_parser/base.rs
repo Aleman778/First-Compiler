@@ -18,7 +18,7 @@ use crate::sqrrlc_ast::{
     span::{Span, LineColumn},
     base::*,
     expr::{ExprBlock, ExprIdent},
-    ty::Type,
+    ty::Ty,
 };
 use crate::sqrrlc_parser::{
     error::convert_error,
@@ -119,7 +119,7 @@ impl Parser for FnDecl {
                 preceded(multispace0, tag(")")),
                 opt(pair(
                     preceded(multispace0, tag("->")),
-                    Type::parse
+                    Ty::parse
                 )),
             )),
                 |(start, args, end, ret_ty)| {
@@ -127,11 +127,11 @@ impl Parser for FnDecl {
                     let end_span;
                     match ret_ty {
                         Some(ty) => {
-                            end_span = ty.1.get_span().end;
-                            output = Some(ty.1);
+                            end_span = ty.1.span.end;
+                            output = ty.1;
                         },
                         None => {
-                            output = None;
+                            output = Ty::new();
                             end_span = LineColumn::new(end.line, end.get_column() + 1);
                         },  
                     };
@@ -160,11 +160,11 @@ impl Parser for Argument {
             map(tuple((
                 ExprIdent::parse,
                 preceded(multispace0, tag(":")),
-                Type::parse,
+                Ty::parse,
             )),
                 |(id, _, ty)| {
                     let id_span = id.clone().span;
-                    let ty_span = ty.get_span();
+                    let ty_span = ty.span.clone();
                     Argument {
                         ident: id,
                         ty: ty,

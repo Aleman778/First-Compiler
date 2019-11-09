@@ -17,7 +17,7 @@ use nom::{
 };
 use crate::sqrrlc_ast::{
     span::{LineColumn, Span},
-    ty::Type,
+    ty::Ty,
     expr::*,
     lit::*,
     op::*,
@@ -398,7 +398,7 @@ impl Parser for ExprLocal {
                 opt(preceded(multispace1, tag("mut"))),
                 preceded(multispace1, ExprIdent::parse),
                 preceded(multispace0, tag(":")),
-                preceded(multispace0, Type::parse),
+                preceded(multispace0, Ty::parse),
                 preceded(multispace0, tag("=")),
                 preceded(multispace0, Expr::parse_math),
                 preceded(multispace0, tag(";")),

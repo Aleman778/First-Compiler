@@ -6,8 +6,7 @@
 
 
 use crate::sqrrlc_ast::{
-    span::Span,
-    ty::Type,
+    ty::*,
     expr::*,
 };
 use crate::sqrrlc_interp::{
@@ -165,8 +164,7 @@ impl Eval for ExprIf {
                 }
             },
             None => Err(RuntimeError::type_error(
-                self.span.clone(), value.get_type(),
-                Type::Bool{span: Span::new_empty()}
+                self.span.clone(), TyKind::Bool, value.get_type(),
             )),
         }
     }
@@ -252,8 +250,7 @@ impl Eval for ExprWhile {
                     }
                 }
                 None => return Err(RuntimeError::type_error(
-                    self.span.clone(), value.get_type(),
-                    Type::Bool{span: Span::new_empty()}
+                    self.span.clone(), TyKind::Bool, value.get_type(),
                 )),
             };
         }

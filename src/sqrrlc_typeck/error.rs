@@ -8,7 +8,7 @@
 use crate::sqrrlc_ast::{
     span::Span,
     op::*,
-    ty::Type,
+    ty::*,
 };
 
 
@@ -39,9 +39,9 @@ impl TypeError {
     /**
      * Creates a new error of kind UnexpectedType.
      */
-    pub fn mismatched_types(expected: &Type, found: &Type) -> Self {
+    pub fn mismatched_types(expected: TyKind, found: &Ty) -> Self {
         TypeError {
-            span: found.get_span(),
+            span: found.span.clone(),
             kind: ErrorKind::MismatchedType(expected.clone(), found.clone()),
         }
     }
@@ -52,9 +52,9 @@ impl TypeError {
  * The kind of type error that occured.
  */
 pub enum ErrorKind {
-    BinOpNotImplemented(BinOp, Type, Type),
-    UnOpNotImplemented(UnOp, Type),
-    MismatchedType(Type, Type),
+    BinOpNotImplemented(BinOp, Ty, Ty),
+    UnOpNotImplemented(UnOp, Ty),
+    MismatchedType(TyKind, Ty),
     Context(&'static str),
 }
 
@@ -84,6 +84,8 @@ impl ErrorKind {
         match self {
             ErrorKind::BinOpNotImplemented(op, left, right)
                 => format!("no implementation for `{} {} {}`", left, op.token(), right),
+            ErrorKind::UnOpNotImplemented(op, right)
+                => format!("no implementation for `{}{}`", op.token(), right),
             ErrorKind::MismatchedType(expected, found)
                 => format!("expected `{}`, found `{}`", expected, found),
             _ => String::new(),

@@ -5,7 +5,10 @@
 
 use std::fmt;
 use std::cmp;
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc_ast::{
+    span::Span,
+    ty::*,
+};
 use crate::sqrrlc_interp::value::Val;
 
 
@@ -70,6 +73,22 @@ impl BoolVal {
     pub fn not(&self, span: Span) -> Option<Val> {
         Some(Val::from_bool(!self.val, span))
     }
+
+
+    /***********************************************************************
+     * Helper methods
+     ***********************************************************************/
+
+    
+    /**
+     * Get the type information for this boolean value.
+     */
+    pub fn get_type(&self) -> Ty {
+        Ty {
+            kind: TyKind::Bool,
+            span: self.span.clone(),
+        }
+    }    
 }
 
 

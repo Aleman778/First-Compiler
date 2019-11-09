@@ -5,7 +5,7 @@
 
 
 use crate::sqrrlc_ast::{
-    ty::Type,
+    ty::*,
     lit::*,
 };
 use crate::sqrrlc_typeck::{
@@ -18,7 +18,7 @@ use crate::sqrrlc_typeck::{
  * General type checking implementation for literals.
  */
 impl TypeChecker for Lit {
-    fn check_type(&self, env: &mut TypeEnv) -> Type {
+    fn check_type(&self, env: &mut TypeEnv) -> Ty {
         match self {
             Lit::Int(lit) => lit.check_type(env),
             Lit::Bool(lit) => lit.check_type(env),
@@ -31,8 +31,11 @@ impl TypeChecker for Lit {
  * Type checking implementation for literal integers.
  */
 impl TypeChecker for LitInt {
-    fn check_type(&self, _env: &mut TypeEnv) -> Type {
-        Type::Int32{span: self.span.clone()}
+    fn check_type(&self, _env: &mut TypeEnv) -> Ty {
+        Ty {
+            kind: TyKind::Int(IntTy::I32),
+            span: self.span.clone(),
+        }
     }
 }
 
@@ -41,7 +44,10 @@ impl TypeChecker for LitInt {
  * Type checking implementation for literal boolean.
  */
 impl TypeChecker for LitBool {
-    fn check_type(&self, _env: &mut TypeEnv) -> Type {
-        Type::Bool{span: self.span.clone()}
+    fn check_type(&self, _env: &mut TypeEnv) -> Ty {
+        Ty {
+            kind: TyKind::Bool,
+            span: self.span.clone(),
+        }
     }
 }
