@@ -95,7 +95,7 @@ impl TypeChecker for ExprBlock {
  */
 impl TypeChecker for ExprCall {
     fn check_type(&self, env: &mut TypeEnv) -> Ty {
-        match env.find_fn_symbol(&self.ident) {
+        match env.table.find_fn_symbol(&self.ident) {
             Some(fn_sym) => {
                 let fn_inputs = fn_sym.inputs.clone();
                 let fn_output = fn_sym.output.clone();
@@ -124,7 +124,7 @@ impl TypeChecker for ExprCall {
  */
 impl TypeChecker for ExprIdent {
     fn check_type(&self, env: &mut TypeEnv) -> Ty {
-        match env.find_var_symbol(&self) {
+        match env.table.find_var_symbol(&self) {
             Some(var) => {
                 let mut id_ty = var.ty.clone();
                 id_ty.span = self.span.clone();

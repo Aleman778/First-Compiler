@@ -7,7 +7,10 @@
 
 
 use std::fs;
-use sqrrl::sqrrlc::error::convert_error;
+use sqrrl::sqrrlc::{
+    error::diagnostic::*,
+    error::emitter::Emitter,
+};
 use sqrrl::sqrrlc_ast::{
     base::*,
     expr::*,
@@ -29,9 +32,14 @@ use sqrrl::sqrrlc::symbol::{
 };
 
 
-
 fn main() {
     // let a: i32 = 5 + false;
+
+    let emitter = Emitter::new();
+    emitter.emit_diagnostic(&Diagnostic::new(Level::Note, "unused warnings are turned on by default"));
+    emitter.emit_diagnostic(&Diagnostic::new(Level::Warning, "function `do_nothing` is unused"));
+    emitter.emit_diagnostic(&Diagnostic::new(Level::Error, "cannot add `i32` to `bool`"));
+    emitter.emit_diagnostic(&Diagnostic::new(Level::Fatal, "out of memory"));
     
     // Parse from file
     let filename = "c:/dev/sqrrl-lang/examples/sandbox.sq";
@@ -45,9 +53,7 @@ fn main() {
     
     let mut env = TypeEnv::new(symbols);
     expr.check_type(&mut env);
-    env.done(&contents);
     
-
     //Parse expression
     // let source = "5 + false";
     // let span = ParseSpan::new_extra(source, "src\\main.rs");

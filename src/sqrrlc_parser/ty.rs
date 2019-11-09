@@ -68,8 +68,7 @@ impl Parser for TypeRef {
                         mutability: mutability.is_some(),
                         elem: Box::new(elem),
                         span: Span::from_bounds(
-                            LineColumn::new(and.line, and.get_column()),
-                            elem_span.end, input.extra
+                            LineColumn::new(and.line, and.get_column()), elem_span.end,
                         )
                     }
                 }

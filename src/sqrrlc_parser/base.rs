@@ -91,8 +91,7 @@ impl Parser for FnItem {
                         block: block,
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
-                            block_clone.span.end,
-                            input.extra,
+                            block_clone.span.end
                         ),
                     }
                 }
@@ -140,7 +139,7 @@ impl Parser for FnDecl {
                         output: output,
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
-                            end_span, input.extra
+                            end_span
                         ),
                     }
                 }
@@ -168,8 +167,7 @@ impl Parser for Argument {
                     Argument {
                         ident: id,
                         ty: ty,
-                        span: Span::from_bounds(
-                            id_span.start, ty_span.end, input.extra),
+                        span: Span::from_bounds(id_span.start, ty_span.end),
                     }
                 }
             )

@@ -59,11 +59,10 @@ impl fmt::Debug for LineColumn {
  * Custom span struct only includes lines and columns from the start to
  * the end of the span location.
  */
-#[derive(Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Span {
     pub start: LineColumn,
     pub end: LineColumn,
-    pub file: String,
 }
 
 
@@ -84,7 +83,6 @@ impl Span {
                 line: get_end_line(&s),
                 column: get_end_column(&s),
             },
-            file: s.extra.to_string(),
         }
     }
 
@@ -96,7 +94,6 @@ impl Span {
         Span {
             start: LineColumn{line: 0, column: 0},
             end: LineColumn{line: 0, column: 0},
-            file: String::new(),
         }
     }
 
@@ -104,11 +101,10 @@ impl Span {
     /**
      * Construcst a new span from a starting and end position.
      */
-    pub fn from_bounds(start: LineColumn, end: LineColumn, file: &str) -> Self {
+    pub fn from_bounds(start: LineColumn, end: LineColumn) -> Self {
         Span {
             start: start,
             end: end,
-            file: file.to_string(),
         }
     }
     
@@ -140,15 +136,6 @@ impl Span {
         result
     }
 
-
-    /**
-     * Returns a string containing the location i.e. file:line:col.
-     * e.g. src/main.rs:10:4
-     */
-    pub fn location(&self) -> String {
-        format!("{}:{}", self.file, self.start.to_string())
-    }
-    
 
     /**
      * Get the offset to the start of the span.

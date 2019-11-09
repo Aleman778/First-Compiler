@@ -111,7 +111,6 @@ impl Parser for ExprAssign {
                             span: Span::from_bounds(
                                 rid.span.start,
                                 LineColumn::new(end.line, end.get_column() + 1),
-                                input.extra,
                             ),
                         }
                     }
@@ -161,7 +160,6 @@ impl ExprBinary {
                         span: Span::from_bounds(
                             LineColumn::new(input.line, input.get_column()),
                             LineColumn::new(output.line, output.get_column()),
-                            input.extra,
                         ),
                     });
                 },
@@ -195,7 +193,6 @@ impl Parser for ExprBlock {
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
                             LineColumn::new(end.line, end.get_column() + 1),
-                            input.extra,
                         ),
                     }
                 }
@@ -220,7 +217,6 @@ impl Parser for ExprBreak {
                     span: Span::from_bounds(
                         LineColumn::new(start.line, start.get_column()),
                         LineColumn::new(end.line, end.get_column() + 1),
-                        input.extra,
                     ),
                 }
             )
@@ -270,7 +266,6 @@ impl ExprCall {
                         span: Span::from_bounds(
                             rid.span.start,
                             LineColumn::new(end.line, end.get_column() + 1),
-                            input.extra,
                         ),
                     }
                 }
@@ -296,8 +291,7 @@ impl Parser for ExprContinue {
                 |(start, end) : (ParseSpan, ParseSpan)| ExprContinue {
                     span: Span::from_bounds(
                         LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1),
-                            input.extra,
+                        LineColumn::new(end.line, end.get_column() + 1)
                     ),
                 }
             )            
@@ -354,7 +348,6 @@ impl Parser for ExprIf  {
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
                             end.span.end,
-                            input.extra,
                         ),
                     }
                 }
@@ -411,7 +404,6 @@ impl Parser for ExprLocal {
                     span: Span::from_bounds(
                         LineColumn::new(start.line, start.get_column()),
                         LineColumn::new(end.line, end.get_column() + 1),
-                        input.extra,
                     ),
                 }
             )
@@ -435,7 +427,6 @@ impl Parser for ExprParen {
                 span: Span::from_bounds(
                     LineColumn::new(start.line, start.get_column()),
                     LineColumn::new(end.line, end.get_column() + 1),
-                    input.extra,
                 ),
             }
         )(input)
@@ -460,7 +451,6 @@ impl Parser for ExprReturn {
                     span: Span::from_bounds(
                         LineColumn::new(start.line, start.get_column()),
                         LineColumn::new(end.line, end.get_column() + 1),
-                        input.extra,
                     ),
                 }
             )           
@@ -483,7 +473,6 @@ impl Parser for ExprUnary {
             span: Span::from_bounds(
                 LineColumn::new(input.line, input.get_column()),
                 LineColumn::new(span.line, span.get_column()),
-                input.extra,
             ),
         }))
     }
@@ -510,7 +499,6 @@ impl Parser for ExprWhile {
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
                             rblock.span.end,
-                            input.extra,
                         ),
                     }
                 }

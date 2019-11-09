@@ -1,6 +1,6 @@
 fn main() {
-    let a: i32 = false;
-    let b: bool = sub(a, 3);
+    let a: i32 = 64;
+    let b: i32 = sub(a, 3);
     let potatis: bool = !53;
 }
 

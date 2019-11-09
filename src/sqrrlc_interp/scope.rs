@@ -158,7 +158,7 @@ impl Scope {
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Scope")
-            .field("at", &format_args!("{}", &self.span.location()))
+            .field("at", &format_args!("{}:{}", "src/main.rs", self.span.start.line))
             .field("symbols", &self.symbols)
             .field("block", &self.child)
             .finish()

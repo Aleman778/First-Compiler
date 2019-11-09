@@ -5,11 +5,6 @@
  ***************************************************************************/
 
 
-use crate::sqrrlc::error::Error;
-
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-
 pub mod error;
+pub mod session;
 pub mod symbol;

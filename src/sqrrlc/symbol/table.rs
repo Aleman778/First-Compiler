@@ -7,14 +7,10 @@
 
 use std::fmt;
 use std::collections::HashMap;
-use crate::sqrrlc::symbol::{Symbol, FnSymbol};
+use crate::sqrrlc::symbol::*;
 use crate::sqrrlc_ast::{
     expr::ExprIdent,
     span::Span,
-};
-use crate::sqrrlc::{
-    error::*,
-    Result,
 };
 
 
@@ -112,24 +108,32 @@ impl SymbolTable {
     /**
      * Find a symbol from the given identifier.
      */
-    pub fn find_symbol(&mut self, ident: &ExprIdent) -> Result<&Symbol> {
+    pub fn find_symbol(&mut self, ident: &ExprIdent) -> Option<&Symbol> {
         let mut ptr = self.curr_ptr;
         loop {
             let scope = &self.scopes[ptr];
             match scope.find_symbol(ident) {
-                Some(symbol) => return Ok(symbol),
+                Some(symbol) => return Some(symbol),
                 None => ptr = scope.prev_ptr,
             };
             if ptr == 0 {
-                break;
+                return None;
             }
         }
-        Err(
-            Error {
-                span: ident.span.clone(),
-                kind: ErrorKind::OutOfScope(ident.to_string.clone(), &["symbol"])
-            }
-        )
+    }
+
+
+    /**
+     * Find a variable symbol with the given identifier.
+     */
+    pub fn find_var_symbol(&mut self, ident: &ExprIdent) -> Option<&VarSymbol> {
+        match self.find_symbol(ident) {
+            Some(symbol) => match symbol {
+                Symbol::Var(var) => Some(&var),
+                _ => None,
+            },
+            None => None,
+        }
     }
 
 
@@ -138,23 +142,13 @@ impl SymbolTable {
      * There is no need to check other scopes since functions
      * cannot be defined inside another function or scope.
      */
-    pub fn find_fn_symbol(&self, ident: &ExprIdent) -> Result<&FnSymbol> {
+    pub fn find_fn_symbol(&self, ident: &ExprIdent) -> Option<&FnSymbol> {
         match self.scopes[0].find_symbol(ident) {
             Some(sym) => match sym {
-                Symbol::Fn(func) => Ok(&func),
-                _ => Err(
-                    Error {
-                        span: ident.span.clone(),
-                        kind: ErrorKind::OutOfScope(ident.to_string.clone(), &["function"]),
-                    }
-                ),
+                Symbol::Fn(func) => Some(&func),
+                _ => None,
             },
-            _ => Err(
-                Error {
-                    span: ident.span.clone(),
-                    kind: ErrorKind::OutOfScope(ident.to_string.clone(), &["function"]),
-                }
-            ),
+            _ => None,
         }
     }
 

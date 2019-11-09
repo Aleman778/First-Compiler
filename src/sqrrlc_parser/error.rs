@@ -47,7 +47,7 @@ pub fn convert_error<'a>(input: &ParseSpan<'a>, error: ParseError) -> String {
         };
         result.push('\n');
         
-        let file = err.span.file.as_str();
+        let file = ""; //err.span.file.as_str();
         if file.len() > 0 {
             result.push_str("  --> ");
             result.push_str(file);
