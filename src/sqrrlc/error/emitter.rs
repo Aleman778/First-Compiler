@@ -4,9 +4,11 @@
  ***************************************************************************/
 
 
-use ansi_term::{Style, Color};
+use std::rc::Rc;
 use std::collections::HashMap;
+use ansi_term::{Style, Color};
 use crate::sqrrlc::error::diagnostic::*;
+use crate::sqrrlc::source_map::SourceMap;
 
 
 /**
@@ -14,7 +16,11 @@ use crate::sqrrlc::error::diagnostic::*;
  * to the console.
  */
 pub struct Emitter {
+    /// Defines the different color styles for each level.
     pub colors: HashMap<Level, Style>,
+
+    /// The source map containing all the source files.
+    pub sm: Rc<SourceMap>,
 }
 
 
@@ -25,14 +31,15 @@ impl Emitter {
     /**
      * Creates a new emitter with default settings.
      */
-    pub fn new() -> Self {
+    pub fn new(source_map: Rc<SourceMap>) -> Self {
         let mut colors = HashMap::new();
         colors.insert(Level::Note, Color::Cyan.normal());
         colors.insert(Level::Warning, Color::Yellow.normal());
         colors.insert(Level::Error, Color::Red.normal());
-        colors.insert(Level::Fatal, Color::White.on(Color::Red));
+        colors.insert(Level::Fatal, Color::Black.on(Color::Red));
         Emitter {
             colors: colors,
+            sm: source_map,
         }
     }
     
@@ -43,6 +50,9 @@ impl Emitter {
     pub fn emit_diagnostic(&self, d: &Diagnostic) {
         let mut result = String::new();
         self.emit_header(&mut result, d);
+        if d.has_primary_span() {
+            // self.draw_code_snippet();
+        }
         println!("{}", result);
     }
 
@@ -56,6 +66,15 @@ impl Emitter {
         result.push_str(": ");
         result.push_str(&d.message());
     }
+
+
+    // fn draw_code_snippet(&self, result: &mut String, d: &Diagnostic) {
+    // }
+ 
+
+    // fn draw_line(&self, ) {
+
+    // }
     
 
     /**

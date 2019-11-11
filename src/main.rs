@@ -7,7 +7,10 @@
 
 
 use std::fs;
+use std::env;
+use std::path::{Path, PathBuf};
 use sqrrl::sqrrlc::{
+    session::Session,
     error::diagnostic::*,
     error::emitter::Emitter,
 };
@@ -33,26 +36,20 @@ use sqrrl::sqrrlc::symbol::{
 
 
 fn main() {
-    // let a: i32 = 5 + false;
-
-    let emitter = Emitter::new();
-    emitter.emit_diagnostic(&Diagnostic::new(Level::Note, "unused warnings are turned on by default"));
-    emitter.emit_diagnostic(&Diagnostic::new(Level::Warning, "function `do_nothing` is unused"));
-    emitter.emit_diagnostic(&Diagnostic::new(Level::Error, "cannot add `i32` to `bool`"));
-    emitter.emit_diagnostic(&Diagnostic::new(Level::Fatal, "out of memory"));
+    let sess = Session::new(PathBuf::from(r"C:\dev\sqrrl-lang\examples\"));
+    let file = sess.source_map().load_file(Path::new("sandbox.sq")).unwrap();
+    println!("{}", file.get_line(4));
     
     // Parse from file
-    let filename = "c:/dev/sqrrl-lang/examples/sandbox.sq";
-    let contents = fs::read_to_string(filename).expect("file was not found");
-    let span = ParseSpan::new_extra(contents.as_str(), filename);
-    let mut expr = File::parse(span).unwrap().1;
-    expr.extend(debug_functions());
+    // let span = ParseSpan::new_extra(contents.as_str(), filename);
+    // let mut expr = File::parse(span).unwrap().1;
+    // expr.extend(debug_functions());
 
-    let symbols = gen_sym_table(&expr);
+    // let symbols = gen_sym_table(&expr);
     // println!("{:#?}", symbols);
     
-    let mut env = TypeEnv::new(symbols);
-    expr.check_type(&mut env);
+    // let mut env = TypeEnv::new(symbols);
+    // expr.check_type(&mut env);
     
     //Parse expression
     // let source = "5 + false";

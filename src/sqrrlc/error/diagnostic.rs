@@ -42,12 +42,12 @@ pub struct Diagnostic {
     pub message: Vec<String>,
 
     /// The primary span to use.
-    pub span: Span,
+    pub primary_span: Span,
 
     /// Vector of labels with span information.
     pub labels: Vec<(Span, String)>,
 
-    /// Vector of child diagnostics.
+    /// Vector of sub diagnostics.
     pub children: Vec<SubDiagnostic>,
 }
 
@@ -63,7 +63,7 @@ pub struct SubDiagnostic {
     pub message: Vec<String>,
 
     /// The primary span to use.
-    pub span: Span,
+    pub primary_span: Span,
 
     /// Vector of labels with span information.
     pub labels: Vec<(Span, String)>,
@@ -91,7 +91,7 @@ impl Diagnostic {
             level: level,
             code: code,
             message: vec![message.to_owned()],
-            span: Span::new_empty(),
+            primary_span: Span::new_empty(),
             labels: vec![],
             children: vec![],
         }        
@@ -119,11 +119,11 @@ impl Diagnostic {
     /**
      * Push a new sub diagnostic to this diagnostic as child.
      */
-    pub fn sub(&mut self, level: Level, message: Vec<String>, span: Span, labels: Vec<(Span, String)>) {
+    pub fn sub(&mut self, level: Level, message: Vec<String>, primary_span: Span, labels: Vec<(Span, String)>) {
         let sub = SubDiagnostic {
             level,
             message,
-            span,
+            primary_span,
             labels,
         };
         self.children.push(sub);
@@ -135,6 +135,22 @@ impl Diagnostic {
      */
     pub fn message(&self) -> String {
         self.message.iter().map(|i| i.as_str()).collect::<String>()
+    }
+
+
+    /**
+     * Set the primary span of this diagnostic.
+     */
+    pub fn set_span(&mut self, span: Span) {
+        self.primary_span = span;
+    }
+
+
+    /**
+     * Returns true if there is a primary span being used.
+     */
+    pub fn has_primary_span(&self) -> bool {
+        self.primary_span.is_empty()
     }
 }
 

@@ -5,7 +5,12 @@
  ***************************************************************************/
 
 
-use crate::sqrrlc::error::diagnostic::*;
+use std::rc::Rc;
+use std::path::PathBuf;
+use crate::sqrrlc::{
+    error::{diagnostic::*, emitter::Emitter, Handler},
+    source_map::SourceMap,
+};
 use crate::sqrrlc_ast::span::Span;
 
 
@@ -13,26 +18,45 @@ use crate::sqrrlc_ast::span::Span;
  * The session struct defines the current compilation state,
  * e.g. error handler, compilation target, current directory.
  */
-#[derive(Debug)]
 pub struct Session {
     // The handler is used to deal with error reporting.
-    // pub handler: Handler,
+    pub handler: Handler,
 
     // The working directory of the compiler.
-    // pub working_dir: PathBuf,
+    pub working_dir: PathBuf,
 
     // The mapping of source files in use.
-    // pub source_map: SourceMap,
-
+    source_map: Rc<SourceMap>,
 }
 
 
 impl Session {
     /**
+     * Create a new empty session.
+     */
+    pub fn new(working_dir: PathBuf) -> Self {
+        let src_map = Rc::new(SourceMap::new(working_dir.clone()));
+        Session {
+            handler: Handler::new(Emitter::new(Rc::clone(&src_map))),
+            working_dir: working_dir,
+            source_map: src_map,
+        }
+    }
+
+
+    /**
+     * Returns reference to the source map.
+     */
+    pub fn source_map(&self) -> &SourceMap {
+        &self.source_map
+    }
+
+    
+    /**
      * Creates a new warning diagnostic with a given message.
      */
     pub fn struct_warn<'a>(&self, message: &'a str) -> Diagnostic {
-        Diagnostic::new(Level::Warning, message)
+        self.handler.struct_warn(message)
     }
 
 
@@ -40,9 +64,6 @@ impl Session {
      * Creates a new warning diagnostic with a given message and span information.
      */
     pub fn struct_span_warn(&self, message: &str, span: Span) -> Diagnostic {
-        let mut diagnostic = self.struct_warn(message);
-        diagnostic.span = span;
-        diagnostic
+        self.handler.struct_span_warn(message, span)
     }
-    
 }
