@@ -18,6 +18,7 @@ use sqrrl::sqrrlc_ast::{
     base::*,
     expr::*,
     ty::*,
+    span::*,
 };
 use sqrrl::sqrrlc_parser::{Parser, ParseSpan};
 use sqrrl::sqrrlc_interp::{
@@ -38,10 +39,18 @@ use sqrrl::sqrrlc::symbol::{
 fn main() {
     let sess = Session::new(PathBuf::from(r"C:\dev\sqrrl-lang\examples\"));
     let file = sess.source_map().load_file(Path::new("sandbox.sq")).unwrap();
-    println!("{}", file.get_line(4));
+    println!("{:?}", file);
     
-    // Parse from file
-    // let span = ParseSpan::new_extra(contents.as_str(), filename);
+    // Test diagnostics
+    
+    let span = Span::from_bounds(LineColumn::new(7, 1), LineColumn::new(13, 2));
+    let span_sub = Span::from_bounds(LineColumn::new(10, 24), LineColumn::new(10, 25));
+    let err = &mut sess.struct_span_warn(span, "This function is not used!");
+    err.span_label(span_sub, "no implementation of sub");
+    sess.emit(err);
+    
+    // Parse the loaded file
+    // let span = ParseSpan::new(&file.source);
     // let mut expr = File::parse(span).unwrap().1;
     // expr.extend(debug_functions());
 

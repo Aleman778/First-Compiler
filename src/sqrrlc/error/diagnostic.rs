@@ -1,17 +1,19 @@
 
 /***************************************************************************
  * The diagnostic module defines attricutes of a compiler message.
+ * Note: this code is based on the rust compiler (but simplified).
  ***************************************************************************/
 
 
 use std::fmt;
+use crate::sqrrlc::error::snippet::{Style, StyledString};
 use crate::sqrrlc_ast::span::Span;
 
 
 /**
  * The level of importance for this diagnostic.
  */
-#[derive(Copy, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
 pub enum Level {
     /// Note diagnostic, provides extra info to user.
     Note,
@@ -39,13 +41,10 @@ pub struct Diagnostic {
     pub code: Option<String>,
 
     /// The vector of error messages.
-    pub message: Vec<String>,
+    pub message: Vec<StyledString>,
 
-    /// The primary span to use.
-    pub primary_span: Span,
-
-    /// Vector of labels with span information.
-    pub labels: Vec<(Span, String)>,
+    /// The multi span is used to annotate errors in code.
+    pub span: MultiSpan,
 
     /// Vector of sub diagnostics.
     pub children: Vec<SubDiagnostic>,
@@ -56,19 +55,15 @@ pub struct Diagnostic {
  * Sub diagnostic e.g. note attached to an error.
  */
 pub struct SubDiagnostic {
-        /// The diagnostic level e.g. `Level::Warning` etc.
+    /// The diagnostic level e.g. `Level::Warning` etc.
     pub level: Level,
 
-    /// The vector of error messages.
-    pub message: Vec<String>,
+    /// The vector of styled error messages.
+    pub message: Vec<StyledString>,
 
-    /// The primary span to use.
-    pub primary_span: Span,
-
-    /// Vector of labels with span information.
-    pub labels: Vec<(Span, String)>,
+    /// The multi span is used to annotate errors in code.
+    pub span: MultiSpan,
 }
-
 
 
 /**
@@ -90,19 +85,26 @@ impl Diagnostic {
         Diagnostic {
             level: level,
             code: code,
-            message: vec![message.to_owned()],
-            primary_span: Span::new_empty(),
-            labels: vec![],
+            message: vec![StyledString::new(message.to_owned(), Style::NoStyle)],
+            span: MultiSpan::new(),
             children: vec![],
         }        
     }
 
 
     /**
+     * Set the primary span of this diagnostic.
+     */
+    pub fn primary_span(&mut self, span: Span) {
+        self.span.primary_spans.push(span);
+    }
+    
+
+    /**
      * Create a new span label for the given 
      */
     pub fn span_label(&mut self, span: Span, label: &str) -> &mut Self {
-        self.labels.push((span, label.to_owned()));
+        self.span.span_labels.push((span, label.to_owned()));
         self
     }
 
@@ -111,7 +113,7 @@ impl Diagnostic {
      * Create a note sub diagnostic with a given message.
      */
     pub fn note(&mut self, message: &str) -> &mut Self {
-        self.sub(Level::Note, vec![message.to_owned()], Span::new_empty(), vec![]);
+        self.sub(Level::Note, vec![StyledString::new(message.to_owned(), Style::NoStyle)], MultiSpan::new());
         self
     }
 
@@ -119,12 +121,16 @@ impl Diagnostic {
     /**
      * Push a new sub diagnostic to this diagnostic as child.
      */
-    pub fn sub(&mut self, level: Level, message: Vec<String>, primary_span: Span, labels: Vec<(Span, String)>) {
+    pub fn sub(
+        &mut self,
+        level: Level,
+        message: Vec<StyledString>,
+        span: MultiSpan,
+    ) {
         let sub = SubDiagnostic {
             level,
             message,
-            primary_span,
-            labels,
+            span,
         };
         self.children.push(sub);
     }
@@ -134,23 +140,16 @@ impl Diagnostic {
      * Returns the message string from all the separate messages.
      */
     pub fn message(&self) -> String {
-        self.message.iter().map(|i| i.as_str()).collect::<String>()
-    }
-
-
-    /**
-     * Set the primary span of this diagnostic.
-     */
-    pub fn set_span(&mut self, span: Span) {
-        self.primary_span = span;
+        // self.message.iter().map(|i| i.as_str()).collect::<String>()
+        return String::new(); //TODO: Fix this later... needs to be handled separately for styled or semi styled
     }
 
 
     /**
      * Returns true if there is a primary span being used.
      */
-    pub fn has_primary_span(&self) -> bool {
-        self.primary_span.is_empty()
+    pub fn has_primary_spans(&self) -> bool {
+        !self.span.primary_spans.is_empty()
     }
 }
 
@@ -165,6 +164,32 @@ impl fmt::Display for Level {
             Level::Warning => f.write_str("warning"),
             Level::Error => f.write_str("error"),
             Level::Fatal => f.write_str("fatal"),
+        }
+    }
+}
+
+
+/**
+ * Multi span struct is a data structure that holds mutliple spans
+ * used for error dignostics.
+ */
+pub struct MultiSpan {
+    /// The primary span defines where the error is located, highlighted with `^^^`.
+    pub primary_spans: Vec<Span>,
+
+    /// Span lables are secondary but some can provide labels to primary spans.
+    pub span_labels: Vec<(Span, String)>,
+}
+
+
+/**
+ * Implementation of multispan.
+ */
+impl MultiSpan {
+    pub fn new() -> Self {
+        MultiSpan {
+            primary_spans: vec![],
+            span_labels: vec![],
         }
     }
 }

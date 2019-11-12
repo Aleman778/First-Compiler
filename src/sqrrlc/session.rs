@@ -63,7 +63,44 @@ impl Session {
     /**
      * Creates a new warning diagnostic with a given message and span information.
      */
-    pub fn struct_span_warn(&self, message: &str, span: Span) -> Diagnostic {
-        self.handler.struct_span_warn(message, span)
+    pub fn struct_span_warn(&self, span: Span, message: &str) -> Diagnostic {
+        self.handler.struct_span_warn(span, message)
+    }
+    
+    
+    /**
+     * Creates a new error diagnostic with a given message.
+     */
+    pub fn struct_err<'a>(&self, message: &'a str) -> Diagnostic {
+        self.handler.struct_warn(message)
+    }
+
+
+    /**
+     * Creates a new warning diagnostic with a given message and span information.
+     */
+    pub fn struct_span_err(&self, span: Span, message: &str) -> Diagnostic {
+        self.handler.struct_span_warn(span, message)
+    }
+    
+    
+    /**
+     * Creates a new warning diagnostic with a given message.
+     */
+    pub fn struct_fatal<'a>(&self, message: &'a str) -> Diagnostic {
+        self.handler.struct_fatal(message)
+    }
+    
+    
+    /**
+     * Creates a new warning diagnostic with a given message and span information.
+     */
+    pub fn struct_span_fatal<'a>(&self, span: Span, message: &str) -> Diagnostic {
+        self.handler.struct_span_fatal(span, message)
+    }
+
+
+    pub fn emit(&self, diagnostic: &Diagnostic) {
+        self.handler.emit_diagnostic(diagnostic);
     }
 }

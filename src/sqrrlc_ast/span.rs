@@ -57,12 +57,13 @@ impl fmt::Debug for LineColumn {
 
 /**
  * Custom span struct only includes lines and columns from the start to
- * the end of the span location.
+ * the end of the span location. The location is a pointer to a source file in the source mapper.
  */
 #[derive(Copy, Clone, PartialEq)]
 pub struct Span {
     pub start: LineColumn,
     pub end: LineColumn,
+    pub loc: usize,
 }
 
 
@@ -83,6 +84,7 @@ impl Span {
                 line: get_end_line(&s),
                 column: get_end_column(&s),
             },
+            loc: 0,
         }
     }
 
@@ -94,6 +96,7 @@ impl Span {
         Span {
             start: LineColumn{line: 0, column: 0},
             end: LineColumn{line: 0, column: 0},
+            loc: 0,
         }
     }
 
@@ -105,6 +108,7 @@ impl Span {
         Span {
             start: start,
             end: end,
+            loc: 0,
         }
     }
     
@@ -116,7 +120,7 @@ impl Span {
         let split = source.split("\n");
         let lines: Vec<&str> = split.collect();
         let mut result = String::new();
-        if self.multiline() {
+        if self.is_multiline() {
             for line in self.start.line..self.end.line {
                 if line == self.start.line {
                     let fragment = lines[(line - 1) as usize];
@@ -148,7 +152,7 @@ impl Span {
     /**
      * Check if the span includes more than one line.
      */
-    pub fn multiline(&self) -> bool {
+    pub fn is_multiline(&self) -> bool {
         self.end.line > self.start.line
     }
 

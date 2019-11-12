@@ -18,9 +18,12 @@ use std::collections::HashMap;
  */
 #[derive(Debug)]
 pub struct SourceMap {
-    /// The mapping of file paths to sourec files.
-    pub files: Mutex<HashMap<PathBuf, Rc<SourceFile>>>,
+    /// The list of loaded files
+    files: Mutex<Vec<Rc<SourceFile>>>,
 
+    /// The file mapper, maps filenames to file ids.
+    mapper: Mutex<HashMap<PathBuf, usize>>,
+    
     /// The current working directory.
     pub working_dir: PathBuf,
 }
@@ -33,10 +36,11 @@ impl SourceMap {
     /**
      * Creates a new source map
      */
-    pub fn new(dir: PathBuf) -> Self {
+    pub fn new(cwd: PathBuf) -> Self {
         SourceMap {
-            files: Mutex::new(HashMap::new()),
-            working_dir: dir,
+            files: Mutex::new(Vec::new()),
+            mapper: Mutex::new(HashMap::new()),
+            working_dir: cwd,
         }
     }
 
@@ -45,23 +49,48 @@ impl SourceMap {
      * Loads a file from the given path.
      */
     pub fn load_file(&self, path: &Path) -> io::Result<Rc<SourceFile>> {
+        let mut mapper = self.mapper.lock().unwrap();
+        let mut files = self.files.lock().unwrap();
+
+        // Check if the file already is loaded,
+        // then simply return that instead of reloading!
+        if mapper.contains_key(path) {
+            let file_id = mapper.get(path).unwrap();
+            // return Ok(files[file_id]); what happens here? file_id should be ok?
+        }
+        
         let source = fs::read_to_string(self.abs_path(&path))?;
         let filename = path.to_path_buf();
-        let src_file = Rc::new(SourceFile::new(filename.clone(), source, 0, 0));
-        let mut files = self.files.lock().unwrap();
-        files.insert(filename, Rc::clone(&src_file));
+        let file_id = files.len();
+        let src_file = Rc::new(SourceFile::new(filename.clone(), file_id, source, 0, 0));
+        
+        mapper.insert(filename, file_id);
+        files.push(Rc::clone(&src_file));
         Ok(src_file)
     }
 
 
     /**
-     * Returns the source file with the given filename,
-     * if file is not loaded None is returned instead.
+     * Returns the source file with given file id.
+     * If the filename is not available then None is returned instead.
      */
-    pub fn get_file(&self, filename: &Path) -> Option<Rc<SourceFile>> {
+    pub fn get_file(&self, filename: usize) -> Option<Rc<SourceFile>> {
         let files = self.files.lock().unwrap();
-        match files.get(&filename.to_path_buf()) {
+        match files.get(filename) {
             Some(src_file) => Some(Rc::clone(src_file)),
+            None => None,
+        }
+    }
+
+
+    /**
+     * Returns the file id of the given filename.
+     * If the filename is unmapped then None is returned instead.
+     */
+    pub fn get_file_id(&self, filename: &Path) -> Option<usize> {
+        let mapper = self.mapper.lock().unwrap();
+        match mapper.get(&filename.to_path_buf()) {
+            Some(file_id) => Some(*file_id),
             None => None,
         }
     }
@@ -97,6 +126,9 @@ pub struct SourceFile {
     /// The filename of this source file.
     pub filename: PathBuf,
 
+    /// The file id given in the source map.
+    pub file_id: usize,
+
     /// The actual loaded source file.
     pub source: String,
 
@@ -123,9 +155,10 @@ impl SourceFile {
      */
     pub fn new(
         filename: PathBuf,
+        file_id: usize,
         source: String,
         start_line: u32,
-        start_pos: u32
+        start_pos: u32,
     ) -> Self {
 
         let end_pos = start_pos + (source.len() as u32);
@@ -144,6 +177,7 @@ impl SourceFile {
         }
         SourceFile {
             filename,
+            file_id,
             source,
             start_line,
             start_pos,

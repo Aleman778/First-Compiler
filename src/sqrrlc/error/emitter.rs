@@ -1,13 +1,19 @@
 
 /***************************************************************************
  * The `emitter` module is used to convert diagnostic to string
+ * Note: this code is based on the rust compiler (but simplified).
  ***************************************************************************/
 
 
+extern crate termcolor;
+
+
 use std::rc::Rc;
-use std::collections::HashMap;
-use ansi_term::{Style, Color};
-use crate::sqrrlc::error::diagnostic::*;
+use crate::sqrrlc::error::{
+    styled_buffer::*,
+    diagnostic::*,
+    snippet::*,
+};
 use crate::sqrrlc::source_map::SourceMap;
 
 
@@ -16,9 +22,6 @@ use crate::sqrrlc::source_map::SourceMap;
  * to the console.
  */
 pub struct Emitter {
-    /// Defines the different color styles for each level.
-    pub colors: HashMap<Level, Style>,
-
     /// The source map containing all the source files.
     pub sm: Rc<SourceMap>,
 }
@@ -32,13 +35,7 @@ impl Emitter {
      * Creates a new emitter with default settings.
      */
     pub fn new(source_map: Rc<SourceMap>) -> Self {
-        let mut colors = HashMap::new();
-        colors.insert(Level::Note, Color::Cyan.normal());
-        colors.insert(Level::Warning, Color::Yellow.normal());
-        colors.insert(Level::Error, Color::Red.normal());
-        colors.insert(Level::Fatal, Color::Black.on(Color::Red));
         Emitter {
-            colors: colors,
             sm: source_map,
         }
     }
@@ -48,42 +45,39 @@ impl Emitter {
      * Emit diagnostic information to console.
      */
     pub fn emit_diagnostic(&self, d: &Diagnostic) {
-        let mut result = String::new();
-        self.emit_header(&mut result, d);
-        if d.has_primary_span() {
-            // self.draw_code_snippet();
-        }
-        println!("{}", result);
+        
     }
+
+
+    pub fn emit_message(
+        &self,
+        message: &Vec<StyledString>,
+        spans: &MultiSpan,
+    ) {
+
+    }
+
 
 
     /**
-     * Emit the diagnostic header information.
-     * E.g. warning: function `do_nothing` is unused
+     * Draw the code snippet if there is a primary span that refers to a source file.
      */
-    fn emit_header(&self, result: &mut String, d: &Diagnostic) {
-        self.emit_colored(result, d.level, &d.level.to_string());
-        result.push_str(": ");
-        result.push_str(&d.message());
+    fn draw_code_snippet(
+        &self,
+        buf: &mut StyledBuffer,
+        message: &Vec<StyledString>,
+        spans: &MultiSpan,
+    ) {
+        
     }
 
-
-    // fn draw_code_snippet(&self, result: &mut String, d: &Diagnostic) {
-    // }
- 
-
-    // fn draw_line(&self, ) {
-
-    // }
-    
-
-    /**
-     * Emits an ansi colored string based on the diagnostic level.
-     */
-    pub fn emit_colored(&self, result: &mut String, level: Level, string: &str) {
-        match self.colors.get(&level) {
-            Some(color) => result.push_str(format!("{}", color.paint(string)).as_str()),
-            None => result.push_str(string),
-        };
+    pub fn draw_col_separator(buf: &mut StyledBuffer, line: usize, col: usize) {
+        buf.puts("| ", Style::LineNumber, line, col);
     }
+}
+
+
+pub struct Margin {
+    pub left_col: usize,
+
 }
