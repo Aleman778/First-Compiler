@@ -39,13 +39,20 @@ use sqrrl::sqrrlc::symbol::{
 fn main() {
     let sess = Session::new(PathBuf::from(r"C:\dev\sqrrl-lang\examples\"));
     let file = sess.source_map().load_file(Path::new("sandbox.sq")).unwrap();
-    println!("{:?}", file);
+    // println!("{:?}", file);
     
     // Test diagnostics
     
     let span = Span::from_bounds(LineColumn::new(7, 1), LineColumn::new(13, 2));
     let span_sub = Span::from_bounds(LineColumn::new(10, 24), LineColumn::new(10, 25));
+
     let err = &mut sess.struct_span_warn(span, "This function is not used!");
+    err.span_label(span_sub, "no implementation of sub");
+    sess.emit(err);
+    let err = &mut sess.struct_span_err(span, "This function is not used!");
+    err.span_label(span_sub, "no implementation of sub");
+    sess.emit(err);
+    let err = &mut sess.struct_span_fatal(span, "This function is not used!");
     err.span_label(span_sub, "no implementation of sub");
     sess.emit(err);
     

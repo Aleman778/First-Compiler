@@ -58,7 +58,7 @@ impl Handler {
      * Creates a new error diagnostic with a given message.
      */
     pub fn struct_err<'a>(&self, message: &'a str) -> Diagnostic {
-        Diagnostic::new(Level::Warning, message)
+        Diagnostic::new(Level::Error, message)
     }
 
 
@@ -76,7 +76,7 @@ impl Handler {
      * Creates a new fatal diagnostic with a given message.
      */
     pub fn struct_fatal<'a>(&self, message: &'a str) -> Diagnostic {
-        Diagnostic::new(Level::Warning, message)
+        Diagnostic::new(Level::Fatal, message)
     }
 
 

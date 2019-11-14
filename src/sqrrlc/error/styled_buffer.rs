@@ -54,13 +54,19 @@ impl StyledBuffer {
                             text: current_text,
                             style: current_style,
                         });
-                        current_style = style;
-                        current_text = String::new();
                     }
-                    current_text.push(chr);
+                    current_style = style;
+                    current_text = String::new();
                 }
+                current_text.push(chr);
             }
-            
+            if !current_text.is_empty() {
+                current_line.push(StyledString {
+                    text: current_text,
+                    style: current_style,
+                });
+            }
+
             output.push(current_line);
             current_line = vec![];
         }
@@ -90,7 +96,7 @@ impl StyledBuffer {
             self.text[line][col] = chr;
             self.styles[line][col] = style;
         } else {
-            let mut idx = self.text[line].len();
+            let idx = self.text[line].len();
             while idx < col {
                 self.text[line].push(' ');
                 self.styles[line].push(Style::NoStyle);

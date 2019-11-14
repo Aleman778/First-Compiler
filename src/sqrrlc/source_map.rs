@@ -10,6 +10,7 @@ use std::rc::Rc;
 use std::sync::Mutex;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use crate::sqrrlc_ast::span::Span;
 
 
 /**
@@ -54,10 +55,10 @@ impl SourceMap {
 
         // Check if the file already is loaded,
         // then simply return that instead of reloading!
-        if mapper.contains_key(path) {
-            let file_id = mapper.get(path).unwrap();
+        // if mapper.contains_key(path) {
+            // let file_id = mapper.get(path).unwrap();
             // return Ok(files[file_id]); what happens here? file_id should be ok?
-        }
+        // }
         
         let source = fs::read_to_string(self.abs_path(&path))?;
         let filename = path.to_path_buf();
@@ -74,9 +75,9 @@ impl SourceMap {
      * Returns the source file with given file id.
      * If the filename is not available then None is returned instead.
      */
-    pub fn get_file(&self, filename: usize) -> Option<Rc<SourceFile>> {
+    pub fn get_file(&self, file_id: usize) -> Option<Rc<SourceFile>> {
         let files = self.files.lock().unwrap();
-        match files.get(filename) {
+        match files.get(file_id) {
             Some(src_file) => Some(Rc::clone(src_file)),
             None => None,
         }
@@ -94,7 +95,20 @@ impl SourceMap {
             None => None,
         }
     }
-
+    
+    
+    /**
+     * Returns the line number from looked up file based on the provided span.
+     * If the file is not loaded then assume it starts at line 0.
+     */
+    pub fn lookup_linum(&self, span: &Span) -> u32 {
+        let file = self.get_file(span.loc);
+        return match file {
+            Some(file) => (&file).start_line,
+            None => 0u32,
+        } + span.start.line;
+    }
+    
 
     /**
      * Check if a given file path exists.

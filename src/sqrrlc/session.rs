@@ -72,7 +72,7 @@ impl Session {
      * Creates a new error diagnostic with a given message.
      */
     pub fn struct_err<'a>(&self, message: &'a str) -> Diagnostic {
-        self.handler.struct_warn(message)
+        self.handler.struct_err(message)
     }
 
 
@@ -80,7 +80,7 @@ impl Session {
      * Creates a new warning diagnostic with a given message and span information.
      */
     pub fn struct_span_err(&self, span: Span, message: &str) -> Diagnostic {
-        self.handler.struct_span_warn(span, message)
+        self.handler.struct_span_err(span, message)
     }
     
     
@@ -100,6 +100,9 @@ impl Session {
     }
 
 
+    /**
+     * Emits the diagnostic to be displayed.
+     */
     pub fn emit(&self, diagnostic: &Diagnostic) {
         self.handler.emit_diagnostic(diagnostic);
     }

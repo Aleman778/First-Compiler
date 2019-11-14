@@ -2,12 +2,13 @@
 /***************************************************************************
  * Snippet module contains helper functions to simplify rendering
  * code snippets with labled annotations.
+ * Note: this code is based on the rust compiler (but somewhat simplified).
  ***************************************************************************/
 
 
 use std::rc::Rc;
-use crate::sqrrlc::source_map::SourceFile;
-use crate::sqrrlc::error::diagnostic::{Diagnostic, Level};
+use crate::sqrrlc::source_map::*;
+use crate::sqrrlc::error::diagnostic::*;
 use crate::sqrrlc_ast::span::Span;
 
 
@@ -15,12 +16,16 @@ use crate::sqrrlc_ast::span::Span;
  * File containing annotated lines used for
  * rendering code snippits for a file.
  */
+#[derive(Debug)]
 pub struct FileWithAnnotatedLines {
     /// The file being annotated.
     pub file: Rc<SourceFile>,
 
     /// List of annotated lines.
     pub lines: Vec<AnnotatedLine>,
+
+    /// The depth of mutliline spans.
+    multiline_depth: usize,
 }
 
 
@@ -28,15 +33,61 @@ pub struct FileWithAnnotatedLines {
  * Implementation of file with annotated lines.
  */
 impl FileWithAnnotatedLines {
+    /**
+     * Collects all the annotations for every file referenced in the multispan.
+     */
+    fn collect_annotations(
+        msp: &MultiSpan,
+        source_map: &SourceMap
+    ) -> Vec<FileWithAnnotatedLines> {
+        
+        let mut output = vec![];
+        // let mut multiline_annotations = vec![];
 
-    
+        for (span, label) in &msp.span_labels {
+            let start = span.start.column;
+            let mut end = span.end.column;
+        }
+        
+        return output;    
+    }
 }
 
+
+/**
+ * Helper funtion for add annotations to vector of file annotations.
+ */
+fn add_annotation_to_file(
+    file_vec: &mut Vec<FileWithAnnotatedLines>,
+    file: Rc<SourceFile>,
+    line_index: usize,
+    ann: Annotation
+) {
+    for slot in file_vec.iter_mut() {
+        if slot.file.filename == file.filename {
+            for line_slot in &mut slot.lines {
+                if line_slot.line_index == line_index {
+                    line_slot.annotations.push(ann);
+                    return;
+                }
+            }
+            slot.lines.push(AnnotatedLine::new(line_index, vec![ann]));
+            slot.lines.sort();
+            return;
+        }
+    }
+    file_vec.push(FileWithAnnotatedLines {
+        file,
+        lines: vec![AnnotatedLine::new(line_index, vec![ann])],
+        multiline_depth: 0,
+    });
+}
 
 
 /**
  * Annotations for a specific line.
  */
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
 pub struct AnnotatedLine {
     /// The line index starting from 0.
     pub line_index: usize,
@@ -47,6 +98,17 @@ pub struct AnnotatedLine {
 
 
 impl AnnotatedLine {
+    /**
+     * Creates a new empty annotated line object.
+     */
+    pub fn new(line_index: usize, annotations: Vec<Annotation>) -> Self {
+        AnnotatedLine {
+            line_index,
+            annotations,
+        }
+    }
+
+    
     /**
      * Calculate the annotations based on the current line number and diganostic reference.
      * Reutrns a list of annotations for this line.
@@ -97,13 +159,15 @@ pub struct Annotation {
 }
 
 
+/**
+ * Implementation of annotations
+ */
 impl Annotation {
-
     /**
      * Calculate the annotation
      */
     fn calc(
-        d: &Diagnostic,
+        _d: &Diagnostic,
         span: Span,
         text: &str,
         is_primary: bool,
