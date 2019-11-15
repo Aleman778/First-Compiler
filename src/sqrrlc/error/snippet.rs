@@ -7,9 +7,9 @@
 
 
 use std::rc::Rc;
+use std::cmp::{min, max};
 use crate::sqrrlc::source_map::*;
 use crate::sqrrlc::error::diagnostic::*;
-use crate::sqrrlc_ast::span::Span;
 
 
 /**
@@ -25,7 +25,7 @@ pub struct FileWithAnnotatedLines {
     pub lines: Vec<AnnotatedLine>,
 
     /// The depth of mutliline spans.
-    multiline_depth: usize,
+    pub multiline_depth: usize,
 }
 
 
@@ -36,21 +36,116 @@ impl FileWithAnnotatedLines {
     /**
      * Collects all the annotations for every file referenced in the multispan.
      */
-    fn collect_annotations(
+    pub fn collect_annotations(
         msp: &MultiSpan,
         source_map: &SourceMap
     ) -> Vec<FileWithAnnotatedLines> {
         
         let mut output = vec![];
-        // let mut multiline_annotations = vec![];
+        let mut multiline_annotations = vec![];
 
-        for (span, label) in &msp.span_labels {
-            let start = span.start.column;
-            let mut end = span.end.column;
+        for span_label in &msp.span_labels() {
+            let start = span_label.span.start;
+            let mut end = span_label.span.end;
+            let file;
+            match source_map.get_file(span_label.span.loc) {
+                Some(rc_file) => file = rc_file,
+                None => continue,
+            };
+            if start.column == end.column && start.line == end.line {
+                end.column += 1;
+            }
+
+            if start.line == end.line {
+                let ann = Annotation {
+                    start_col: start.column,
+                    end_col: end.column,
+                    is_primary: span_label.is_primary,
+                    label: span_label.label.clone(),
+                    annotation_type: AnnotationType::SingleLine,
+                };
+                add_annotation_to_file(&mut output, file, start.line as usize, ann);
+            } else {
+                let ann = MultilineAnnotation {
+                    depth: 1,
+                    line_start: start.line as usize,
+                    line_end: end.line as usize,
+                    start_col: start.column,
+                    end_col: end.column,
+                    is_primary: span_label.is_primary,
+                    label: span_label.label.clone(),
+                    overlaps_exactly: false,
+                };
+                multiline_annotations.push((file, ann));
+            }
         }
-        
-        return output;    
+
+        // Find overlapping multiline annotations and put them at different depths.
+        multiline_annotations.sort_by_key(|&(_, ref ml)| (ml.line_start, ml.line_end));
+        for (_, ann) in multiline_annotations.clone() {
+            for (_, other_ann) in multiline_annotations.iter_mut() {
+                if !(ann.same_span(other_ann)) &&
+                    num_overlap(ann.line_start, ann.line_end, other_ann.line_start, other_ann.line_end, true)
+                {
+                    other_ann.depth += 1;
+                } else if ann.same_span(other_ann) && &ann != other_ann {
+                    other_ann.overlaps_exactly = true;
+                } else {
+                    break;
+                }
+            }
+        }
+
+        // Convert MultilineAnnotations into several Annotations,
+        // also make sure that two overlapping annotations are shared as one.
+        let mut max_depth = 0;
+        for (file, ann) in multiline_annotations {
+            max_depth = max(max_depth, ann.depth);
+            let mut end_ann = ann.as_end();
+            if !ann.overlaps_exactly {
+                add_annotation_to_file(&mut output, Rc::clone(&file), ann.line_start, ann.as_start());
+                let middle = min(ann.line_start + 4, ann.line_end);
+                for line in ann.line_start + 1..middle {
+                    add_annotation_to_file(&mut output, Rc::clone(&file), line, ann.as_line());
+                }
+                let line_end = ann.line_end - 1;
+                if middle < line_end {
+                    add_annotation_to_file(&mut output, Rc::clone(&file), line_end, ann.as_line());
+                }
+            } else {
+                end_ann.annotation_type = AnnotationType::SingleLine;
+            }
+            add_annotation_to_file(&mut output, file, ann.line_end, end_ann);
+        }
+        for file_vec in output.iter_mut() {
+            file_vec.multiline_depth = max_depth;
+        }
+        output
     }
+}
+
+
+/**
+ * Check if two number a and b are overlapping, inclusive means that it should include
+ * overlaps that are exactly on the same value.
+ */
+pub fn num_overlap(a_start: usize, a_end: usize, b_start: usize, b_end: usize, inclusive: bool) -> bool {
+    let extra = if inclusive {
+        1
+    } else {
+        0
+    };
+    (b_start..b_end + extra).contains(&a_start) ||
+    (a_start..a_end + extra).contains(&b_start)
+}
+
+
+/**
+ * Checks if two annotations are overlapping. Padding for annotation a can be added
+ * e.g. to check if the label for annotation A also overlaps with annotation B.
+ */
+pub fn overlap(a: &Annotation, b: &Annotation, padding: usize) {
+    num_overlap(a.start_col, a.end_col + padding, b.start_col, b.end_col, false);
 }
 
 
@@ -107,33 +202,6 @@ impl AnnotatedLine {
             annotations,
         }
     }
-
-    
-    /**
-     * Calculate the annotations based on the current line number and diganostic reference.
-     * Reutrns a list of annotations for this line.
-     */
-    fn calc(d: &Diagnostic, line_number: u32) -> Self {
-        let mut annotations = Vec::new();
-        for span in &d.span.primary_spans {
-            match Annotation::calc(d, *span, "", false, line_number) {
-                Some(annotation) => annotations.push(annotation),
-                None => { },
-            };
-        }
-        for (span, text) in &d.span.span_labels {
-            match Annotation::calc(d, *span, text, false, line_number) {
-                Some(annotation) => annotations.push(annotation),
-                None => { },
-            };
-        }
-        annotations.sort();
-        // annotations.iter().rev().cloned().collect();
-        AnnotatedLine {
-            line_index: line_number as usize,
-            annotations
-        }
-    }
 }
 
 
@@ -164,47 +232,137 @@ pub struct Annotation {
  */
 impl Annotation {
     /**
-     * Calculate the annotation
+     * Returns true if this is a line multiline annotation.
      */
-    fn calc(
-        _d: &Diagnostic,
-        span: Span,
-        text: &str,
-        is_primary: bool,
-        line_number: u32
-    ) -> Option<Annotation> {
-        if span.start.line < line_number || span.end.line > line_number {
-            return None;
+    pub fn is_line(&self) -> bool {
+        match self.annotation_type {
+            AnnotationType::MultilineLine(_) => true,
+            _ => false,
         }
-
-
-        let start_col = span.start.column;
-        let end_col = span.end.column;
-        let label;
-        if !text.is_empty() {
-            label = Some(text.to_owned());
-        } else {
-            label = None;
-        }
-            
-        let annotation_type;
-        if span.is_multiline() {
-            annotation_type = AnnotationType::Multiline;
-        } else {
-            annotation_type = AnnotationType::SingleLine;
-        }
-
-        return Some(
-            Annotation {
-                start_col,
-                end_col,
-                label,
-                is_primary,
-                annotation_type,
-            }
-        );
     }
 
+
+    /**
+     * Returns true if this annotation type is of multiline type.
+     */
+    pub fn is_multiline(&self) -> bool {
+        match self.annotation_type {
+            AnnotationType::Multiline(_) |
+            AnnotationType::MultilineStart(_) |
+            AnnotationType::MultilineLine(_) |
+            AnnotationType::MultilineEnd(_) => true,
+            _ => false,
+        }
+    }
+
+    
+    /**
+     * Returns the length of this annotation.
+     */
+    pub fn len(&self) -> usize{
+        if self.end_col > self.start_col {
+            self.end_col - self.start_col
+        } else {
+            self.start_col - self.end_col
+        }
+    }
+
+
+    /**
+     * Check if this annotation has a label and that it is a non empty label.
+     */
+    pub fn has_label(&self) -> bool {
+        if let Some(ref label) = self.label {
+            label.len() > 0
+        } else {
+            false
+        }
+    }
+}
+
+
+/**
+ * Multiline annotation struct used for rendering multiline annotations
+ * in code snippets.
+ */
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
+pub struct MultilineAnnotation {
+    /// The depth of the multiline annotation.
+    pub depth: usize,
+
+    /// The starting line for this annotation.
+    pub line_start: usize,
+
+    /// The ending line for this annotation.
+    pub line_end: usize,
+
+    /// The starting column for this annotation.
+    pub start_col: usize,
+
+    /// The ending column for this annotation.
+    pub end_col: usize,
+
+    /// The annotation label string, None if it has no label.
+    pub label: Option<String>,
+    
+    /// Is this annotation from the primary span.
+    pub is_primary: bool,
+
+    /// Does this annotation overlap another exactly.
+    pub overlaps_exactly: bool,
+}
+
+
+impl MultilineAnnotation {
+    /**
+     * Returns true if both annotations have the same exact span.
+     */
+    pub fn same_span(&self, other: &Self) -> bool {
+        return self.line_start == other.line_start && self.line_end == other.line_end &&
+            self.start_col == other.start_col && self.end_col == other.end_col;
+    }
+    
+    
+    /**
+     * Returns the single line annotation of the MultilineStart.
+     */
+    pub fn as_start(&self) -> Annotation {
+        Annotation {
+            start_col: self.start_col,
+            end_col: self.end_col,
+            is_primary: self.is_primary,
+            label: None,
+            annotation_type: AnnotationType::MultilineStart(self.depth),
+        }
+    }
+
+
+    /**
+     * Returns the single line annotation of the MultilineEnd.
+     */
+    pub fn as_end(&self) -> Annotation {
+        Annotation {
+            start_col: self.start_col,
+            end_col: self.end_col,
+            is_primary: self.is_primary,
+            label: None,
+            annotation_type: AnnotationType::MultilineEnd(self.depth),
+        }
+    }
+
+
+    /**
+     * Returns the single line annotation of the MultilineLine.
+     */
+    pub fn as_line(&self) -> Annotation {
+        Annotation {
+            start_col: self.start_col,
+            end_col: self.end_col,
+            is_primary: self.is_primary,
+            label: None,
+            annotation_type: AnnotationType::MultilineLine(self.depth),
+        }
+    }
 }
 
 
@@ -216,14 +374,17 @@ pub enum AnnotationType {
     /// Single line annotations.
     SingleLine,
 
-    /// The start of a multiline annotaiton.
-    MultilineStart,
+    /// The start of a multiline annotaiton, the parameter is the depth value.
+    MultilineStart(usize),
 
-    /// In between the start and end of a multiline annotation.
-    Multiline,
+    /// In between the start and end of a multiline annotation, the parameter is the depth value.
+    MultilineLine(usize),
 
-    /// The end of a multiline annotation.
-    MultilineEnd,
+    /// The end of a multiline annotation, the parameter is the depth value.
+    MultilineEnd(usize),
+
+    /// Annotation enclosing the first and last character of the muliline span.
+    Multiline(MultilineAnnotation),
 }
 
 
@@ -257,6 +418,9 @@ pub enum Style {
 
     /// The line number display in code snippets.
     LineNumber,
+
+    /// The line and column number of a file.
+    LineAndColumn,
 
     /// The underline of code defined by one span label.
     Underline,

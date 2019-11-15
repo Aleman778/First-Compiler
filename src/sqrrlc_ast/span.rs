@@ -165,6 +165,28 @@ impl Span {
         return self.start.line == 0 && self.end.line == 0 &&
             self.start.column == 0 && self.end.column == 0;
     }
+
+
+    /**
+     * Check if two spans are located in the exact same location.
+     */
+    pub fn same_span(self, other: Span) -> bool {
+        return self.start.line == other.start.line && self.end.line == other.end.line &&
+            self.start.column == other.start.column && self.end.column == other.end.column;
+    }
+
+    /**
+     * Check if other span is fully enclosed in this span.
+     */
+    pub fn contains(self, other: Span) -> bool {
+        if self.start.line < other.start.line && self.end.line > other.end.line {
+            true
+        } else if self.start.line == other.start.line && self.end.line == other.end.line {
+            self.start.column <= other.start.column && self.end.column >= other.end.column
+        } else {
+            false
+        }
+    }
 }
 
 

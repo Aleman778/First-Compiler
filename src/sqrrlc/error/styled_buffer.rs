@@ -96,10 +96,11 @@ impl StyledBuffer {
             self.text[line][col] = chr;
             self.styles[line][col] = style;
         } else {
-            let idx = self.text[line].len();
+            let mut idx = self.text[line].len();
             while idx < col {
                 self.text[line].push(' ');
                 self.styles[line].push(Style::NoStyle);
+                idx += 1;
             }
             self.text[line].push(chr);
             self.styles[line].push(style);
@@ -144,5 +145,13 @@ impl StyledBuffer {
         } else {
             self.puts(string, style, line, self.text[line].len());
         }
+    }
+
+
+    /**
+     * Returns the number of lines stored in the buffer so far.
+     */
+    pub fn num_lines(&self) -> usize {
+        self.text.len()
     }
 }

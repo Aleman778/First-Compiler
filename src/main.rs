@@ -37,8 +37,8 @@ use sqrrl::sqrrlc::symbol::{
 
 
 fn main() {
-    let sess = Session::new(PathBuf::from(r"C:\dev\sqrrl-lang\examples\"));
-    let file = sess.source_map().load_file(Path::new("sandbox.sq")).unwrap();
+    let sess = Session::new(PathBuf::from(r"C:\dev\sqrrl-lang\"));
+    let _file = sess.source_map().load_file(Path::new("examples/sandbox.sq")).unwrap();
     // println!("{:?}", file);
     
     // Test diagnostics
@@ -54,6 +54,13 @@ fn main() {
     sess.emit(err);
     let err = &mut sess.struct_span_fatal(span, "This function is not used!");
     err.span_label(span_sub, "no implementation of sub");
+    sess.emit(err);
+
+    let err = &mut sess.struct_warn("This is a warning message!");
+    sess.emit(err);
+    let err = &mut sess.struct_err("This is an error message!");
+    sess.emit(err);
+    let err = &mut sess.struct_fatal("This is a fatal error message!!!");
     sess.emit(err);
     
     // Parse the loaded file

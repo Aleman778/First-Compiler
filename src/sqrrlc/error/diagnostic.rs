@@ -186,10 +186,63 @@ pub struct MultiSpan {
  * Implementation of multispan.
  */
 impl MultiSpan {
+    /**
+     * Creates a new empty multispan object.
+     */
     pub fn new() -> Self {
         MultiSpan {
             primary_spans: vec![],
             span_labels: vec![],
         }
     }
+
+
+    /**
+     * Returns the primary span.
+     */
+    pub fn primary_span(&self) -> Option<Span> {
+        self.primary_spans.first().cloned()
+    }
+    
+    
+    /**
+     * Returns list of span labels.
+     */
+    pub fn span_labels(&self) -> Vec<SpanLabel> {
+        let is_primary = |span| self.primary_spans.contains(&span);
+        let mut span_labels = self.span_labels.iter().map(|&(span, ref label)|
+            SpanLabel {
+                span: span,
+                is_primary: is_primary(span),
+                label: Some(label.clone()),
+            }
+        ).collect::<Vec<_>>();
+
+        for &span in &self.primary_spans {
+            if !span_labels.iter().any(|sl| sl.span == span) {
+                span_labels.push(SpanLabel {
+                    span,
+                    is_primary: true,
+                    label: None,
+                });
+            }
+        }
+
+        span_labels
+    }
+}
+
+
+/**
+ * Span label struct defines a span with an attacked label.
+ */
+pub struct SpanLabel {
+    /// The span to include in the snippet.
+    pub span: Span,
+
+    /// Is this a primary span? Underline those with ^^^ versus ---.
+    pub is_primary: bool,
+
+    /// What label should be attached to this span (if any)?
+    pub label: Option<String>,
 }

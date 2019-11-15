@@ -204,9 +204,12 @@ impl SourceFile {
     /**
      * Returns a the slice containing the source code of a specific line number.
      */
-    pub fn get_line(&self, line: u32) -> &str {
+    pub fn get_line(&self, line: u32) -> String {
         let (left, right) = self.get_line_bounds(line);
-        &self.source[(left as usize)..(right as usize)]
+        let mut string = self.source[(left as usize)..(right as usize)].to_string();
+        let line_len = string.trim_end().len();
+        string.truncate(line_len);
+        return string;
     }
 
 
