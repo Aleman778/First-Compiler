@@ -173,6 +173,7 @@ impl fmt::Display for Level {
  * Multi span struct is a data structure that holds mutliple spans
  * used for error dignostics.
  */
+#[derive(Debug)]
 pub struct MultiSpan {
     /// The primary span defines where the error is located, highlighted with `^^^`.
     pub primary_spans: Vec<Span>,
@@ -227,7 +228,6 @@ impl MultiSpan {
                 });
             }
         }
-
         span_labels
     }
 }
@@ -236,6 +236,7 @@ impl MultiSpan {
 /**
  * Span label struct defines a span with an attacked label.
  */
+#[derive(Debug)]
 pub struct SpanLabel {
     /// The span to include in the snippet.
     pub span: Span,

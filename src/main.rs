@@ -43,15 +43,24 @@ fn main() {
     
     // Test diagnostics
     
-    let span = Span::from_bounds(LineColumn::new(7, 1), LineColumn::new(13, 2));
+    let span = Span::from_bounds(LineColumn::new(7, 1), LineColumn::new(16, 2));
     let span_sub = Span::from_bounds(LineColumn::new(10, 24), LineColumn::new(10, 25));
 
     let err = &mut sess.struct_span_warn(span, "This function is not used!");
     err.span_label(span_sub, "no implementation of sub");
+    err.span_label(span, "This function is useless!");
     sess.emit(err);
-    let err = &mut sess.struct_span_err(span, "This function is not used!");
-    err.span_label(span_sub, "no implementation of sub");
+
+    let span = Span::from_bounds(LineColumn::new(13, 14), LineColumn::new(13, 17));
+    let span2 = Span::from_bounds(LineColumn::new(13, 5), LineColumn::new(13, 8));
+    let span3 = Span::from_bounds(LineColumn::new(13, 32), LineColumn::new(13, 33));
+    let err = &mut sess.struct_span_err(span, "This is not supported in my language!");
+    err.span_label(span, "error occurs here");
+    err.span_label(span2, "previous borrow of `vec` occurs here");
+    err.span_label(span3, "previous borrow ends here");
     sess.emit(err);
+
+
     let err = &mut sess.struct_span_fatal(span, "This function is not used!");
     err.span_label(span_sub, "no implementation of sub");
     sess.emit(err);
@@ -74,7 +83,7 @@ fn main() {
     // let mut env = TypeEnv::new(symbols);
     // expr.check_type(&mut env);
     
-    //Parse expression
+    // Parse expression
     // let source = "5 + false";
     // let span = ParseSpan::new_extra(source, "src\\main.rs");
     // let expr = Expr::parse_math(span).unwrap().1;

@@ -6,9 +6,11 @@
  * Note: this code is based on the rust compiler (but simplified).
  ***************************************************************************/
 
+extern crate unicode_width;
 
 use std::rc::Rc;
-use std::cmp::{min, max};
+use std::cmp::{min, max, Reverse};
+use std::collections::HashMap;
 use ansi_term::Color;
 use crate::sqrrlc::error::{
     styled_buffer::*,
@@ -68,7 +70,14 @@ impl Emitter {
         let max_linum_len = self.get_max_linum_len(&d.span, &d.children);
         self.emit_message(&d.level, &d.code, &d.message, &d.span, max_linum_len, false);
         for sub in &d.children {
-            self.emit_message(&sub.level, &None, &sub.message, &sub.span, max_linum_len, true);
+            self.emit_message(
+                &sub.level,
+                &None,
+                &sub.message,
+                &sub.span,
+                max_linum_len,
+                true
+            );
         }
     }
 
@@ -91,12 +100,7 @@ impl Emitter {
         for s in message {
             buf.append(&s.text, s.style, 0);
         }
-
-
-        
-        
         self.draw_code_snippet(buf, span, max_linum_len);
-
         self.write_buffer(level, buf);
     }
 
@@ -123,7 +127,7 @@ impl Emitter {
         } else {
             return;
         };
-        
+
         for annotated_file in &annotated_files {
             let file = &annotated_file.file;
             let is_primary = file.filename == primary_file.filename;
@@ -131,8 +135,78 @@ impl Emitter {
             let margin = self.calculate_margin(&annotated_file, max_linum_len);
             draw_col_separator_no_space(buf, buf.num_lines(), max_linum_len + 1);
                 
-            for line in &annotated_file.lines {
-                self.draw_source_line(buf, file, &line, max_linum_len, &margin);
+            let mut multilines = HashMap::new();
+            for line_idx in 0..annotated_file.lines.len() {
+                let prev_buf_line = buf.num_lines();
+
+                // Draw the source line with annotations.
+                let depths = self.draw_source_line(
+                    buf,
+                    file,
+                    &annotated_file.lines[line_idx],
+                    max_linum_len,
+                    &margin
+                );
+                
+                let mut to_add = HashMap::new();
+
+                // Keep track of which multiline lines have been drawn and which to add.
+                for (depth, style) in depths {
+                    if multilines.get(&depth).is_some() {
+                        multilines.remove(&depth);
+                    } else {
+                        to_add.insert(depth, style);
+                    }
+                }
+
+                // Draw the multiline lines at specified depth and style.
+                for (depth, style) in &multilines {
+                    for line in prev_buf_line..buf.num_lines() {
+                        draw_multiline_line(buf, line, margin.width_offset, *depth, *style);
+                    }
+                }
+
+                // Check if lines that come between lines should be printed out or elided.
+                if line_idx < (annotated_file.lines.len() - 1){
+                    let line_idx_delta = annotated_file.lines[line_idx + 1].line_index -
+                        annotated_file.lines[line_idx].line_index;
+                    if line_idx_delta > 2 {
+                        let last_buf_line_num = buf.num_lines();
+                        buf.puts("...", Style::LineNumber, last_buf_line_num, 0);
+
+                        for (depth, style) in &multilines {
+                            draw_multiline_line(buf,
+                                                last_buf_line_num,
+                                                margin.width_offset,
+                                                *depth,
+                                                *style);
+                        }
+                    } else if line_idx_delta == 2 {
+                        let unannotated_line = annotated_file.file
+                            .get_line(annotated_file.lines[line_idx].line_index as u32 - 1);
+
+                        let last_buf_line_num = buf.num_lines();
+
+                        self.draw_line(
+                            buf,
+                            &unannotated_line,
+                            annotated_file.lines[line_idx + 1].line_index - 1,
+                            last_buf_line_num,
+                            &margin,
+                        );
+
+                        for (depth, style) in &multilines {
+                            draw_multiline_line(
+                                buf,
+                                last_buf_line_num,
+                                margin.width_offset,
+                                *depth,
+                                *style,
+                            );
+                        }
+                    }
+                }
+                multilines.extend(&to_add);
             }
         }
     }
@@ -180,16 +254,242 @@ impl Emitter {
         line: &AnnotatedLine,
         max_linum_len: usize,
         margin: &Margin,
-    ) {
-        let mut buf_line_offset = buf.num_lines();
+    ) -> Vec<(usize, Style)> {
+        if line.line_index == 0 {
+            return Vec::new();
+        }
+
+        let source_string = file.get_line(line.line_index as u32);
+        let line_offset = buf.num_lines();
+        let left = margin.left(source_string.len());
+        let left = source_string.chars().take(left)
+            .map(|ch| unicode_width::UnicodeWidthChar::width(ch).unwrap_or(1))
+            .sum();
+
+        self.draw_line(
+            buf,
+            &source_string,
+            line.line_index,
+            line_offset,
+            margin
+        );
+
+        // Special case, if there is only one annotation then simplify output to:
+        //
+        // 2 | / fn foo() {
+        // 3 | |
+        // 4 | | }
+        //   | |_^ span_label
+        if let [ann] = &line.annotations[..] {
+            if let AnnotationType::MultilineStart(depth) = ann.annotation_type {
+                if source_string.chars().take(ann.start_col - 1).all(|c| c.is_whitespace()) {
+                    let style = get_underline_style(ann.is_primary);
+                    buf.putc('/', style, line_offset, margin.width_offset + depth - 1);
+                    return vec![(depth, style)]
+                }
+            }
+        }
+
+        // We want to display span labels loke this:
+        //
+        //     vec.push(vec.pop().unwrap());
+        //     ---      ^^^               - previous borrow ends here
+        //     |        |
+        //     |        error occurs here
+        //     previous borrow of `vec` occurs here
+
+        let mut annotations = line.annotations.clone();
+        annotations.sort_by_key(|a| Reverse(a.start_col));
+        let mut annotations_pos = vec![];
+        let mut line_len = 0;
+        let mut p = 0;
+        for (i, ann) in annotations.iter().enumerate() {
+            for (j, next) in annotations.iter().enumerate() {
+                if overlaps(next, ann, 0) && j > i && p == 0 {
+                    // If we overlap with an unlabelled annotation with same span just merge them.
+                    if next.same_span(ann) && !next.has_label() {
+                        continue;
+                    }
+
+                    // This annotation requires a new line in the output.
+                    p += 1;
+                    break;
+                }
+            }
+
+            annotations_pos.push((p, ann));
+            for (j, next) in annotations.iter().enumerate() {
+                if j > i {
+                    let l = next.label.as_ref().map_or(0, |label| label.len() + 2);
+                    if (overlaps(next, ann, l)
+                        && ann.has_label() && next.has_label())
+                        || (ann.takes_space() && next.has_label())
+                        || (ann.has_label()   && next.takes_space())
+                        || (ann.takes_space() && next.takes_space())
+                        || (overlaps(next, ann, l)
+                            && next.end_col <= ann.end_col
+                            && next.has_label() && p == 0)
+                    {
+                        // This annotation requires a new line in the output.
+                        p += 1;
+                        break;
+                    }
+                }
+            }
+            line_len = max(line_len, p);
+        }
+
+
+        if line_len != 0 {
+            line_len += 1;
+        }
+
+        if line.annotations.iter().all(|a| a.is_line()) {
+            return vec![];
+        }
+
+
+        for pos in 0..=line_len {
+            draw_col_separator(buf, line_offset + pos + 1, margin.width_offset - 2);
+            // buf.putc('|', Style::LineNumber, line_offset + pos + 1, marign.width_offset - 2); // FIXME: What why do this twice?
+        }
+
+
+        // Draw the horizontal lines for multiline annotations
+        for &(pos, ann) in &annotations_pos {
+            let style = get_underline_style(ann.is_primary);
+            let pos = pos + 1;
+            match ann.annotation_type {
+                AnnotationType::MultilineStart(depth) |
+                AnnotationType::MultilineEnd(depth) => {
+                    draw_range(
+                        buf,
+                        '_',
+                        style,
+                        line_offset + pos,
+                        margin.width_offset + depth,
+                        margin.code_offset + ann.start_col - left,
+                    )
+                },
+                _ => { },
+            }
+        }
+
+
+        // Draw the vertical lines for labels that are on different levels
+        for &(pos, ann) in &annotations_pos {
+            let style = get_underline_style(ann.is_primary);
+            let pos = pos + 1;
+
+            if pos > 1 && (ann.has_label() || ann.takes_space()) {
+                for p in line_offset + 1..=line_offset + pos {
+                    buf.putc('|', style, p, margin.code_offset + ann.start_col - 1 - margin.computed_left);
+                }
+            }
+            match ann.annotation_type {
+                AnnotationType::MultilineStart(depth) => {
+                    for p in line_offset + pos + 1..line_offset + line_len + 2 {
+                        buf.putc('|', style, p, margin.width_offset + depth - 1);
+                    }
+                },
+                AnnotationType::MultilineEnd(depth) => {
+                    for p in line_offset..=line_offset + pos {
+                        buf.putc('|', style, p, margin.width_offset + depth - 1);
+                    }
+                },
+                _ => { },
+            }
+        }
+
+
+        // Draw the labels on annotations that actually have a label
+        for &(pos, ann) in &annotations_pos {
+            let style = get_underline_style(ann.is_primary);
+            let (pos, col) = if pos == 0 {
+                (pos + 1, ann.end_col.saturating_sub(left))
+            } else {
+                (pos + 2, (ann.start_col - 1).saturating_sub(left))
+            };
+            if let Some(ref label) = ann.label {
+                buf.puts(&label, style, line_offset + pos, margin.code_offset + col);
+            }
+        }
+
+
+        //Sort from biggest span to smallest span so smaller spans are represented in the output
+        annotations_pos.sort_by_key(|(_, ann)| {
+            (Reverse(ann.len()), ann.is_primary)
+        });
         
-        buf.append(&line.line_index.to_string().as_str(), Style::LineNumber, buf_line_offset);
 
-        draw_col_separator(buf, buf_line_offset, max_linum_len + 1);
-        buf.append(&file.get_line(line.line_index as u32).as_str(), Style::NoStyle, buf_line_offset);
+        // Draw the underlines
+        for &(_, ann) in &annotations_pos {
+            let (symbol, style) = if ann.is_primary {
+                ('^', Style::UnderlinePrimary)
+            } else {
+                ('-', Style::UnderlineSecondary)
+            };
+            
+            match ann.annotation_type {
+                AnnotationType::MultilineLine(_) => { },
+                _ => {
+                    for p in ann.start_col - 1..ann.end_col - 1 {
+                        buf.putc(symbol, style, line_offset + 1, (margin.code_offset + p).saturating_sub(left));
+                    }
+                },
+            }
+        }
 
-        buf_line_offset += 1;
-        draw_col_separator(buf, buf_line_offset, max_linum_len + 1);
+        // Collects multiline annotation location and styles for further processing.
+        annotations_pos.iter().filter_map(|&(_, ann)| {
+            match ann.annotation_type {
+                AnnotationType::MultilineStart(p) |
+                AnnotationType::MultilineEnd(p) => {
+                    let style = get_underline_style(ann.is_primary);
+                    Some((p, style))
+                },
+                _ => None
+            }
+        }).collect::<Vec<_>>()
+    }
+
+
+    /**
+     * Draws the provided source string including the line number and separator.
+     * The result is stored in the provided buffer
+     */
+    fn draw_line(
+        &self,
+        buf: &mut StyledBuffer,
+        source_string: &str,
+        line_index: usize,
+        line_offset: usize,
+        margin: &Margin
+    ) {
+        let line_len = source_string.len();
+        let left = margin.left(line_len);
+        let right = margin.right(line_len);
+        
+        // For long lines, we strip the soruce line, accounting for unicode.
+        let mut taken = 0;
+        let code: String = source_string.chars().skip(left).take_while(|ch| {
+            let next = unicode_width::UnicodeWidthChar::width(*ch).unwrap_or(1);
+            if taken + next > right - left {
+                return false;
+            }
+            taken += next;
+            true
+        }).collect();
+
+        buf.puts(&code, Style::Quotation, line_offset, margin.code_offset);
+        if margin.was_cut_left() {
+            buf.puts("...", Style::LineNumber, line_offset, margin.code_offset);
+        }
+        if margin.was_cut_right(line_len) {
+            buf.puts("...", Style::LineNumber, line_offset, margin.code_offset + taken - 3);
+        }
+        buf.puts(&line_index.to_string(), Style::LineNumber, line_offset, 0);
+        draw_col_separator(buf, line_offset, margin.width_offset - 2);
     }
 
 
@@ -237,12 +537,10 @@ impl Emitter {
         let mut label_right_margin = 0;
         let mut max_line_len = 0;
         for line in &annotated_file.lines {
-            max_line_len = max(
-                max_line_len, file.get_line(line.line_index as u32 - 1).len());
+            max_line_len = max(max_line_len, file.get_line(line.line_index as u32).len());
             for ann in &line.annotations {
                 span_right_margin = max(span_right_margin, ann.start_col);
                 span_right_margin = max(span_right_margin, ann.end_col);
-                // TODO: does not account for labels not in the same line
                 let label_right = ann.label.as_ref().map_or(0, |l| l.len() + 1);
                 label_right_margin = max(label_right_margin, ann.end_col + label_right);
             }
@@ -260,7 +558,7 @@ impl Emitter {
         } else {
             140
         };
-
+        
         Margin::new(
             whitespace_margin,
             span_left_margin,
@@ -301,11 +599,18 @@ impl Emitter {
     fn get_color_spec(&self, level: &Level, style: &Style) -> ColorSpec {
         match style {
             Style::LineNumber => Color::Cyan.bold(),
-            Style::Underline |
-            Style::UnderlinePrimary => self.get_level_spec(level),
+            Style::UnderlineSecondary |
+            Style::UnderlinePrimary => {
+                if let Level::Fatal = level {
+                    Color::Red.bold()
+                } else {
+                    self.get_level_spec(level)
+                }
+            },
             Style::Level(lvl) => self.get_level_spec(&lvl),
             Style::HeaderMessage |
             Style::LineAndColumn |
+            Style::Quotation |
             Style::NoStyle => ColorSpec::new(),
         }
     }
@@ -353,6 +658,11 @@ impl Emitter {
 }
 
 
+/***************************************************************************
+ * Simple draw helper commands.
+ ***************************************************************************/
+
+
 /**
  * Draws a oolumn separator followed by a whitespace.
  */
@@ -374,6 +684,24 @@ fn draw_col_separator_no_space(buf: &mut StyledBuffer, line: usize, col: usize) 
  */
 fn draw_note_separator(buf: &mut StyledBuffer, line: usize, col: usize) {
     buf.puts("= ", Style::LineNumber, line, col);
+}
+
+
+/**
+ * Draws multiline line separators with specific offset and depth value.
+ */
+fn draw_multiline_line(buf: &mut StyledBuffer, line: usize, offset: usize, depth: usize, style: Style) {
+    buf.putc('|', style, line, offset + depth - 1);
+}
+
+
+/**
+ * Draws the provided symbol on a sepcified line with a specific column range.
+ */
+fn draw_range(buf: &mut StyledBuffer, symbol: char, style: Style, line: usize, col_from: usize, col_to: usize) {
+    for col in col_from..col_to {
+        buf.putc(symbol, style, line, col);
+    }
 }
 
 

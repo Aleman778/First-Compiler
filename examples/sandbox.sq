@@ -9,5 +9,8 @@ fn sub(a: i32, b: i32) -> i32 {
     {
         let d: i32 = a - b + c;
     }
+
+    vec.push(vec.pop().unwrap());
+    
     return c;
 }

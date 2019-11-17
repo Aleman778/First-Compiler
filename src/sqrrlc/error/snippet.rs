@@ -144,8 +144,8 @@ pub fn num_overlap(a_start: usize, a_end: usize, b_start: usize, b_end: usize, i
  * Checks if two annotations are overlapping. Padding for annotation a can be added
  * e.g. to check if the label for annotation A also overlaps with annotation B.
  */
-pub fn overlap(a: &Annotation, b: &Annotation, padding: usize) {
-    num_overlap(a.start_col, a.end_col + padding, b.start_col, b.end_col, false);
+pub fn overlaps(a: &Annotation, b: &Annotation, padding: usize) -> bool {
+    num_overlap(a.start_col, a.end_col + padding, b.start_col, b.end_col, false)
 }
 
 
@@ -269,6 +269,15 @@ impl Annotation {
 
 
     /**
+     * Check if this annotation has the same span as the provided other annotation.
+     */
+    pub fn same_span(&self, other: &Annotation) -> bool {
+        return self.start_col == other.start_col &&
+            self.end_col == other.end_col;
+    }
+    
+
+    /**
      * Check if this annotation has a label and that it is a non empty label.
      */
     pub fn has_label(&self) -> bool {
@@ -276,6 +285,19 @@ impl Annotation {
             label.len() > 0
         } else {
             false
+        }
+    }
+
+
+    /**
+     * Check if this annotation takes space.
+     * Mutliline start and end always have to keep vertical space.
+     */
+    pub fn takes_space(&self) -> bool {
+        match self.annotation_type {
+            AnnotationType::MultilineStart(_) |
+            AnnotationType::MultilineEnd(_) => true,
+            _ => false,
         }
     }
 }
@@ -345,7 +367,7 @@ impl MultilineAnnotation {
             start_col: self.start_col,
             end_col: self.end_col,
             is_primary: self.is_primary,
-            label: None,
+            label: self.label.clone(),
             annotation_type: AnnotationType::MultilineEnd(self.depth),
         }
     }
@@ -422,15 +444,31 @@ pub enum Style {
     /// The line and column number of a file.
     LineAndColumn,
 
-    /// The underline of code defined by one span label.
-    Underline,
-
-    /// The underline of code defined by the primary span label.
+    /// The underline of code defined by a primary span label.
     UnderlinePrimary,
+
+    /// The underline of code defined by a secondary span label.
+    UnderlineSecondary,
+
+    /// The actual source code referenced in errors.
+    Quotation,
 
     /// Style based on the diagnostic level.
     Level(Level),
 
     /// Use no style, resets the styling.
     NoStyle,
+}
+
+
+/**
+ * Returns the correct type of underline, either
+ * the primary or secondary style.
+ */
+pub fn get_underline_style(is_primary: bool) -> Style {
+    if is_primary {
+        Style::UnderlinePrimary
+    } else {
+        Style::UnderlineSecondary
+    }        
 }
