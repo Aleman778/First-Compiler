@@ -26,6 +26,9 @@ pub enum Level {
 
     /// Fatal diagnstic, won't compile anymore and should abort immediately.
     Fatal,
+
+    /// Cancelled diagnostic, diagnostic should be ignored and not emitted.
+    Cancelled,
 }
 
 
@@ -119,6 +122,34 @@ impl Diagnostic {
 
 
     /**
+     * Cancel this diagnostic, should not be emitted to the user.
+     */
+    pub fn cancel(&mut self) {
+        self.level = Level::Cancelled;
+    }
+
+
+    /**
+     * Check if this diagnostic is cancelled.
+     */
+    pub fn cancelled(&self) -> bool {
+        self.level == Level::Cancelled
+    }
+
+
+    /**
+     * Check if this diagnostic is an error.
+     */
+    pub fn is_err(&self) -> bool {
+        match self.level {
+            Level::Error |
+            Level::Fatal => true,
+            _ => false,
+        }
+    }
+    
+
+    /**
      * Push a new sub diagnostic to this diagnostic as child.
      */
     pub fn sub(
@@ -133,15 +164,6 @@ impl Diagnostic {
             span,
         };
         self.children.push(sub);
-    }
-
-
-    /**
-     * Returns the message string from all the separate messages.
-     */
-    pub fn message(&self) -> String {
-        // self.message.iter().map(|i| i.as_str()).collect::<String>()
-        return String::new(); //TODO: Fix this later... needs to be handled separately for styled or semi styled
     }
 
 
@@ -164,6 +186,7 @@ impl fmt::Display for Level {
             Level::Warning => f.write_str("warning"),
             Level::Error => f.write_str("error"),
             Level::Fatal => f.write_str("fatal"),
+            Level::Cancelled => f.write_str("cancelled"),
         }
     }
 }

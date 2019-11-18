@@ -10,7 +10,7 @@ use crate::sqrrlc_ast::{
     op::*,
 };
 use crate::sqrrlc_interp::{
-    error::{RuntimeError, ErrorKind},
+    env::RuntimeEnv,
     value::Val,
     IResult,
 };
@@ -20,33 +20,43 @@ use crate::sqrrlc_interp::{
  * Implementation of binary operator for evaluating binary expressions.
  */
 impl BinOp {
-    pub fn eval(&self, left: Val, right: Val, span: Span) -> IResult<Val> {
+    pub fn eval<'a>(&self, env: &mut RuntimeEnv<'a>, left: Val, right: Val, combined_span: Span) -> IResult<Val> {
         let left_type = left.get_type();
         let right_type = right.get_type();
-        let span_clone = span.clone();
-        let result = match self {
-            BinOp::Add{span: _} => left.add(right, span_clone),
-            BinOp::Sub{span: _} => left.sub(right, span_clone),
-            BinOp::Div{span: _} => left.div(right, span_clone),
-            BinOp::Mul{span: _} => left.mul(right, span_clone),
-            BinOp::Pow{span: _} => left.pow(right, span_clone),
-            BinOp::Mod{span: _} => left.r#mod(right, span_clone),
-            BinOp::And{span: _} => left.and(right, span_clone),
-            BinOp::Or{span: _}  => left.or(right, span_clone),
-            BinOp::Eq{span: _}  => left.eq(right, span_clone),
-            BinOp::Ne{span: _}  => left.ne(right, span_clone),
-            BinOp::Lt{span: _}  => left.lt(right, span_clone),
-            BinOp::Le{span: _}  => left.le(right, span_clone),
-            BinOp::Gt{span: _}  => left.gt(right, span_clone),
-            BinOp::Ge{span: _}  => left.ge(right, span_clone),
+        let (span, result) = match self {
+            BinOp::Add{span} => (span, left.add(right, combined_span)),
+            BinOp::Sub{span} => (span, left.sub(right, combined_span)),
+            BinOp::Div{span} => (span, left.div(right, combined_span)),
+            BinOp::Mul{span} => (span, left.mul(right, combined_span)),
+            BinOp::Pow{span} => (span, left.pow(right, combined_span)),
+            BinOp::Mod{span} => (span, left.r#mod(right, combined_span)),
+            BinOp::And{span} => (span, left.and(right, combined_span)),
+            BinOp::Or{span}  => (span, left.or(right, combined_span)),
+            BinOp::Eq{span}  => (span, left.eq(right, combined_span)),
+            BinOp::Ne{span}  => (span, left.ne(right, combined_span)),
+            BinOp::Lt{span}  => (span, left.lt(right, combined_span)),
+            BinOp::Le{span}  => (span, left.le(right, combined_span)),
+            BinOp::Gt{span}  => (span, left.gt(right, combined_span)),
+            BinOp::Ge{span}  => (span, left.ge(right, combined_span)),
         };
         
         match result {
             Some(val) => Ok(val),
-            None => Err(RuntimeError {
-                span: span,
-                kind: ErrorKind::BinaryExpr(self.clone(), left_type, right_type),
-            }),
+            None => {
+                let mut err = struct_span_fatal!(
+                    env.sess,
+                    *span,
+                    "cannot {} `{}` to `{}`",
+                    self,
+                    left_type,
+                    right_type
+                );
+                err.span_label(
+                    *span,
+                    &format!("no implementation for `{} {} {}`", left_type, self.token(), right_type)
+                );
+                Err(err)
+            },
         }
     }
 }
@@ -56,21 +66,30 @@ impl BinOp {
  * Implementation of unary oprator for evaluating unary expressions.
  */
 impl UnOp {
-    pub fn eval(&self, right: Val, span: Span) -> IResult<Val> {
+    pub fn eval<'a>(&self, env: &mut RuntimeEnv<'a>, right: Val, combined_span: Span) -> IResult<Val> {
         let right_type = right.get_type();
-        let span_clone = span.clone();
-        let result = match self {
-            UnOp::Neg{span: _}   => right.neg(span_clone),
-            UnOp::Not{span: _}   => right.not(span_clone),
-            UnOp::Deref{span: _} => right.deref(span_clone),
+        let (span, result) = match self {
+            UnOp::Neg{span}   => (span, right.neg(combined_span)),
+            UnOp::Not{span}   => (span, right.not(combined_span)),
+            UnOp::Deref{span} => (span, right.deref(combined_span)),
         };
 
         match result {
             Some(val) => Ok(val),
-            None => Err(RuntimeError {
-                span: span,
-                kind: ErrorKind::UnaryExpr(self.clone(), right_type),
-            }),
+            None => {
+                let mut err = struct_span_fatal!(
+                    env.sess,
+                    *span,
+                    "cannot do {} on `{}`",
+                    self,
+                    right_type
+                );
+                err.span_label(
+                    *span,
+                    &format!("no implementation for `{}{}`", self.token(), right_type)
+                );
+                Err(err)
+            }
         }
     }
 }

@@ -6,11 +6,10 @@
 
 
 use crate::sqrrlc_ast::{
-    ty::*,
+    base::Item,
     expr::*,
 };
 use crate::sqrrlc_interp::{
-    error::RuntimeError,
     value::Val,
     scope::Scope,
     env::RuntimeEnv,
@@ -63,7 +62,7 @@ impl Eval for ExprBinary {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         let left = self.left.eval(env)?;
         let right = self.right.eval(env)?;
-        self.op.eval(left, right, self.span.clone())
+        self.op.eval(env, left, right, self.span.clone())
     }
 }
 
@@ -78,7 +77,7 @@ impl ExprBlock {
      */
     pub fn eval(&self, env: &mut RuntimeEnv, new_scope: bool) -> IResult<Val> {
         if new_scope {
-            env.push_block(Scope::new(self.span.clone()))?;
+            env.push_block(Scope::new(env.sess, self.span.clone()))?;
         }
         let mut ret_val = Val::None;
         for expr in &self.stmts {
@@ -117,7 +116,19 @@ impl Eval for ExprCall {
             values.push(val);
         }
         let item = env.load_item(&self.ident)?;
-        item.eval_func(values, env)
+        match item.eval_func(values, env) {
+            Ok(val) => Ok(val),
+            Err(mut err) => {
+                // Include function call span label
+                err.primary_span(self.span);
+                let len = match item {
+                    Item::Fn(func) => func.decl.inputs.len(),
+                    Item::ForeignFn(func) => func.decl.inputs.len(),
+                };
+                err.span_label(self.span, &format!("expected {} parameters", len));
+                Err(err)
+            },
+        }
     }
 }
 
@@ -163,9 +174,11 @@ impl Eval for ExprIf {
                     }
                 }
             },
-            None => Err(RuntimeError::type_error(
-                self.span.clone(), TyKind::Bool, value.get_type(),
-            )),
+            None => {
+                let mut err = struct_span_fatal!(env.sess, self.span, "mismatched_types");
+                err.span_label(self.span, &format!("expected bool, found {}", value.get_type()));
+                Err(err)
+            },
         }
     }
 }
@@ -223,7 +236,7 @@ impl Eval for ExprReturn {
 impl Eval for ExprUnary {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         let right = self.right.eval(env)?;
-        self.op.eval(right, self.span.clone())
+        self.op.eval(env, right, self.span.clone())
     }
 }
 
@@ -248,10 +261,12 @@ impl Eval for ExprWhile {
                     } else {
                         break;
                     }
-                }
-                None => return Err(RuntimeError::type_error(
-                    self.span.clone(), TyKind::Bool, value.get_type(),
-                )),
+                },
+                None => {
+                    let mut err = struct_span_fatal!(env.sess, self.span, "mismatched_types");
+                    err.span_label(self.span, &format!("expected bool, found {}", value.get_type()));
+                    return Err(err);
+                },
             };
         }
         Ok(Val::None)

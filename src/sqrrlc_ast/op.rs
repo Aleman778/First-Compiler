@@ -12,7 +12,7 @@ use crate::sqrrlc_ast::span::Span;
 /**
  * Binary  operators e.g. `+`, `&&`, `!` etc.
  */
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum BinOp {
     /// The `+` operator (addition)
     Add{span: Span},
@@ -48,7 +48,7 @@ pub enum BinOp {
 /**
  * Unary operators e.g. `-`, `!`, `*` etc.
  */
-#[derive(Debug, Clone,  PartialEq)]
+#[derive(Debug, Copy, Clone,  PartialEq)]
 pub enum UnOp {
     /// The `-` unary operator (negation)
     Neg{span: Span},

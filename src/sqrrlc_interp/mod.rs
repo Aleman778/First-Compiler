@@ -4,8 +4,8 @@
  ***************************************************************************/
 
 
+use crate::sqrrlc::error::diagnostic::Diagnostic;
 use crate::sqrrlc_interp::{
-    error::RuntimeError,
     env::RuntimeEnv,
     value::Val,
 };
@@ -14,7 +14,7 @@ use crate::sqrrlc_interp::{
 /**
  * Results used for the interpreter
  */
-pub type IResult<T, E = RuntimeError> = Result<T, E>;
+pub type IResult<T> = Result<T, Diagnostic>;
 
 
 /**
@@ -26,7 +26,6 @@ pub trait Eval {
 }
 
 
-pub mod error;
 pub mod primitive;
 pub mod value;
 pub mod env;

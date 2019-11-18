@@ -50,6 +50,24 @@ impl Session {
     pub fn source_map(&self) -> &SourceMap {
         &self.source_map
     }
+    
+    
+    /**
+     * Emits a warning diagnostic with a given message.
+     */
+    pub fn warn<'a>(&self, message: &'a str) {
+        let diagnostic = self.handler.struct_warn(message);
+        self.emit(&diagnostic);
+    }
+
+
+    /**
+     * Emits a warning diagnostic with a given message and span information.
+     */
+    pub fn span_warn(&self, span: Span, message: &str) {
+        let diagnostic = self.handler.struct_span_warn(span, message);
+        self.emit(&diagnostic);
+    }
 
     
     /**
@@ -66,6 +84,24 @@ impl Session {
     pub fn struct_span_warn(&self, span: Span, message: &str) -> Diagnostic {
         self.handler.struct_span_warn(span, message)
     }
+
+    
+    /**
+     * Emits a error diagnostic with a given message.
+     */
+    pub fn err<'a>(&self, message: &'a str) {
+        let diagnostic = self.handler.struct_err(message);
+        self.emit(&diagnostic);
+    }
+
+
+    /**
+     * Emits a warning diagnostic with a given message and span information.
+     */
+    pub fn span_err(&self, span: Span, message: &str) {
+        let diagnostic = self.handler.struct_span_err(span, message);
+        self.emit(&diagnostic);
+    }
     
     
     /**
@@ -77,10 +113,28 @@ impl Session {
 
 
     /**
-     * Creates a new warning diagnostic with a given message and span information.
+     * Creates a new error diagnostic with a given message and span information.
      */
     pub fn struct_span_err(&self, span: Span, message: &str) -> Diagnostic {
         self.handler.struct_span_err(span, message)
+    } 
+
+    
+    /**
+     * Emits a fatal diagnostic with a given message.
+     */
+    pub fn fatal<'a>(&self, message: &'a str) {
+        let diagnostic = self.handler.struct_fatal(message);
+        self.emit(&diagnostic);
+    }
+
+
+    /**
+     * Emits a fatal diagnostic with a given message and span information.
+     */
+    pub fn span_fatal(&self, span: Span, message: &str) {
+        let diagnostic = self.handler.struct_span_fatal(span, message);
+        self.emit(&diagnostic);
     }
     
     

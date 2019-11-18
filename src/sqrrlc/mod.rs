@@ -5,6 +5,7 @@
  ***************************************************************************/
 
 
+#[macro_use]
 pub mod error;
 pub mod session;
 pub mod symbol;

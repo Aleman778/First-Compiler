@@ -67,6 +67,9 @@ impl Emitter {
      * Emit diagnostic information to console.
      */
     pub fn emit_diagnostic(&self, d: &Diagnostic) {
+        if d.cancelled() {
+            return;
+        }        
         let max_linum_len = self.get_max_linum_len(&d.span, &d.children);
         self.emit_message(&d.level, &d.code, &d.message, &d.span, max_linum_len, false);
         for sub in &d.children {
@@ -598,7 +601,7 @@ impl Emitter {
      */
     fn get_color_spec(&self, level: &Level, style: &Style) -> ColorSpec {
         match style {
-            Style::LineNumber => Color::Cyan.bold(),
+            Style::LineNumber => Color::Blue.bold(),
             Style::UnderlineSecondary |
             Style::UnderlinePrimary => {
                 if let Level::Fatal = level {
@@ -621,10 +624,10 @@ impl Emitter {
      */
     fn get_level_spec(&self, level: &Level) -> ColorSpec {
         match level {
-            Level::Note => ColorSpec::new(),
             Level::Warning => Color::Yellow.bold(),
             Level::Error => Color::Red.bold(),
             Level::Fatal => Color::Black.on(Color::Red),
+            _ => ColorSpec::new(),
         }
     }
 

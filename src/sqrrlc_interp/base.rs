@@ -9,27 +9,34 @@ use crate::sqrrlc_ast::{
     base::*,
 };
 use crate::sqrrlc_interp::{
-    error::RuntimeError,
     value::Val,
     env::RuntimeEnv,
     debug::*,
     IResult,
-    Eval,
 };
 
 
 /**
  * Evaluates a source file and executes the main method.
  */
-impl Eval for File {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
+impl File {
+    pub fn eval<'a>(&self, env: &mut RuntimeEnv<'a>) {
         for item in &self.items {
             env.store_item(item.clone());
         }
-        let func = env.push_main()?;
-        func.block.eval(env, false)?;
-        env.pop_func()?;
-        Ok(Val::None)
+        match env.push_main() {
+            Ok(func) => {
+                if let Err(diagnostic) = func.block.eval(env, false) {
+                    env.sess.emit(&diagnostic);
+                    return;
+                }
+                if let Err(diagnostic) = env.pop_func() {
+                    env.sess.emit(&diagnostic);
+                    return;
+                }
+            },
+            Err(diagnostic) => env.sess.emit(&diagnostic),
+        };
     }
 }
 
@@ -46,7 +53,17 @@ impl Item {
         match self {
             Item::Fn(func) => func.eval(values, env),
             Item::ForeignFn(func) => func.eval(values, env),
-            _ => Err(RuntimeError::item_not_found(&self.get_ident(), &["function"]))
+            _ => {
+                let ident = self.get_ident();
+                let mut err = struct_span_fatal!(
+                    env.sess,
+                    ident.span,
+                    "cannot find function `{}` in this scope",
+                    ident.to_string
+                );
+                err.span_label(ident.span, "not found in this scope");
+                Err(err)
+            },
         }
     }
 }
@@ -78,17 +95,25 @@ impl ForeignFnItem {
             "print_int" => {
                 match values[0].get_i32() {
                     Some(arg) => print_int(arg),
-                    None => return Err(RuntimeError::context(self.span.clone(), "expected i32")),
+                    None => {
+                        let mut err = struct_span_fatal!(env.sess, self.span, "mismatched_types");
+                        err.span_label(self.span, &format!("expected i32, found {}", values[0].get_type()));
+                        return Err(err);
+                    },
                 };
             },
             "print_bool" => {
                 match values[0].get_bool() {
                     Some(arg) => print_bool(arg),
-                    None => return Err(RuntimeError::context(self.span.clone(), "expected bool")),
+                    None => {
+                        let mut err = struct_span_fatal!(env.sess, self.span, "mismatched_types");
+                        err.span_label(self.span, &format!("expected bool, found {}", values[0].get_type()));
+                        return Err(err);
+                    },
                 };
             }
             _ => {
-                return Err(RuntimeError::context(self.span.clone(), "not a debug function"));
+                return Err(struct_span_fatal!(env.sess, self.span, "not a debug function"));
             }
         };
         Ok(Val::None)

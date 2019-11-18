@@ -5,14 +5,18 @@
  ***************************************************************************/
 
 
+use std::sync::Mutex;
 use crate::sqrrlc::error::{emitter::Emitter, diagnostic::*};
 use crate::sqrrlc_ast::span::Span;
+
+
+pub struct Handler(Mutex<HandlerInner>);
 
 
 /**
  * The error handler is used to handle errors from the compiler.
  */
-pub struct Handler {
+pub struct HandlerInner {
     /// The number of errors encountered so far.
     pub error_count: usize,
 
@@ -29,10 +33,12 @@ impl Handler {
      * Create a new empty handler.
      */
     pub fn new(emitter: Emitter) -> Self {
-        Handler {
-            error_count: 0,
-            emitter: emitter,
-        }
+        Handler(Mutex::new(
+            HandlerInner {
+                error_count: 0,
+                emitter: emitter,
+            }
+        ))
     }
 
     
@@ -89,13 +95,31 @@ impl Handler {
         diagnostic
     }
 
+    
+    /**
+     * Emits the diagnostic, cancelled diagnostics are not emitted however.
+     */
     pub fn emit_diagnostic(&self, diagnostic: &Diagnostic) {
-        self.emitter.emit_diagnostic(diagnostic);
+        let mut inner = self.0.lock().unwrap();
+        inner.emit_diagnostic(diagnostic);
     }
 }
+
+
+impl HandlerInner {
+    pub fn emit_diagnostic(&mut self, diagnostic: &Diagnostic)  {
+        if diagnostic.is_err() {
+            self.error_count += 1;
+        }
+        self.emitter.emit_diagnostic(diagnostic);
+    }
+}    
 
 
 pub mod styled_buffer;
 pub mod diagnostic;
 pub mod emitter;
 pub mod snippet;
+
+#[macro_use]
+pub mod macros;

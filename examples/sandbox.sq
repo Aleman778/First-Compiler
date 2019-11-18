@@ -1,16 +1,14 @@
 fn main() {
     let a: i32 = 64;
-    let b: i32 = sub(a, 3);
+    let b: i32 = sub(a, 3, 43);
     let potatis: bool = !53;
 }
 
-fn sub(a: i32, b: i32) -> i32 {
-    let c: bool = false;
+fn sub(a: bool, b: i32) -> i32 {
+    let c: i32 = 5;
     {
         let d: i32 = a - b + c;
     }
-
-    vec.push(vec.pop().unwrap());
     
     return c;
 }

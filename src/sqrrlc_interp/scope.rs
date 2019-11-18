@@ -11,13 +11,13 @@ use std::collections::{
     hash_map::Values,
     HashMap
 };
+use crate::sqrrlc::session::Session;
 use crate::sqrrlc_ast::{
     span::Span,
     expr::ExprIdent,
 };
 use crate::sqrrlc_interp::{
     IResult,
-    error::*,
 };
 
 
@@ -28,11 +28,14 @@ use crate::sqrrlc_interp::{
  * the environment.
  */
 #[derive(Clone)]
-pub struct Scope {
-    /// The child scope, used for sub-block expressions
-    child: Box<Option<Scope>>,
+pub struct Scope<'a> {
+    /// The compiler session.
+    sess: &'a Session,
+    
+    /// The child scope, used for sub-block expressions.
+    child: Box<Option<Scope<'a>>>,
 
-    /// Variable memory mapper, maps strings to memory addresses
+    /// Variable memory mapper, maps strings to memory addresses.
     symbols: HashMap<String, usize>,
 
     /// The location in code where this scope was created from.
@@ -43,12 +46,13 @@ pub struct Scope {
 /**
  * Implementation of scope.
  */
-impl Scope {
+impl<'a> Scope<'a> {
     /**
      * Constructs a new scope.
      */
-    pub fn new(span: Span) -> Self {
+    pub fn new(session: &'a Session, span: Span) -> Self {
         Scope {
+            sess: session,
             child: Box::new(None),
             symbols: HashMap::new(),
             span: span,
@@ -100,7 +104,7 @@ impl Scope {
     /**
      * Push a new scope onto the outer most scope.
      */
-    pub fn push(&mut self, new_scope: Scope) {
+    pub fn push(&mut self, new_scope: Scope<'a>) {
         match &mut *self.child {
             Some(child) => child.push(new_scope),
             None => self.child = Box::new(Some(new_scope)),
@@ -115,7 +119,7 @@ impl Scope {
         let (opt, _) = self.pop_impl();
         match opt {
             Some(scope) => Ok(scope.clone()),
-            None => Err(RuntimeError::context(Span::new_empty(), "cannot pop the function scope"))
+            None => Err(struct_fatal!(self.sess, "cannot pop the function scope")),
         }
     }
 
@@ -124,7 +128,7 @@ impl Scope {
      * Pop implementation returns true if the outer most
      * scope has been reached and should be popped.
      */
-    fn pop_impl(&mut self) -> (Option<Scope>, bool) {
+    fn pop_impl(&mut self) -> (Option<Scope<'a>>, bool) {
         match &mut *self.child {
             Some(child) => {
                 let (mut scope, found) = child.pop_impl();
@@ -146,7 +150,7 @@ impl Scope {
     fn find_mem(&self, ident: &ExprIdent) -> IResult<usize> {
         match self.symbols.get(&ident.to_string) {
             Some(addr) => Ok(*addr),
-            None => Err(RuntimeError::context(ident.span.clone(), "not found in this scope")),
+            None => Err(struct_span_fatal!(self.sess, ident.span.clone(), "not found in this scope")),
         }
     }
 }
@@ -155,7 +159,7 @@ impl Scope {
 /**
  * Debug formatting of scopes.
  */
-impl fmt::Debug for Scope {
+impl<'a> fmt::Debug for Scope<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Scope")
             .field("at", &format_args!("{}:{}", "src/main.rs", self.span.start.line))

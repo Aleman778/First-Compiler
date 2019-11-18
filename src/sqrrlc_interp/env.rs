@@ -4,12 +4,12 @@
  * about the current runtime i.e. scoping, memory, function signatures etc.
  ***************************************************************************/
 
-
 use std::fmt;
 use std::collections::HashMap;
+use crate::sqrrlc::session::Session;
 use crate::sqrrlc_ast::{
     base::{Item, FnItem},
-    expr::{ExprIdent},
+    expr::ExprIdent,
     span::Span,
 };
 use crate::sqrrlc_interp::{
@@ -17,7 +17,6 @@ use crate::sqrrlc_interp::{
     value::Val,
     scope::Scope,
     memory::Memory,
-    error::*,
 };
 
 
@@ -27,34 +26,34 @@ use crate::sqrrlc_interp::{
  * the memory, call stack and item signatures etc.
  */
 #[derive(Clone)]
-pub struct RuntimeEnv {
+pub struct RuntimeEnv<'a> {
+    /// The compiler session, used for storing common data.
+    pub sess: &'a Session,
+    
     /// Stores item signatures, maps strings to items
     signatures: HashMap<String, Item>,
 
     /// The call stack is a stack containing scopes
-    call_stack: Vec<Scope>,
+    call_stack: Vec<Scope<'a>>,
     
     /// The main memory heap storage, stores variables
-    memory: Memory,
-
-    /// The program source code.
-    source: String,
+    memory: Memory<'a>,
 }
 
 
 /**
  * Implementation of the runtime environment.
  */
-impl RuntimeEnv {
+impl<'a> RuntimeEnv<'a> {
     /**
      * Constructs an empty environment.
      */
-    pub fn new(source: String) -> Self {
+    pub fn new(session: &'a Session) -> Self {
         RuntimeEnv {
+            sess: session,
             signatures: HashMap::new(),
             call_stack: Vec::new(),
-            memory: Memory::new(),
-            source: source,
+            memory: Memory::new(session),
         }
     }
 
@@ -63,7 +62,7 @@ impl RuntimeEnv {
      * Pushes a new block scope on the environment.
      * Note: there has to be a scope already on the call stack.
      */
-    pub fn push_block(&mut self, new_scope: Scope) -> IResult<()> {
+    pub fn push_block(&mut self, new_scope: Scope<'a>) -> IResult<()> {
         let scope = self.current()?;
         scope.push(new_scope);
         Ok(())
@@ -90,7 +89,7 @@ impl RuntimeEnv {
      * specific argument values. The arguments are stored in the new scope.
      */
     pub fn push_func(&mut self, func: &FnItem, values: Vec<Val>) -> IResult<()> {
-        let mut new_scope = Scope::new(func.span.clone());
+        let mut new_scope = Scope::new(self.sess, func.span.clone());
         let inputs = &func.decl.inputs;
         if inputs.len() == values.len() {
             for i in 0..inputs.len() {
@@ -101,7 +100,18 @@ impl RuntimeEnv {
             self.call_stack.push(new_scope);
             Ok(())
         } else {
-            Err(RuntimeError::context(func.span.clone(), "incorrect number of values provided"))
+            let mut err = struct_fatal!(
+                self.sess,
+                "this function takes {} parameters but {} parameters were supplied",
+                inputs.len(),
+                values.len()
+            );
+            let mut span = Span::from_bounds(
+                func.span.start, func.block.span.start,
+            );
+            span.end.column += 1;
+            err.span_label(span, "defined here");
+            Err(err)
         }
     }
 
@@ -114,15 +124,15 @@ impl RuntimeEnv {
             Some(item) => {
                 match item {
                     Item::Fn(func) => {
-                        let new_scope = Scope::new(func.span.clone());
+                        let new_scope = Scope::new(self.sess, func.span.clone());
                         self.call_stack.push(new_scope);
                         Ok(func.clone())
                             
                     },
-                    _ => Err(RuntimeError::context(Span::new_empty(), "there is no main function")),
+                    _ => Err(struct_fatal!(self.sess, "there is no main function")),
                 }
             }
-            None => Err(RuntimeError::context(Span::new_empty(), "there is no main function")),
+            None => Err(struct_fatal!(self.sess, "there is no main function")),
         }
     }
     
@@ -138,7 +148,7 @@ impl RuntimeEnv {
                 }
                 Ok(())
             },
-            None => Err(RuntimeError::context(Span::new_empty(), "cannot pop an empty call stack")),
+            None => Err(struct_fatal!(self.sess, "cannot pop an empty call stack")),
         }
     }
 
@@ -160,7 +170,16 @@ impl RuntimeEnv {
     pub fn load_item(&self, ident: &ExprIdent) -> IResult<Item> {
         match self.signatures.get(&ident.to_string) {
             Some(item) => Ok(item.clone()),
-            None => Err(RuntimeError::item_not_found(&ident, &["signature"]))
+            None => {
+                let mut err = struct_span_fatal!(
+                    self.sess,
+                    ident.span,
+                    "cannot find function `{}` in this scope",
+                    ident.to_string
+                );
+                err.span_label(ident.span, "not found in this scope");
+                Err(err)
+            }
         }
     }
 
@@ -176,7 +195,8 @@ impl RuntimeEnv {
         let prev = scope.address_of(&ident, false);
         match prev {
             Ok(addr) => self.memory.store(addr, val),
-            Err(_) => {
+            Err(mut err) => {
+                err.cancel();
                 let addr = self.memory.alloc(val)?;
                 scope.register(&ident, addr);
                 Ok(())
@@ -208,12 +228,12 @@ impl RuntimeEnv {
     /**
      * Returns a mutable reference to the highest scope in the call stack.
      */
-    fn current(&mut self) -> IResult<&mut Scope> {
+    fn current(&mut self) -> IResult<&mut Scope<'a>> {
         let len = self.call_stack.len();
         if len > 0 {
             Ok(&mut self.call_stack[len - 1])
         } else {
-            Err(RuntimeError::context(Span::new_empty(), "the call stack is empty"))
+            Err(struct_fatal!(self.sess, "the call stack is empty"))
         }
     }
 }
@@ -222,7 +242,7 @@ impl RuntimeEnv {
 /**
  * Formatting tracing of the runtime environment.
  */
-impl fmt::Debug for RuntimeEnv {
+impl<'a> fmt::Debug for RuntimeEnv<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Trace:")
             .field("signatures", &format_args!("{:?}", self.signatures.keys()))

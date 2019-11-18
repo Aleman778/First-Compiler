@@ -4,9 +4,8 @@
  ***************************************************************************/
 
 use std::fmt;
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc::session::Session;
 use crate::sqrrlc_interp::{
-    error::RuntimeError,
     value::Val,
     IResult,
 };
@@ -16,11 +15,14 @@ use crate::sqrrlc_interp::{
  * The main memory storage for interpreter.
  */
 #[derive(Clone)]
-pub struct Memory {
-    /// The data storage vector of values
+pub struct Memory<'a> {
+    /// The compiler session.
+    sess: &'a Session,
+    
+    /// The data storage vector of values.
     data: Vec<Val>,
 
-    /// The next address of unallocated space
+    /// The next address of unallocated space.
     next: usize,
 }
 
@@ -28,13 +30,14 @@ pub struct Memory {
 /**
  * Implementation of the memory module.
  */
-impl Memory {
+impl<'a> Memory<'a> {
     /**
      * Constructs an empty memory module. Default capacity
      * is 1000, use `Memory::with_capacity` to set a custom capacity.
      */
-    pub fn new() -> Self {
+    pub fn new(session: &'a Session) -> Self {
         Memory {
+            sess: session,
             data: vec![Val::None; 1000],
             next: 0,
         }
@@ -44,8 +47,9 @@ impl Memory {
     /**
      * Constructs an empty memory module with specific capacity.
      */
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(session: &'a Session, capacity: usize) -> Self {
         Memory {
+            sess: session,
             data: vec![Val::None; capacity],
             next: 0,
         }
@@ -57,14 +61,14 @@ impl Memory {
      */
     pub fn alloc(&mut self, val: Val) -> IResult<usize> {
         if !val.has_value() {
-            Err(RuntimeError::memory_error(val.get_span(), "cannot store empty value"))
+            Err(struct_span_fatal!(self.sess, val.get_span(), "cannot store empty value"))
         } else if self.next < self.data.capacity() {
             self.data[self.next] = val;
             let addr = self.next;
             self.find_next();
             Ok(addr)
         } else {
-            Err(RuntimeError::memory_error(val.get_span(), "out of memory error"))
+            Err(struct_span_fatal!(self.sess, val.get_span(), "out of memory error"))
         }
     }
 
@@ -76,10 +80,10 @@ impl Memory {
         if addr < self.data.capacity() {
             match self.data.get(addr) {
                 Some(val) => Ok(val.clone()),
-                None => Err(RuntimeError::memory_error(Span::new_empty(), "reading unallocated memory")),
+                None => Err(struct_fatal!(self.sess, "reading unallocated memory")),
             }
         } else {
-            Err(RuntimeError::memory_error(Span::new_empty(), "reading out of bounds"))
+            Err(struct_fatal!(self.sess, "reading out of bounds"))
         }
     }
 
@@ -92,14 +96,14 @@ impl Memory {
         if addr < self.data.capacity() {
             let prev = &self.data[addr];
             match prev {
-                Val::None => Err(RuntimeError::memory_error(val.get_span(), "cannot update unallocated memory")),
+                Val::None => Err(struct_span_fatal!(self.sess, val.get_span(), "cannot update unallocated memory")),
                 _ => {
                     self.data[addr] = val;
                     Ok(())
                 },
             }
         } else {
-            Err(RuntimeError::memory_error(Span::new_empty(), "writing out of bounds"))
+            Err(struct_fatal!(self.sess, "writing out of bounds"))
         }
     }
     
@@ -116,10 +120,10 @@ impl Memory {
                 }
                 Ok(())
             } else {
-                Err(RuntimeError::memory_error(Span::new_empty(), "cannot free unallocated memory"))
+                Err(struct_fatal!(self.sess, "cannot free unallocated memory"))
             }
         } else {
-            Err(RuntimeError::memory_error(Span::new_empty(), "cannot free out of bounds"))
+            Err(struct_fatal!(self.sess, "cannot free out of bounds"))
         }
     }
 
@@ -171,7 +175,7 @@ impl Memory {
 /**
  * Formatting the memory so it does print the entire memory state.
  */
-impl fmt::Debug for Memory {
+impl<'a> fmt::Debug for Memory<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Memory")
             .field("capacity", &self.data.len())
