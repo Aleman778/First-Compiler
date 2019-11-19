@@ -179,10 +179,9 @@ impl Scope {
      * Creates a new empty symbol table, without an identifier.
      */
     pub fn new(span: Span) -> Self {
-        let span_clone = span.clone();
         Scope::with_ident(span, ExprIdent {
             to_string: "".to_string(),
-            span: span_clone,
+            span,
         })
     }
 

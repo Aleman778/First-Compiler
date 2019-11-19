@@ -37,7 +37,7 @@ use sqrrl::sqrrlc::symbol::{
 
 
 fn main() {
-    let sess = Session::new(PathBuf::from(r"C:\dev\sqrrl-lang\"));
+    let sess = Session::with_dir(PathBuf::from(r"C:\dev\sqrrl-lang\"));
     let file = sess.source_map().load_file(Path::new("examples/sandbox.sq")).unwrap();
     // println!("{:?}", file);
     
@@ -73,7 +73,7 @@ fn main() {
     // sess.emit(err);
     
     // Parse the loaded file
-    let span = ParseSpan::new(&file.source);
+    let span = ParseSpan::new_extra(&file.source, 0);
     let mut expr = File::parse(span).unwrap().1;
     expr.extend(debug_functions());
 

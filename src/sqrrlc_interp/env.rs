@@ -89,12 +89,20 @@ impl<'a> RuntimeEnv<'a> {
      * specific argument values. The arguments are stored in the new scope.
      */
     pub fn push_func(&mut self, func: &FnItem, values: Vec<Val>) -> IResult<()> {
-        let mut new_scope = Scope::new(self.sess, func.span.clone());
+        let mut new_scope = Scope::new(self.sess, func.span);
         let inputs = &func.decl.inputs;
         if inputs.len() == values.len() {
             for i in 0..inputs.len() {
+                let arg_ty = &inputs[i].ty;
+                let val_ty = &values[i].get_type();
+                if arg_ty != val_ty {
+                    let span = values[i].span;
+                    let mut err = struct_span_fatal!(self.sess, span, "mismatched types");
+                    err.span_label(span, &format!("expected {}, found {}", arg_ty, val_ty));
+                    return Err(err);
+                }
                 let id = &inputs[i].ident;
-                let addr = self.memory.alloc(values[i].clone())?;
+                let addr = self.memory.alloc(&values[i])?;
                 new_scope.register(id, addr);
             }
             self.call_stack.push(new_scope);
@@ -107,7 +115,7 @@ impl<'a> RuntimeEnv<'a> {
                 values.len()
             );
             let mut span = Span::from_bounds(
-                func.span.start, func.block.span.start,
+                func.span.start, func.block.span.start, func.span.loc
             );
             span.end.column += 1;
             err.span_label(span, "defined here");
@@ -124,7 +132,7 @@ impl<'a> RuntimeEnv<'a> {
             Some(item) => {
                 match item {
                     Item::Fn(func) => {
-                        let new_scope = Scope::new(self.sess, func.span.clone());
+                        let new_scope = Scope::new(self.sess, func.span);
                         self.call_stack.push(new_scope);
                         Ok(func.clone())
                             
@@ -189,7 +197,7 @@ impl<'a> RuntimeEnv<'a> {
      * Note: if trying to store to previously allocated variable then
      * that value will be overwritten with the provided value (shadowing).
      */
-    pub fn store_var(&mut self, ident: &ExprIdent, val: Val) -> IResult<()> {
+    pub fn store_var(&mut self, ident: &ExprIdent, val: &Val) -> IResult<()> {
         let len = self.call_stack.len();
         let scope = &mut self.call_stack[len - 1];
         let prev = scope.address_of(&ident, false);
@@ -208,7 +216,7 @@ impl<'a> RuntimeEnv<'a> {
     /**
      * Assigns an already allocated mutable variable and updates the memory.
      */
-    pub fn assign_var(&mut self, ident: &ExprIdent, val: Val) -> IResult<()> {
+    pub fn assign_var(&mut self, ident: &ExprIdent, val: &Val) -> IResult<()> {
         let scope = self.current()?;
         let addr = scope.address_of(&ident, true)?;
         self.memory.store(addr, val)
@@ -221,7 +229,7 @@ impl<'a> RuntimeEnv<'a> {
     pub fn load_var(&mut self, ident: &ExprIdent) -> IResult<Val> {
         let scope = self.current()?;
         let addr = scope.address_of(&ident, true)?;
-        self.memory.load(addr)
+        Ok(Val::from_data(self.memory.load(addr)?, ident.span))
     }
     
     
@@ -236,6 +244,70 @@ impl<'a> RuntimeEnv<'a> {
             Err(struct_fatal!(self.sess, "the call stack is empty"))
         }
     }
+
+
+    /**
+     * Formatting the list of signatures for printing the stack trace.
+     */
+    pub fn fmt_signatures(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        write_str(f, "\nSignatures: [", indent)?;
+        if self.signatures.len() > 8 {
+            write_str(f, "\n", indent)?;
+        }
+        let mut result = String::new();
+        for (sig, _) in &self.signatures {
+            result.push_str(&format!("\"{}\", ", sig));
+        }
+        result.pop();
+        result.pop();
+        write_str(f, &result, indent)?;
+        if self.signatures.len() > 8 {
+            write_str(f, "\n", indent)?;
+        }
+        write_str(f, "]", indent)
+    }
+    
+    
+    /**
+     * Formatting the call stack for printing the stack trace.
+     */
+    pub fn fmt_call_stack(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+        write_str(f, "\nCall Stack: {", indent)?;
+        for (index, scope) in self.call_stack.iter().enumerate() {
+            write_str(f, &format!("\n{}: ", index), indent + 4)?;
+            scope.fmt_scope(f, indent + 8, index)?;
+        }
+        write_str(f, "\n}", indent)
+    }
+
+}
+
+
+/**
+ * Helper function for writing strings with indentation.
+ */
+pub fn write_str(buf: &mut fmt::Formatter<'_>, mut s: &str, indent: usize) -> fmt::Result {
+    while !s.is_empty() {
+        let newline;
+        let split = match s.find('\n') {
+            Some(pos) => {
+                newline = true;
+                pos + 1
+            },
+            None => {
+                newline = false;
+                s.len()
+            },
+        };
+        buf.write_str(&s[..split])?;
+        s = &s[split..];
+        
+        if newline {
+            buf.write_str(&" ".repeat(indent))?;
+        }
+    }
+    
+    Ok(())
 }
 
 
@@ -244,10 +316,9 @@ impl<'a> RuntimeEnv<'a> {
  */
 impl<'a> fmt::Debug for RuntimeEnv<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Trace:")
-            .field("signatures", &format_args!("{:?}", self.signatures.keys()))
-            .field("call_stack", &self.call_stack)
-            .field("memory", &self.memory)
-            .finish()
+        write_str(f, "Trace:", 0)?;
+        self.fmt_signatures(f, 4)?;
+        self.fmt_call_stack(f, 4)?;
+        write_str(f, &format!("\n{:#?}", self.memory), 4)
     }
 }

@@ -74,7 +74,7 @@ impl Span {
     /**
      * Constructs a new span from a parse span.
      */
-    pub fn new(s: ParseSpan) -> Self {
+    pub fn new(s: ParseSpan, file_id: usize) -> Self {
         Span {
             start: LineColumn {
                 line: s.line,
@@ -84,7 +84,7 @@ impl Span {
                 line: get_end_line(&s),
                 column: get_end_column(&s),
             },
-            loc: 0,
+            loc: file_id,
         }
     }
 
@@ -104,11 +104,11 @@ impl Span {
     /**
      * Construcst a new span from a starting and end position.
      */
-    pub fn from_bounds(start: LineColumn, end: LineColumn) -> Self {
+    pub fn from_bounds(start: LineColumn, end: LineColumn, file_id: usize) -> Self {
         Span {
             start: start,
             end: end,
-            loc: 0,
+            loc: file_id,
         }
     }
     

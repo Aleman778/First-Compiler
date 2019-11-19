@@ -6,7 +6,7 @@
 use std::fmt;
 use crate::sqrrlc::session::Session;
 use crate::sqrrlc_interp::{
-    value::Val,
+    value::*,
     IResult,
 };
 
@@ -20,7 +20,7 @@ pub struct Memory<'a> {
     sess: &'a Session,
     
     /// The data storage vector of values.
-    data: Vec<Val>,
+    data: Vec<ValData>,
 
     /// The next address of unallocated space.
     next: usize,
@@ -38,7 +38,7 @@ impl<'a> Memory<'a> {
     pub fn new(session: &'a Session) -> Self {
         Memory {
             sess: session,
-            data: vec![Val::None; 1000],
+            data: vec![ValData::None; 1000],
             next: 0,
         }
     }
@@ -50,7 +50,7 @@ impl<'a> Memory<'a> {
     pub fn with_capacity(session: &'a Session, capacity: usize) -> Self {
         Memory {
             sess: session,
-            data: vec![Val::None; capacity],
+            data: vec![ValData::None; capacity],
             next: 0,
         }
     }
@@ -59,16 +59,16 @@ impl<'a> Memory<'a> {
     /**
      * Allocates a value and returns the memory address.
      */
-    pub fn alloc(&mut self, val: Val) -> IResult<usize> {
-        if !val.has_value() {
-            Err(struct_span_fatal!(self.sess, val.get_span(), "cannot store empty value"))
+    pub fn alloc(&mut self, val: &Val) -> IResult<usize> {
+        if !val.has_data() {
+            Err(struct_span_fatal!(self.sess, val.span, "cannot store empty value"))
         } else if self.next < self.data.capacity() {
-            self.data[self.next] = val;
+            self.data[self.next] = val.data.clone();
             let addr = self.next;
             self.find_next();
             Ok(addr)
         } else {
-            Err(struct_span_fatal!(self.sess, val.get_span(), "out of memory error"))
+            Err(struct_span_fatal!(self.sess, val.span, "out of memory error"))
         }
     }
 
@@ -76,10 +76,10 @@ impl<'a> Memory<'a> {
     /**
      * Loads a value from memory at specific address.
      */
-    pub fn load(&self, addr: usize) -> IResult<Val> {
+    pub fn load(&self, addr: usize) -> IResult<ValData> {
         if addr < self.data.capacity() {
             match self.data.get(addr) {
-                Some(val) => Ok(val.clone()),
+                Some(data) => Ok(data.clone()),
                 None => Err(struct_fatal!(self.sess, "reading unallocated memory")),
             }
         } else {
@@ -92,13 +92,13 @@ impl<'a> Memory<'a> {
      * Stores a new value at a specific memory address.
      * Note: has to be an already allocated address.
      */
-    pub fn store(&mut self, addr: usize, val: Val) -> IResult<()> {
+    pub fn store(&mut self, addr: usize, val: &Val) -> IResult<()> {
         if addr < self.data.capacity() {
             let prev = &self.data[addr];
             match prev {
-                Val::None => Err(struct_span_fatal!(self.sess, val.get_span(), "cannot update unallocated memory")),
+                ValData::None => Err(struct_span_fatal!(self.sess, val.span, "cannot update unallocated memory")),
                 _ => {
-                    self.data[addr] = val;
+                    self.data[addr] = val.data.clone();
                     Ok(())
                 },
             }
@@ -114,7 +114,7 @@ impl<'a> Memory<'a> {
     pub fn free(&mut self, addr: usize) -> IResult<()> {
         if addr < self.data.capacity() {
             if self.is_alloc(addr) {
-                self.data[addr] = Val::None;
+                self.data[addr] = ValData::None;
                 if self.next > addr {
                     self.next = addr;
                 }
@@ -150,7 +150,7 @@ impl<'a> Memory<'a> {
      */
     fn is_alloc(&self, addr: usize) -> bool {
         match self.data[addr] {
-            Val::None => false,
+            ValData::None => false,
             _ => true,
         }
     }
@@ -177,7 +177,7 @@ impl<'a> Memory<'a> {
  */
 impl<'a> fmt::Debug for Memory<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Memory")
+        f.debug_struct("Memory:")
             .field("capacity", &self.data.len())
             .field("next", &self.next)
             .field("data", &format_args!("{}", self.memory_dump()))

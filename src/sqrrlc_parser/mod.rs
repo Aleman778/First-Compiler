@@ -7,7 +7,7 @@
 
 
 use crate::sqrrlc_parser::error::ParseError;
-use nom_locate::LocatedSpan;
+use nom_locate::LocatedSpanEx;
 use nom::Err;
 
 
@@ -16,7 +16,7 @@ use nom::Err;
  * First string is the input string, other string is
  * the filename that is being parsed.
  */
-pub type ParseSpan<'a> = LocatedSpan<&'a str>;
+pub type ParseSpan<'a> = LocatedSpanEx<&'a str, usize>;
 
 
 /**

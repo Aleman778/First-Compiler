@@ -41,7 +41,7 @@ impl TypeError {
      */
     pub fn mismatched_types(expected: TyKind, found: &Ty) -> Self {
         TypeError {
-            span: found.span.clone(),
+            span: found.span,
             kind: ErrorKind::MismatchedType(expected.clone(), found.clone()),
         }
     }

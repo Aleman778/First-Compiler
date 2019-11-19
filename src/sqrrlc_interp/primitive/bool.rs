@@ -15,10 +15,9 @@ use crate::sqrrlc_interp::value::Val;
 /**
  * Defines the boolean value.
  */
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct BoolVal {
     pub val: bool,
-    pub span: Span,
 }
 
 
@@ -83,11 +82,8 @@ impl BoolVal {
     /**
      * Get the type information for this boolean value.
      */
-    pub fn get_type(&self) -> Ty {
-        Ty {
-            kind: TyKind::Bool,
-            span: self.span.clone(),
-        }
+    pub fn get_type_kind(&self) -> TyKind {
+        TyKind::Bool
     }    
 }
 

@@ -38,7 +38,7 @@ impl Parser for LitInt {
         match digits.fragment.parse::<i32>() {
             Ok(n) => Ok((input, LitInt{
                 value: n,
-                span: Span::new(digits),
+                span: Span::new(digits, input.extra),
             })),
             Err(e) => Err(Err::Error(ParseError::new(digits, ErrorKind::ParseIntError(e)))),
         }
@@ -52,8 +52,8 @@ impl Parser for LitInt {
 impl Parser for LitBool {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         preceded(multispace0, alt((
-            map(tag("true"),  |s| LitBool{value:true,  span: Span::new(s)}),
-            map(tag("false"), |s| LitBool{value:false, span: Span::new(s)}),
+            map(tag("true"),  |s| LitBool{value:true,  span: Span::new(s, input.extra)}),
+            map(tag("false"), |s| LitBool{value:false, span: Span::new(s, input.extra)}),
         )))(input)
     }
 }

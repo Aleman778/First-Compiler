@@ -110,7 +110,7 @@ impl TypeChecker for ExprCall {
                     }
                 }
                 let mut out_ty = fn_output.clone();
-                out_ty.span = self.span.clone();
+                out_ty.span = self.span;
                 out_ty
             },
             None => Ty::new(),
@@ -127,7 +127,7 @@ impl TypeChecker for ExprIdent {
         match env.table.find_var_symbol(&self) {
             Some(var) => {
                 let mut id_ty = var.ty.clone();
-                id_ty.span = self.span.clone();
+                id_ty.span = self.span;
                 id_ty
             },
             None => Ty::new(),

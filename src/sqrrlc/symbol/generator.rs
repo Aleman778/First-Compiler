@@ -17,7 +17,7 @@ use crate::sqrrlc_ast::{
  * Geneerates a symbol table from the given file AST.
  */
 pub fn gen_sym_table(file: &File) -> SymbolTable {
-    let mut table = SymbolTable::new(file.span.clone());
+    let mut table = SymbolTable::new(file.span);
     file.gen_sym_table(&mut table);
     table.reset_ptr();
     table
@@ -65,7 +65,7 @@ impl GenSymbolTable for FnItem {
         let mut symbol = FnSymbol::new();
         self.decl.gen_sym_table(table, &mut symbol);
         table.push_symbol(&self.ident, Symbol::Fn(symbol));
-        table.push_scope(Scope::with_ident(self.span.clone(), self.ident.clone()));
+        table.push_scope(Scope::with_ident(self.span, self.ident.clone()));
         for arg in &self.decl.inputs {
             let mut arg_symbol = VarSymbol::new();
             arg_symbol.ty = arg.ty.clone();
@@ -110,7 +110,7 @@ impl GenSymbolTable for Expr {
         match self {
             Expr::Block(expr) => {
                 let ident = table.current_id().clone();
-                table.push_scope(Scope::with_ident(expr.span.clone(), ident));
+                table.push_scope(Scope::with_ident(expr.span, ident));
                 expr.gen_sym_table(table);
                 table.prev_scope();
             },

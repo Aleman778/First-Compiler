@@ -4,6 +4,7 @@
  ***************************************************************************/
 
 
+use sqrrl::sqrrlc::session::Session;
 use sqrrl::sqrrlc_ast::{
     span::Span,
     base::{File, Item, FnItem},
@@ -25,8 +26,9 @@ use sqrrl::sqrrlc_interp::{
  * Interprets a mathematical expression.
  */
 pub fn interp_math(input: &str) -> IResult<Val> {
-    let expr = Expr::parse_math(ParseSpan::new_extra(input, "")).unwrap().1;
-    let mut env = RuntimeEnv::new(input.to_string());
+    let expr = Expr::parse_math(ParseSpan::new_extra(input, 0)).unwrap().1;
+    let sess = Session::new();
+    let mut env = RuntimeEnv::new(&sess);
     expr.eval(&mut env)
 }
 
@@ -35,9 +37,10 @@ pub fn interp_math(input: &str) -> IResult<Val> {
  * Interprets an expression.
  */
 pub fn interp_expr(input: &str) -> IResult<Val> {
-    let mut env = RuntimeEnv::new("".to_string());
+    let sess = Session::new();
+    let mut env = RuntimeEnv::new(&sess);
     setup_env(&mut env);
-    let expr = Expr::parse(ParseSpan::new_extra(input, "")).unwrap().1;
+    let expr = Expr::parse(ParseSpan::new_extra(input, )).unwrap().1;
     expr.eval(&mut env)
 }
 

@@ -25,23 +25,23 @@ impl BinOp {
      */
     pub fn check_type(&self, lhs_ty: &Ty, rhs_ty: &Ty, env: &mut TypeEnv) {
         let (span, ok) = match self {
-            BinOp::Add{span} => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::Sub{span} => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::Mul{span} => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::Div{span} => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::Pow{span} => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::Mod{span} => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::And{span} => (span.clone(), lhs_ty.check_bool(rhs_ty)),
-            BinOp::Or{span}  => (span.clone(), lhs_ty.check_bool(rhs_ty)),
-            BinOp::Eq{span}  => (span.clone(), lhs_ty == rhs_ty),
-            BinOp::Ne{span}  => (span.clone(), lhs_ty == rhs_ty),
-            BinOp::Lt{span}  => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::Le{span}  => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::Gt{span}  => (span.clone(), lhs_ty.check_int(rhs_ty)),
-            BinOp::Ge{span}  => (span.clone(), lhs_ty.check_int(rhs_ty)),
+            BinOp::Add{span} => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::Sub{span} => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::Mul{span} => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::Div{span} => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::Pow{span} => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::Mod{span} => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::And{span} => (span, lhs_ty.check_bool(rhs_ty)),
+            BinOp::Or{span}  => (span, lhs_ty.check_bool(rhs_ty)),
+            BinOp::Eq{span}  => (span, lhs_ty == rhs_ty),
+            BinOp::Ne{span}  => (span, lhs_ty == rhs_ty),
+            BinOp::Lt{span}  => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::Le{span}  => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::Gt{span}  => (span, lhs_ty.check_int(rhs_ty)),
+            BinOp::Ge{span}  => (span, lhs_ty.check_int(rhs_ty)),
         };
         if !ok {
-            env.err(TypeError::new(span, ErrorKind::BinOpNotImplemented(
+            env.err(TypeError::new(*span, ErrorKind::BinOpNotImplemented(
                 self.clone(), lhs_ty.clone(), rhs_ty.clone())));
         }
     }
@@ -59,12 +59,12 @@ impl UnOp {
      */
     pub fn check_type(&self, ty: &Ty, env: &mut TypeEnv) {
         let (span, ok) = match self {
-            UnOp::Neg{span} => (span.clone(), ty.is_int()),
-            UnOp::Not{span} => (span.clone(), ty.kind == TyKind::Bool),
-            UnOp::Deref{span} => (span.clone(), ty.get_ref().is_some()),
+            UnOp::Neg{span} => (span, ty.is_int()),
+            UnOp::Not{span} => (span, ty.kind == TyKind::Bool),
+            UnOp::Deref{span} => (span, ty.get_ref().is_some()),
         };
         if !ok {
-            env.err(TypeError::new(span, ErrorKind::UnOpNotImplemented(self.clone(), ty.clone())));
+            env.err(TypeError::new(*span, ErrorKind::UnOpNotImplemented(self.clone(), ty.clone())));
         }
     }
 }

@@ -10,7 +10,7 @@ use crate::sqrrlc_ast::{
     expr::*,
 };
 use crate::sqrrlc_interp::{
-    value::Val,
+    value::*,
     scope::Scope,
     env::RuntimeEnv,
     IResult,
@@ -49,8 +49,8 @@ impl Eval for Expr {
 impl Eval for ExprAssign {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         let val = (*self.expr).eval(env)?;
-        env.assign_var(&self.ident, val)?;
-        Ok(Val::None)
+        env.assign_var(&self.ident, &val)?;
+        Ok(Val::new())
     }
 }
 
@@ -62,7 +62,7 @@ impl Eval for ExprBinary {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         let left = self.left.eval(env)?;
         let right = self.right.eval(env)?;
-        self.op.eval(env, left, right, self.span.clone())
+        self.op.eval(env, left, right, self.span)
     }
 }
 
@@ -77,13 +77,13 @@ impl ExprBlock {
      */
     pub fn eval(&self, env: &mut RuntimeEnv, new_scope: bool) -> IResult<Val> {
         if new_scope {
-            env.push_block(Scope::new(env.sess, self.span.clone()))?;
+            env.push_block(Scope::new(env.sess, self.span))?;
         }
-        let mut ret_val = Val::None;
+        let mut ret_val = Val::new();
         for expr in &self.stmts {
             let val = expr.eval(env)?;
-            match val {
-                Val::None => continue,
+            match val.data {
+                ValData::None => continue,
                 _ => ret_val = val,
             };
         }
@@ -96,11 +96,11 @@ impl ExprBlock {
 
 
 /**
- * Evaluates break expression. TODO: fix later.
+ * Evaluates break expression.
  */
 impl Eval for ExprBreak {
     fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
-        Ok(Val::Break(self.span.clone()))
+        Ok(Val::from_data(ValData::Break, self.span))
     }
 }
 
@@ -120,12 +120,14 @@ impl Eval for ExprCall {
             Ok(val) => Ok(val),
             Err(mut err) => {
                 // Include function call span label
-                err.primary_span(self.span);
                 let len = match item {
                     Item::Fn(func) => func.decl.inputs.len(),
                     Item::ForeignFn(func) => func.decl.inputs.len(),
                 };
-                err.span_label(self.span, &format!("expected {} parameters", len));
+                if self.args.len() != len {
+                    err.primary_span(self.span);
+                    err.span_label(self.span, &format!("expected {} parameters", len));
+                }
                 Err(err)
             },
         }
@@ -138,7 +140,7 @@ impl Eval for ExprCall {
  */
 impl Eval for ExprContinue {
     fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
-        Ok(Val::Continue(self.span.clone()))
+        Ok(Val::from_data(ValData::Continue, self.span))
     }
 }
 
@@ -170,7 +172,7 @@ impl Eval for ExprIf {
                             let result = block.eval(env, true);
                             result
                         },
-                        None => Ok(Val::None),
+                        None => Ok(Val::new()),
                     }
                 }
             },
@@ -202,8 +204,8 @@ impl Eval for ExprLit {
 impl Eval for ExprLocal {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         let val = (*self.init).eval(env)?;
-        env.store_var(&self.ident, val)?;
-        Ok(Val::None)
+        env.store_var(&self.ident, &val)?;
+        Ok(Val::new())
     }
 }
 
@@ -225,7 +227,7 @@ impl Eval for ExprReturn {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         match &*self.expr {
             Some(expr) => expr.eval(env),
-            None => Ok(Val::Void(self.span.clone())),
+            None => Ok(Val::from_data(ValData::Void, self.span)),
         }
     }
 }
@@ -236,7 +238,7 @@ impl Eval for ExprReturn {
 impl Eval for ExprUnary {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         let right = self.right.eval(env)?;
-        self.op.eval(env, right, self.span.clone())
+        self.op.eval(env, right, self.span)
     }
 }
 
@@ -252,10 +254,10 @@ impl Eval for ExprWhile {
                 Some(cond) => {
                     if cond {
                         let val = self.block.eval(env, true)?;
-                        match val {
-                            Val::Continue(_) => continue,
-                            Val::Break(_) => break,
-                            Val::None => continue,
+                        match val.data {
+                            ValData::Continue => continue,
+                            ValData::Break => break,
+                            ValData::None => continue,
                             _ => return Ok(val),
                         };
                     } else {
@@ -269,6 +271,6 @@ impl Eval for ExprWhile {
                 },
             };
         }
-        Ok(Val::None)
+        Ok(Val::new())
     }
 }

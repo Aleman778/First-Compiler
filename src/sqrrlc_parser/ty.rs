@@ -38,13 +38,10 @@ impl Parser for Ty {
 impl TyKind {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, (Self, Span)> {
         alt((
-            map(preceded(multispace0, tag("i32")), |s| (TyKind::Int(IntTy::I32), Span::new(s))),
-            map(preceded(multispace0, tag("i64")), |s| (TyKind::Int(IntTy::I64), Span::new(s))),
-            map(preceded(multispace0, tag("bool")), |s| (TyKind::Bool, Span::new(s))),
-            map(preceded(multispace0, TypeRef::parse), |r| {
-                let span = r.span.clone();
-                (TyKind::Ref(r), span)
-            }),
+            map(preceded(multispace0, tag("i32")), |s| (TyKind::Int(IntTy::I32), Span::new(s, input.extra))),
+            map(preceded(multispace0, tag("i64")), |s| (TyKind::Int(IntTy::I64), Span::new(s, input.extra))),
+            map(preceded(multispace0, tag("bool")), |s| (TyKind::Bool, Span::new(s, input.extra))),
+            map(preceded(multispace0, TypeRef::parse), |r| (TyKind::Ref(r.0), r.1)),
         ))(input)
     }
 }
@@ -53,8 +50,8 @@ impl TyKind {
 /**
  * Parse a type reference or mutable reference.
  */
-impl Parser for TypeRef {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+impl TypeRef {
+    fn parse(input: ParseSpan) -> IResult<ParseSpan, (Self, Span)> {
         context(
             "type reference",
             map(tuple((
@@ -62,15 +59,10 @@ impl Parser for TypeRef {
                 opt(preceded(multispace0, tag("mut"))),
                 preceded(multispace1, Ty::parse),
             )),
-                |(and, mutability, elem)| {
-                    let elem_span = elem.span.clone();
-                    TypeRef {
-                        mutability: mutability.is_some(),
-                        elem: Box::new(elem),
-                        span: Span::from_bounds(
-                            LineColumn::new(and.line, and.get_column()), elem_span.end,
-                        )
-                    }
+                |(amp, mutability, elem)| {
+                    let elem_span = elem.span;
+                    (TypeRef{mutability: mutability.is_some(), elem: Box::new(elem)},
+                     Span::from_bounds(LineColumn::new(amp.line, amp.get_column()), elem_span.end, input.extra))
                 }
             )
         )(input)

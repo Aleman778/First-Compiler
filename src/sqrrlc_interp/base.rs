@@ -116,6 +116,6 @@ impl ForeignFnItem {
                 return Err(struct_span_fatal!(env.sess, self.span, "not a debug function"));
             }
         };
-        Ok(Val::None)
+        Ok(Val::new())
     }
 }

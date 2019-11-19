@@ -15,13 +15,12 @@ use crate::sqrrlc_interp::value::Val;
 /**
  * Defines different types of integer primitive values.
  */
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum IntVal {
     /// 32 bit unsigned integer
-    Int32{val: i32, span: Span},
-
+    Int32(i32),
     /// 64 bit unsigned integer
-    Int64{val: i64, span: Span},
+    Int64(i64),
 }
 
 
@@ -40,8 +39,8 @@ impl IntVal {
      */
     pub fn add(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_i32(val + rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_i64(val + rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_i32(val + rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_i64(val + rhs.get_i64()?, span)),
         }
     }
 
@@ -51,8 +50,8 @@ impl IntVal {
      */
     pub fn sub(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_i32(val - rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_i64(val - rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_i32(val - rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_i64(val - rhs.get_i64()?, span)),
         }
     }
 
@@ -62,8 +61,8 @@ impl IntVal {
      */
     pub fn div(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_i32(val / rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_i64(val / rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_i32(val / rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_i64(val / rhs.get_i64()?, span)),
         }
     }
 
@@ -73,8 +72,8 @@ impl IntVal {
      */
     pub fn mul(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_i32(val * rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_i64(val * rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_i32(val * rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_i64(val * rhs.get_i64()?, span)),
         }
     }
 
@@ -84,8 +83,8 @@ impl IntVal {
      */
     pub fn pow(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_i32(val.pow(rhs.get_i32()? as u32), span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_i64(val.pow(rhs.get_i32()? as u32), span)),
+            IntVal::Int32(val) => Some(Val::from_i32(val.pow(rhs.get_i32()? as u32), span)),
+            IntVal::Int64(val) => Some(Val::from_i64(val.pow(rhs.get_i32()? as u32), span)),
         }
     }
 
@@ -95,8 +94,8 @@ impl IntVal {
      */
     pub fn r#mod(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_i32(val % rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_i64(val % rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_i32(val % rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_i64(val % rhs.get_i64()?, span)),
         }
     }
 
@@ -106,8 +105,8 @@ impl IntVal {
      */
     pub fn eq(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_bool(val == rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_bool(val == rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_bool(val == rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_bool(val == rhs.get_i64()?, span)),
         }
     }
 
@@ -117,8 +116,8 @@ impl IntVal {
      */
     pub fn ne(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_bool(val != rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_bool(val != rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_bool(val != rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_bool(val != rhs.get_i64()?, span)),
         }
     }
 
@@ -128,8 +127,8 @@ impl IntVal {
      */
     pub fn lt(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_bool(val < rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_bool(val < rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_bool(val < rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_bool(val < rhs.get_i64()?, span)),
         }
     }
     
@@ -139,8 +138,8 @@ impl IntVal {
      */
     pub fn le(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_bool(val <= rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_bool(val <= rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_bool(val <= rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_bool(val <= rhs.get_i64()?, span)),
         }
     }
 
@@ -150,8 +149,8 @@ impl IntVal {
      */
     pub fn gt(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_bool(val > rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_bool(val > rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_bool(val > rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_bool(val > rhs.get_i64()?, span)),
         }
     }
 
@@ -161,8 +160,8 @@ impl IntVal {
      */
     pub fn ge(self, rhs: IntVal, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_bool(val >= rhs.get_i32()?, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_bool(val >= rhs.get_i64()?, span)),
+            IntVal::Int32(val) => Some(Val::from_bool(val >= rhs.get_i32()?, span)),
+            IntVal::Int64(val) => Some(Val::from_bool(val >= rhs.get_i64()?, span)),
         }
     }
 
@@ -177,8 +176,8 @@ impl IntVal {
      */
     pub fn neg(self, span: Span) -> Option<Val> {
         match self {
-            IntVal::Int32{val, span: _} => Some(Val::from_i32(-val, span)),
-            IntVal::Int64{val, span: _} => Some(Val::from_i64(-val, span)),
+            IntVal::Int32(val) => Some(Val::from_i32(-val, span)),
+            IntVal::Int64(val) => Some(Val::from_i64(-val, span)),
         }
     }
     
@@ -188,31 +187,14 @@ impl IntVal {
      * Helper methods
      ***********************************************************************/
     
-    
-    /**
-     * Returns the span information of the integer value.
-     */
-    pub fn get_span(&self) -> Span {
-        match self {
-            IntVal::Int32{val: _, span} => span.clone(),
-            IntVal::Int64{val: _, span} => span.clone(),
-        }
-    }
-
 
     /**
      * Get the type information for this integer value.
      */
-    pub fn get_type(&self) -> Ty {
+    pub fn get_type_kind(&self) -> TyKind {
         match self {
-            IntVal::Int32{val: _, span} => Ty {
-                kind: TyKind::Int(IntTy::I32),
-                span: span.clone(),
-            },
-            IntVal::Int64{val: _, span} => Ty {
-                kind: TyKind::Int(IntTy::I64),
-                span: span.clone(),
-            },
+            IntVal::Int32(_) => TyKind::Int(IntTy::I32),
+            IntVal::Int64(_) => TyKind::Int(IntTy::I64),
         }
     }
     
@@ -222,7 +204,7 @@ impl IntVal {
      */
     fn get_i32(&self) -> Option<i32> {
         match self {
-            IntVal::Int32{val, span: _} => Some(*val),
+            IntVal::Int32(val) => Some(*val),
             _ => None,
         }
     }
@@ -233,7 +215,7 @@ impl IntVal {
      */
     fn get_i64(&self) -> Option<i64> {
         match self {
-            IntVal::Int64{val, span: _} => Some(*val),
+            IntVal::Int64(val) => Some(*val),
             _ => None,
         }
     }
@@ -246,8 +228,8 @@ impl IntVal {
 impl fmt::Display for IntVal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IntVal::Int32{val, span: _} => write!(f, "{} (i32)", val),
-            IntVal::Int64{val, span: _} => write!(f, "{} (i64)", val),
+            IntVal::Int32(val) => write!(f, "{} (i32)", val),
+            IntVal::Int64(val) => write!(f, "{} (i64)", val),
         }
     }
 }
@@ -259,8 +241,8 @@ impl fmt::Display for IntVal {
 impl cmp::PartialEq for IntVal {
     fn eq(&self, other: &IntVal) -> bool {
         match self {
-            IntVal::Int32{val, span: _} => *val == other.get_i32().unwrap(),
-            IntVal::Int64{val, span: _} => *val == other.get_i64().unwrap(),
+            IntVal::Int32(val) => *val == other.get_i32().unwrap(),
+            IntVal::Int64(val) => *val == other.get_i64().unwrap(),
         }
     }
 }

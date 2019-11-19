@@ -11,12 +11,16 @@ use std::collections::{
     hash_map::Values,
     HashMap
 };
-use crate::sqrrlc::session::Session;
+use crate::sqrrlc::{
+    source_map::SourceFile,
+    session::Session,
+};
 use crate::sqrrlc_ast::{
     span::Span,
     expr::ExprIdent,
 };
 use crate::sqrrlc_interp::{
+    env::write_str,
     IResult,
 };
 
@@ -150,7 +154,76 @@ impl<'a> Scope<'a> {
     fn find_mem(&self, ident: &ExprIdent) -> IResult<usize> {
         match self.symbols.get(&ident.to_string) {
             Some(addr) => Ok(*addr),
-            None => Err(struct_span_fatal!(self.sess, ident.span.clone(), "not found in this scope")),
+            None => Err(struct_span_fatal!(self.sess, ident.span, "not found in this scope")),
+        }
+    }
+
+
+    /**
+     * Debug formatting of this scope.
+     */
+    pub fn fmt_scope(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        indent: usize,
+        index: usize
+    ) -> fmt::Result {
+        match self.sess.source_map().get_file(self.span.loc) {
+            Some(file) => {
+                let line = self.span.start.line;
+                if line > 0 {
+                    write_str(f, file.get_line(line).trim(), indent)?;
+                    write_str(f, &format!("\n at {}:{}", file.filename.display(), line), indent)?;
+                } else {
+                    write_str(f, &format!("{}", file.filename.display()), indent)?;
+                }
+                if self.symbols.len() > 0 {
+                    write_str(f, &format!("\nSymbols Table: {:#?},", &self.symbols), indent)?;
+                }
+                self.fmt_sub_scope(f, indent + 4, &file, index, 0)?;
+                write_str(f, "\n},", indent - 4)
+            },
+            None => {
+                write_str(f, "<unknown>", indent)
+            }
+        }
+    }
+    
+
+    /**
+     * Debug formatting of this child scope.
+     */
+    pub fn fmt_sub_scope(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        indent: usize,
+        file: &SourceFile,
+        index: usize,
+        sub_index: usize
+    ) -> fmt::Result {
+        match &*self.child {
+            Some(child) => {
+                write_str(f, &format!("\n{}.{}: ", index, sub_index), indent - 4)?;
+                let line = child.span.start.line;
+                if line > 0 {
+                    let code = file.get_line(line).trim().to_owned();
+                    if code == "{" {
+                        write_str(f, "<block>", indent)?;
+                    } else {
+                        write_str(f, &code.trim(), indent)?;
+                    }
+                    write_str(f, file.get_line(line).trim(), indent)?;
+                    write_str(f, &format!("\n at {}:{}", file.filename.display(), line), indent)?;
+                } else {
+                    write_str(f, &format!("{}", file.filename.display()), indent)?;
+                }
+                if self.symbols.len() > 0 {
+                    write_str(f, &format!("\nSymbols Table: {:#?},", &child.symbols), indent)?;
+                }
+                child.fmt_sub_scope(f, indent + 4, file, index, sub_index + 1)?;
+                write_str(f, "\n},", indent - 4)
+            }
+            None => Ok(()),
         }
     }
 }
@@ -161,10 +234,6 @@ impl<'a> Scope<'a> {
  */
 impl<'a> fmt::Debug for Scope<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Scope")
-            .field("at", &format_args!("{}:{}", "src/main.rs", self.span.start.line))
-            .field("symbols", &self.symbols)
-            .field("block", &self.child)
-            .finish()
+        self.fmt_scope(f, 0, 0)
     }
 }

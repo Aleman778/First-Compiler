@@ -108,7 +108,7 @@ impl<'a> ParseError {
     pub fn new(input: ParseSpan<'a>, kind: ErrorKind) -> Self {
         ParseError{
             errors: vec![Verbose{
-                span: Span::new(input),
+                span: Span::new(input, input.extra),
                 kind: kind,
             }],
         }
@@ -117,7 +117,7 @@ impl<'a> ParseError {
 
     pub fn append(input: ParseSpan<'a>, kind: ErrorKind, mut other: Self) -> Self {
         other.errors.push(Verbose {
-            span: Span::new(input),
+            span: Span::new(input, input.extra),
             kind: kind,
         });
         other
@@ -146,7 +146,7 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
     fn from_error_kind(input: ParseSpan<'a>, kind: nom::error::ErrorKind) -> Self {
         ParseError{
             errors: vec![Verbose{
-                span: Span::new(input),
+                span: Span::new(input, input.extra),
                 kind: ErrorKind::Nom(kind),
             }],
         }
@@ -155,7 +155,7 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
 
     fn append(input: ParseSpan<'a>, kind: nom::error::ErrorKind, mut other: Self) -> Self {
         other.errors.push(Verbose{
-            span: Span::new(input),
+            span: Span::new(input, input.extra),
             kind: ErrorKind::Nom(kind),
         });
         other
@@ -165,7 +165,7 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
     fn from_char(input: ParseSpan<'a>, c: char) -> Self {
         ParseError{
             errors: vec![Verbose{
-                span: Span::new(input),
+                span: Span::new(input, input.extra),
                 kind: ErrorKind::Char(c),
             }],
         }
@@ -189,7 +189,7 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
 
     fn add_context(input: ParseSpan<'a>, ctx: &'static str, mut other: Self) -> Self {
         other.errors.push(Verbose{
-            span: Span::new(input),
+            span: Span::new(input, input.extra),
             kind: ErrorKind::Context(ctx),
         });
         other

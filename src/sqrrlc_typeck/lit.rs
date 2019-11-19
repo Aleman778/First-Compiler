@@ -34,7 +34,7 @@ impl TypeChecker for LitInt {
     fn check_type(&self, _env: &mut TypeEnv) -> Ty {
         Ty {
             kind: TyKind::Int(IntTy::I32),
-            span: self.span.clone(),
+            span: self.span,
         }
     }
 }
@@ -47,7 +47,7 @@ impl TypeChecker for LitBool {
     fn check_type(&self, _env: &mut TypeEnv) -> Ty {
         Ty {
             kind: TyKind::Bool,
-            span: self.span.clone(),
+            span: self.span,
         }
     }
 }

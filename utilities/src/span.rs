@@ -13,7 +13,7 @@ use nom_locate::LocatedSpanEx;
  * Returns a ParseSpan used as input to parser.
  */
 pub fn input(input: &str) -> ParseSpan {
-    ParseSpan::new_extra(input, "")
+    ParseSpan::new(input)
 }
 
 
@@ -25,7 +25,7 @@ pub fn output(offset: usize, frag: &str) -> ParseSpan {
         offset: offset,
         line: 1,
         fragment: frag,
-        extra: "",
+        extra: (),
     }
 }
 

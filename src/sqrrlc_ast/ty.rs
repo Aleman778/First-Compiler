@@ -63,7 +63,6 @@ pub enum IntTy {
 pub struct TypeRef {
     pub mutability: bool,
     pub elem: Box<Ty>,
-    pub span: Span,
 }
 
 

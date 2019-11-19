@@ -32,9 +32,17 @@ pub struct Session {
 
 impl Session {
     /**
-     * Create a new empty session.
+     * Creats a new empty session without specified working directory.
      */
-    pub fn new(working_dir: PathBuf) -> Self {
+    pub fn new() -> Self {
+        Session::with_dir(std::env::current_dir().unwrap())
+    }
+    
+    
+    /**
+     * Create a new empty session with a specific working directory.
+     */
+    pub fn with_dir(working_dir: PathBuf) -> Self {
         let src_map = Rc::new(SourceMap::new(working_dir.clone()));
         Session {
             handler: Handler::new(Emitter::new(Rc::clone(&src_map))),

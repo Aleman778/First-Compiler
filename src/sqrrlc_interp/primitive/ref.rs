@@ -6,10 +6,7 @@
 
 use std::fmt;
 use std::cmp;
-use crate::sqrrlc_ast::{
-    span::Span,
-    ty::*,
-};
+use crate::sqrrlc_ast::ty::*;
 use crate::sqrrlc_interp::value::Val;
 
 
@@ -18,8 +15,14 @@ use crate::sqrrlc_interp::value::Val;
  */
 #[derive(Debug, Clone)]
 pub struct RefVal {
+    /// The memory address where this reference points to.
     pub addr: usize,
-    pub span: Span,
+
+    /// The type that this 
+    pub ref_ty: Ty,
+
+    /// Is this a mutable reference?
+    pub mutability: bool,
 }
 
 
@@ -38,23 +41,6 @@ impl RefVal {
     pub fn deref(self) -> Option<Val> {
         unimplemented!();
     }
-
-
-    /***********************************************************************
-     * Helper methods
-     ***********************************************************************/
-    
-    
-    /**
-     * Get the type information for this boolean value.
-     * TODO: fix type kind should be reference.
-     */
-    pub fn get_type(&self) -> Ty {
-        Ty {
-            kind: TyKind::None,
-            span: self.span.clone(),
-        }
-    }    
 }
 
 

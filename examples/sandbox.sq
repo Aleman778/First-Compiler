@@ -1,14 +1,15 @@
 fn main() {
     let a: i32 = 64;
-    let b: i32 = sub(a, 3, 43);
-    let potatis: bool = !53;
+    let b: i32 = sub(a, 32);
+    let potatis: bool = !false;
+    print_bool(potatis);
 }
 
-fn sub(a: bool, b: i32) -> i32 {
+fn sub(a: i32, b: i32) -> i32 {
     let c: i32 = 5;
-    {
+    if c < 10 {
         let d: i32 = a - b + c;
+        trace();
     }
-    
     return c;
 }
