@@ -2,14 +2,14 @@
 
 /***************************************************************************
  * Expressions AST sub module defines all the different expressions in
- * the squirrel language e.g. binary operations, if statements etc.
+ * the sqrrl language e.g. binary operations, if statements etc.
  ***************************************************************************/
 
 
 use crate::sqrrlc_ast::{
     span::Span,
+    stmt::Block,
     lit::Lit,
-    ty::Ty,
     op::*,
 };
 
@@ -25,8 +25,8 @@ pub enum Expr {
     
     /// Expression for binary opeations e.g. `5 + a`, `b && check()`.
     Binary(ExprBinary),
-    
-    /// Expression for blocks i.e. `{ ... }`.
+
+    /// Expression for block statements e.g. `{ ... }`.
     Block(ExprBlock),
     
     /// Expression for break statements i.e. `break;`.
@@ -46,12 +46,12 @@ pub enum Expr {
     
     /// Expression for literals e.g. `32`, `true`.
     Lit(ExprLit),
-    
-    /// Expression for local variable assignment e.g. `let a: i32 = 5;`.
-    Local(ExprLocal),
-    
+        
     /// Parenthesized expression e.g. `(5 + 3)`.
     Paren(ExprParen),
+
+    /// Reference expression e.g. &342, &mut false.
+    Reference(ExprReference),
     
     /// Expression for return statements e.g. `return true;`, `return;`.
     Return(ExprReturn),
@@ -89,11 +89,11 @@ pub struct ExprBinary {
 
 
 /**
- * Block contains a vector of expressions.
+ * Block expressions used for sub block expresions.
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprBlock {
-    pub stmts: Vec<Expr>,
+    pub block: Block,
     pub span: Span,
 }
 
@@ -145,8 +145,8 @@ pub struct ExprIdent {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprIf {
     pub cond: Box<Expr>,
-    pub then_block: ExprBlock,
-    pub else_block: Option<ExprBlock>,
+    pub then_block: Block,
+    pub else_block: Option<Block>,
     pub span: Span,
 }
 
@@ -161,24 +161,21 @@ pub struct ExprLit {
 
 
 /**
- * Local variable declartion defines information about
- * the variable e.g. let mut a: i32 = 53;
+ * Parenthesized expressions.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprLocal {
-    pub mutable: bool,
-    pub ident: ExprIdent,
-    pub ty: Ty,
-    pub init: Box<Expr>,
+pub struct ExprParen {
+    pub expr: Box<Expr>,
     pub span: Span,
 }
 
 
 /**
- * Parenthesized expressions.
+ * Reference expression.
  */
 #[derive(Debug, Clone, PartialEq)]
-pub struct ExprParen {
+pub struct ExprReference {
+    pub mutability: bool,
     pub expr: Box<Expr>,
     pub span: Span,
 }
@@ -213,6 +210,6 @@ pub struct ExprUnary {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprWhile {
     pub cond: Box<Expr>,
-    pub block: ExprBlock,
+    pub block: Block,
     pub span: Span,
 }

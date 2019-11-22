@@ -165,11 +165,17 @@ impl<'a> Scope<'a> {
     pub fn fmt_scope(
         &self,
         f: &mut fmt::Formatter<'_>,
-        indent: usize,
+        mut indent: usize,
         index: usize
     ) -> fmt::Result {
         match self.sess.source_map().get_file(self.span.loc) {
             Some(file) => {
+                write_str(f, &format!("\n{}: ", index), indent - 4)?;
+                self.fmt_sub_scope(f, indent + 4, &file, index, 1)?;
+                if (*self.child).is_some() {
+                    write_str(f, &format!("\n{}.0: ", index), indent)?;
+                    indent += 4;
+                }
                 let line = self.span.start.line;
                 if line > 0 {
                     write_str(f, file.get_line(line).trim(), indent)?;
@@ -180,7 +186,6 @@ impl<'a> Scope<'a> {
                 if self.symbols.len() > 0 {
                     write_str(f, &format!("\nSymbols Table: {:#?},", &self.symbols), indent)?;
                 }
-                self.fmt_sub_scope(f, indent + 4, &file, index, 0)?;
                 write_str(f, "\n},", indent - 4)
             },
             None => {

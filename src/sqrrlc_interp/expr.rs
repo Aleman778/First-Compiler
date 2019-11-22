@@ -6,6 +6,7 @@
 
 
 use crate::sqrrlc_ast::{
+    ty::TyKind,
     base::Item,
     expr::*,
 };
@@ -24,20 +25,20 @@ use crate::sqrrlc_interp::{
 impl Eval for Expr {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         match self {
-            Expr::Assign(expr)   => expr.eval(env),
-            Expr::Binary(expr)   => expr.eval(env),
-            Expr::Block(expr)    => expr.eval(env, true),
-            Expr::Break(expr)    => expr.eval(env),
-            Expr::Call(expr)     => expr.eval(env),
-            Expr::Continue(expr) => expr.eval(env),
-            Expr::Ident(expr)    => expr.eval(env),
-            Expr::If(expr)       => expr.eval(env),
-            Expr::Lit(expr)      => expr.eval(env),
-            Expr::Local(expr)    => expr.eval(env), 
-            Expr::Paren(expr)    => expr.eval(env),
-            Expr::Return(expr)   => expr.eval(env),
-            Expr::Unary(expr)    => expr.eval(env),
-            Expr::While(expr)    => expr.eval(env),
+            Expr::Assign(expr)    => expr.eval(env),
+            Expr::Binary(expr)    => expr.eval(env),
+            Expr::Block(expr)     => expr.eval(env),
+            Expr::Break(expr)     => expr.eval(env),
+            Expr::Call(expr)      => expr.eval(env),
+            Expr::Continue(expr)  => expr.eval(env),
+            Expr::Ident(expr)     => expr.eval(env),
+            Expr::If(expr)        => expr.eval(env),
+            Expr::Lit(expr)       => expr.eval(env),
+            Expr::Paren(expr)     => expr.eval(env),
+            Expr::Reference(expr) => expr.eval(env),
+            Expr::Return(expr)    => expr.eval(env),
+            Expr::Unary(expr)     => expr.eval(env),
+            Expr::While(expr)     => expr.eval(env),
         }
     }
 }
@@ -70,26 +71,11 @@ impl Eval for ExprBinary {
 /**
  * Evaluates a block expression.
  */
-impl ExprBlock {
-    /**
-     * Evaluates the block expression with the given runtime env
-     * and pushes the new block if the given new_scope is true.
-     */
-    pub fn eval(&self, env: &mut RuntimeEnv, new_scope: bool) -> IResult<Val> {
-        if new_scope {
-            env.push_block(Scope::new(env.sess, self.span))?;
-        }
-        let mut ret_val = Val::new();
-        for expr in &self.stmts {
-            let val = expr.eval(env)?;
-            match val.data {
-                ValData::None => continue,
-                _ => ret_val = val,
-            };
-        }
-        if new_scope {
-            env.pop_block()?;
-        }
+impl Eval for ExprBlock {
+    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
+        env.push_block(Scope::new(env.sess, self.span))?;
+        let ret_val = self.block.eval(env)?;
+        env.pop_block()?;
         Ok(ret_val)
     }
 }
@@ -119,7 +105,6 @@ impl Eval for ExprCall {
         match item.eval_func(values, env) {
             Ok(val) => Ok(val),
             Err(mut err) => {
-                // Include function call span label
                 let len = match item {
                     Item::Fn(func) => func.decl.inputs.len(),
                     Item::ForeignFn(func) => func.decl.inputs.len(),
@@ -164,28 +149,26 @@ impl Eval for ExprIf {
         match value.get_bool() {
             Some(cond) => {
                 if cond {
-                    let result = self.then_block.eval(env, true);
+                    env.push_block(Scope::new(env.sess, self.span))?;
+                    let result = self.then_block.eval(env);
+                    env.pop_block()?;
                     result
                 } else {
                     match self.else_block.clone() {
                         Some(block) => {
-                            let result = block.eval(env, true);
+                            env.push_block(Scope::new(env.sess, self.span))?;
+                            let result = block.eval(env);
+                            env.pop_block()?;
                             result
                         },
                         None => Ok(Val::new()),
                     }
                 }
             },
-            None => {
-                let mut err = struct_span_fatal!(env.sess, self.span, "mismatched_types");
-                err.span_label(self.span, &format!("expected bool, found {}", value.get_type()));
-                Err(err)
-            },
+            None => Err(mismatched_types_fatal!(env.sess, value.span, TyKind::Bool, value.get_type())),
         }
     }
 }
-
-
 
 
 /**
@@ -199,23 +182,23 @@ impl Eval for ExprLit {
 
 
 /**
- * Evaluates a local variable assignment.
- */
-impl Eval for ExprLocal {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let val = (*self.init).eval(env)?;
-        env.store_var(&self.ident, &val)?;
-        Ok(Val::new())
-    }
-}
-
-
-/**
  * Evaluates a parenthesized expression.
  */
 impl Eval for ExprParen {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         (*self.expr).eval(env)
+    }
+}
+
+
+/**
+ * Evaluates a reference expression.
+ */
+impl Eval for ExprReference {
+    fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
+        // let val = (*self.expr).eval(env)?;
+        // Ok(Val::from_ref())
+        Ok(Val::new())
     }
 }
 
@@ -253,7 +236,9 @@ impl Eval for ExprWhile {
             match value.get_bool() {
                 Some(cond) => {
                     if cond {
-                        let val = self.block.eval(env, true)?;
+                        env.push_block(Scope::new(env.sess, self.span))?;
+                        let val = self.block.eval(env)?;
+                        env.pop_block()?;
                         match val.data {
                             ValData::Continue => continue,
                             ValData::Break => break,
@@ -265,9 +250,7 @@ impl Eval for ExprWhile {
                     }
                 },
                 None => {
-                    let mut err = struct_span_fatal!(env.sess, self.span, "mismatched_types");
-                    err.span_label(self.span, &format!("expected bool, found {}", value.get_type()));
-                    return Err(err);
+                    return Err(mismatched_types_fatal!(env.sess, value.span, TyKind::Bool, value.get_type()));
                 },
             };
         }

@@ -97,9 +97,7 @@ impl<'a> RuntimeEnv<'a> {
                 let val_ty = &values[i].get_type();
                 if arg_ty != val_ty {
                     let span = values[i].span;
-                    let mut err = struct_span_fatal!(self.sess, span, "mismatched types");
-                    err.span_label(span, &format!("expected {}, found {}", arg_ty, val_ty));
-                    return Err(err);
+                    return Err(mismatched_types_fatal!(self.sess, span, arg_ty, val_ty));
                 }
                 let id = &inputs[i].ident;
                 let addr = self.memory.alloc(&values[i])?;
@@ -127,17 +125,14 @@ impl<'a> RuntimeEnv<'a> {
     /**
      * Push the main function scope on the call stack.
      */
-    pub fn push_main(&mut self) -> IResult<FnItem> {
+    pub fn load_main(&mut self) -> IResult<FnItem> {
         match self.signatures.get("main") {
             Some(item) => {
                 match item {
                     Item::Fn(func) => {
-                        let new_scope = Scope::new(self.sess, func.span);
-                        self.call_stack.push(new_scope);
                         Ok(func.clone())
-                            
                     },
-                    _ => Err(struct_fatal!(self.sess, "there is no main function")),
+                    _ => Err(struct_fatal!(self.sess, "main exists but is not a valid function")),
                 }
             }
             None => Err(struct_fatal!(self.sess, "there is no main function")),
@@ -156,7 +151,11 @@ impl<'a> RuntimeEnv<'a> {
                 }
                 Ok(())
             },
-            None => Err(struct_fatal!(self.sess, "cannot pop an empty call stack")),
+            None => {
+                
+                panic!();
+                // Err(struct_fatal!(self.sess, "cannot pop an empty call stack"));
+            }
         }
     }
 
@@ -273,8 +272,7 @@ impl<'a> RuntimeEnv<'a> {
      */
     pub fn fmt_call_stack(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
         write_str(f, "\nCall Stack: {", indent)?;
-        for (index, scope) in self.call_stack.iter().enumerate() {
-            write_str(f, &format!("\n{}: ", index), indent + 4)?;
+        for (index, scope) in self.call_stack.iter().rev().enumerate() {
             scope.fmt_scope(f, indent + 8, index)?;
         }
         write_str(f, "\n}", indent)

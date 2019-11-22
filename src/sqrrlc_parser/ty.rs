@@ -8,7 +8,7 @@ use nom::{
     character::complete::{multispace0, multispace1},
     bytes::complete::tag,
     combinator::{map, opt},
-    sequence::{preceded, tuple},
+    sequence::{preceded, terminated, tuple},
     branch::alt,
     error::context,
 };
@@ -56,8 +56,8 @@ impl TypeRef {
             "type reference",
             map(tuple((
                 preceded(multispace0, tag("&")),
-                opt(preceded(multispace0, tag("mut"))),
-                preceded(multispace1, Ty::parse),
+                opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
+                preceded(multispace0, Ty::parse),
             )),
                 |(amp, mutability, elem)| {
                     let elem_span = elem.span;

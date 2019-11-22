@@ -8,7 +8,8 @@ use crate::sqrrlc::{
     symbol::*,
 };
 use crate::sqrrlc_ast::{
-    expr::{Expr, ExprBlock, ExprLocal},
+    expr::Expr,
+    stmt::*,
     base::*,
 };
 
@@ -45,7 +46,7 @@ impl GenSymbolTable for File {
 
 
 /**
- * Genreate symbol table for item AST node.
+ * Generate symbol table for item AST node.
  */
 impl GenSymbolTable for Item {
     fn gen_sym_table(&self, table: &mut SymbolTable) {
@@ -58,7 +59,7 @@ impl GenSymbolTable for Item {
 
 
 /**
- * Genreate symbol table for item AST node.
+ * Generate symbol table for item AST node.
  */
 impl GenSymbolTable for FnItem {
     fn gen_sym_table(&self, table: &mut SymbolTable) {
@@ -78,7 +79,7 @@ impl GenSymbolTable for FnItem {
 
 
 /**
- * Genreate symbol table for item AST node.
+ * Generate symbol table for item AST node.
  */
 impl GenSymbolTable for ForeignFnItem {
     fn gen_sym_table(&self, table: &mut SymbolTable) {
@@ -90,7 +91,7 @@ impl GenSymbolTable for ForeignFnItem {
 
 
 /**
- * Genreate symbol table for item AST node.
+ * Generate symbol table for item AST node.
  */
 impl FnDecl {
     fn gen_sym_table(&self, _table: &mut SymbolTable, fn_symbol: &mut FnSymbol) {
@@ -103,28 +104,23 @@ impl FnDecl {
 
 
 /**
- * Genreate symbol table for item AST node.
+ * Generate symbol table for item AST node.
  */
-impl GenSymbolTable for Expr {
+impl GenSymbolTable for Stmt {
     fn gen_sym_table(&self, table: &mut SymbolTable) {
         match self {
-            Expr::Block(expr) => {
-                let ident = table.current_id().clone();
-                table.push_scope(Scope::with_ident(expr.span, ident));
-                expr.gen_sym_table(table);
-                table.prev_scope();
-            },
-            Expr::Local(expr) => expr.gen_sym_table(table),
-            _ => {},
-        };
+            Stmt::Local(local) => local.gen_sym_table(table),
+            Stmt::Item(item) => item.gen_sym_table(table),
+            Stmt::Expr(expr) => expr.gen_sym_table(table),
+        }
     }
 }
 
 
 /**
- * Genreate symbol table for item AST node.
+ * Generate symbol table for item AST node.
  */
-impl GenSymbolTable for ExprBlock {
+impl GenSymbolTable for Block {
     fn gen_sym_table(&self, table: &mut SymbolTable) {
         for expr in &self.stmts {
             expr.gen_sym_table(table);
@@ -134,12 +130,27 @@ impl GenSymbolTable for ExprBlock {
 
 
 /**
- * Genreate symbol table for item AST node.
+ * Generate symbol table for item AST node.
  */
-impl GenSymbolTable for ExprLocal {
+impl GenSymbolTable for Local {
     fn gen_sym_table(&self, table: &mut SymbolTable) {
         let mut symbol = VarSymbol::new();
         symbol.ty = self.ty.clone();
         table.push_symbol(&self.ident, Symbol::Var(symbol));
+    }
+}
+
+
+/**
+ * Gen
+ */
+impl GenSymbolTable for Expr {
+    fn gen_sym_table(&self, table: &mut SymbolTable) {
+        if let Expr::Block(expr) = self {
+            let ident = table.current_id().clone();
+            table.push_scope(Scope::with_ident(expr.span, ident));
+            expr.block.gen_sym_table(table);
+            table.prev_scope();            
+        }
     }
 }

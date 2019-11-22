@@ -9,7 +9,8 @@
 
 use crate::sqrrlc_ast::{
     span::Span,
-    expr::{ExprIdent, ExprBlock},
+    expr::ExprIdent,
+    stmt::Block,
     ty::Ty,
 };
 
@@ -86,7 +87,7 @@ impl Item {
 pub struct FnItem {
     pub ident: ExprIdent,
     pub decl: FnDecl,
-    pub block: ExprBlock,
+    pub block: Block,
     pub span: Span,
 }
 

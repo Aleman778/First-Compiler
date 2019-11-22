@@ -36,6 +36,7 @@ pub trait Parser: Sized {
 
 pub mod error;
 pub mod base;
+pub mod stmt;
 pub mod op;
 pub mod lit;
 pub mod expr;

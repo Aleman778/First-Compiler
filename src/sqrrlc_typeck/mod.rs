@@ -31,6 +31,7 @@ pub trait TypeChecker {
 pub mod env;
 pub mod error;
 pub mod base;
+pub mod stmt;
 pub mod expr;
 pub mod lit;
 pub mod op;

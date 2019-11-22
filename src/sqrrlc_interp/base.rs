@@ -7,12 +7,14 @@
 
 use crate::sqrrlc_ast::{
     base::*,
+    ty::*,
 };
 use crate::sqrrlc_interp::{
-    value::Val,
     env::RuntimeEnv,
+    value::*,
     debug::*,
     IResult,
+    Eval,
 };
 
 
@@ -24,13 +26,9 @@ impl File {
         for item in &self.items {
             env.store_item(item.clone());
         }
-        match env.push_main() {
+        match env.load_main() {
             Ok(func) => {
-                if let Err(diagnostic) = func.block.eval(env, false) {
-                    env.sess.emit(&diagnostic);
-                    return;
-                }
-                if let Err(diagnostic) = env.pop_func() {
+                if let Err(diagnostic) = func.eval(Vec::new(), env) {
                     env.sess.emit(&diagnostic);
                     return;
                 }
@@ -76,9 +74,13 @@ impl Item {
 impl FnItem {
     fn eval(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
         env.push_func(&self, values)?;
-        let result = self.block.eval(env, false)?;
+        let val = self.block.eval(env)?;
         env.pop_func()?;
-        Ok(result)
+        match val.data {
+            ValData::Continue |
+            ValData::Break => Err(struct_span_fatal!(env.sess, val.span, "cannot break outside loop")),
+            _ => Ok(val),
+        }
     }
 }
 
@@ -95,26 +97,18 @@ impl ForeignFnItem {
             "print_int" => {
                 match values[0].get_i32() {
                     Some(arg) => print_int(arg),
-                    None => {
-                        let mut err = struct_span_fatal!(env.sess, self.span, "mismatched_types");
-                        err.span_label(self.span, &format!("expected i32, found {}", values[0].get_type()));
-                        return Err(err);
-                    },
+                    None => return Err(mismatched_types_fatal!(
+                        env.sess, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
                 };
             },
             "print_bool" => {
                 match values[0].get_bool() {
                     Some(arg) => print_bool(arg),
-                    None => {
-                        let mut err = struct_span_fatal!(env.sess, self.span, "mismatched_types");
-                        err.span_label(self.span, &format!("expected bool, found {}", values[0].get_type()));
-                        return Err(err);
-                    },
+                    None => return Err(mismatched_types_fatal!(
+                        env.sess, values[0].span, TyKind::Bool, values[0].get_type())),
                 };
-            }
-            _ => {
-                return Err(struct_span_fatal!(env.sess, self.span, "not a debug function"));
-            }
+            },
+            _ => return Err(struct_fatal!(env.sess, "is not a debug function")),
         };
         Ok(Val::new())
     }

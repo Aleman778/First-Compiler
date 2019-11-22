@@ -1,8 +1,20 @@
 fn main() {
-    let a: i32 = 64;
-    let b: i32 = sub(a, 32);
+    let a: i32 = 43;
+    let c: i32 = if (a > 40) {
+        40
+    } else {
+        60
+    };
+    print_int(c);
+    
+    let b: i32 = sub(a, 43);
     let potatis: bool = !false;
     print_bool(potatis);
+    while a > 30 {
+        print_int(a);
+        break;
+        a = a - 1;
+    }
 }
 
 fn sub(a: i32, b: i32) -> i32 {
@@ -11,5 +23,6 @@ fn sub(a: i32, b: i32) -> i32 {
         let d: i32 = a - b + c;
         trace();
     }
+    
     return c;
 }

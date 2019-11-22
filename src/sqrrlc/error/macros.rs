@@ -99,3 +99,12 @@ macro_rules! struct_fatal {
     })
 }
 
+
+#[macro_export]
+macro_rules! mismatched_types_fatal {
+    ($session:expr, $span:expr, $expected:expr, $found:expr) => ({
+        let mut err = $session.struct_span_fatal($span, "mismatched types");
+        err.span_label($span, &format!("expected {}, found {}", $expected, $found));
+        err
+    })
+}

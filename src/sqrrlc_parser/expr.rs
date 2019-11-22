@@ -10,14 +10,14 @@ use nom::{
     character::complete::{alpha1, multispace0, multispace1},
     bytes::complete::{take_while1, tag},
     combinator::{map, opt, peek},
-    sequence::{preceded, pair, tuple},
-    multi::{many0, separated_list},
+    sequence::{preceded, terminated, pair, tuple},
+    multi::{separated_list},
     branch::alt,
     error::context,
 };
 use crate::sqrrlc_ast::{
     span::{LineColumn, Span},
-    ty::Ty,
+    stmt::Block,
     expr::*,
     lit::*,
     op::*,
@@ -37,15 +37,15 @@ impl Parser for Expr {
         context(
             "expression",
             alt((
-                map(ExprLocal::parse,    |expr_local|    Expr::Local(expr_local)),
-                map(ExprAssign::parse,   |expr_assign|   Expr::Assign(expr_assign)),
-                map(ExprIf::parse,       |expr_if|       Expr::If(expr_if)),
-                map(ExprWhile::parse,    |expr_while|    Expr::While(expr_while)),
-                map(ExprBlock::parse,    |expr_block|    Expr::Block(expr_block)),
-                map(ExprReturn::parse,   |expr_return|   Expr::Return(expr_return)),
-                map(ExprBreak::parse,    |expr_break|    Expr::Break(expr_break)),
-                map(ExprContinue::parse, |expr_continue| Expr::Continue(expr_continue)),
-                map(ExprCall::parse,     |expr_call|     Expr::Call(expr_call)),
+                map(ExprAssign::parse,    |expr_assign|   Expr::Assign(expr_assign)),
+                map(ExprIf::parse,        |expr_if|       Expr::If(expr_if)),
+                map(ExprWhile::parse,     |expr_while|    Expr::While(expr_while)),
+                map(ExprReference::parse, |expr_ref|      Expr::Reference(expr_ref)),
+                map(ExprReturn::parse,    |expr_return|   Expr::Return(expr_return)),
+                map(ExprBreak::parse,     |expr_break|    Expr::Break(expr_break)),
+                map(ExprContinue::parse,  |expr_continue| Expr::Continue(expr_continue)),
+                map(ExprCall::parse,      |expr_call|     Expr::Call(expr_call)),
+                Expr::parse_math
             ))
         )(input)
     }
@@ -62,10 +62,7 @@ impl Expr {
      * algorithm for parsing into a mathematically correct expression.
      */
     pub fn parse_math(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "expression",
-            preceded(multispace0, ExprBinary::parse)
-        )(input)
+        preceded(multispace0, ExprBinary::parse)(input)
     }
 
     
@@ -100,8 +97,8 @@ impl Parser for ExprAssign {
                 map(tuple((
                     ExprIdent::parse,
                     preceded(multispace0, tag("=")),
-                    Expr::parse_math,
-                    preceded(multispace0, tag(";")),
+                    Expr::parse,
+                    preceded(multispace0, peek(tag(";"))),
                 )),
                     |(id, _, expr, end)| {
                         let rid = id.clone();
@@ -174,32 +171,15 @@ impl ExprBinary {
 
 
 /**
- * Parse expression block.
+ * Parse block expression.
  */
 impl Parser for ExprBlock {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "block statement",
-            map(tuple((
-                preceded(multispace0, tag("{")),
-                many0(Expr::parse),
-                opt(Expr::parse_math),
-                preceded(multispace0, tag("}")),
-            )),
-                |(start, mut stmts, ret, end)| {
-                    if ret.is_some() {
-                        stmts.push(ret.unwrap());
-                    }
-                    ExprBlock{
-                        stmts: stmts,
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            LineColumn::new(end.line, end.get_column() + 1),
-                            input.extra
-                        ),
-                    }
-                }
-            )
+        map(
+            Block::parse, |block| {
+                let span = block.span;
+                ExprBlock{block, span}
+            }
         )(input)
     }
 }
@@ -214,7 +194,7 @@ impl Parser for ExprBreak {
             "break",
             map(pair(
                 preceded(multispace0, tag("break")),
-                preceded(multispace0, tag(";"))
+                preceded(multispace0, peek(tag(";")))
             ),
                 |(start, end) : (ParseSpan, ParseSpan)| ExprBreak {
                     span: Span::from_bounds(
@@ -237,7 +217,7 @@ impl Parser for ExprCall {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         map(pair(
             ExprCall::parse_term,
-            preceded(multispace0, tag(";"))
+            preceded(multispace0, peek(tag(";")))
         ),
             |(mut call, end)| {
                 call.span.end = LineColumn::new(end.line, end.get_column() + 1);
@@ -259,7 +239,7 @@ impl ExprCall {
             map(tuple((
                 ExprIdent::parse,
                 preceded(multispace0, tag("(")),
-                separated_list(preceded(multispace0, tag(",")), Expr::parse_math),
+                separated_list(preceded(multispace0, tag(",")), Expr::parse),
                 preceded(multispace0, tag(")")),
             )),
                 |(id, _, args, end)| {
@@ -291,7 +271,7 @@ impl Parser for ExprContinue {
             "continue",
             map(pair(
                 preceded(multispace0, tag("continue")),
-                preceded(multispace0, tag(";"))
+                preceded(multispace0, peek(tag(";")))
             ),
                 |(start, end) : (ParseSpan, ParseSpan)| ExprContinue {
                     span: Span::from_bounds(
@@ -335,11 +315,11 @@ impl Parser for ExprIf  {
             "if statement",
             map(tuple((
                 preceded(multispace0, tag("if")),
-                preceded(multispace1, Expr::parse_math),
-                preceded(multispace0, ExprBlock::parse),
+                preceded(multispace1, Expr::parse),
+                preceded(multispace0, Block::parse),
                 opt(preceded(
                     pair(multispace0, tag("else")),
-                    preceded(multispace0, ExprBlock::parse))
+                    preceded(multispace0, Block::parse))
                 ),
             )),
                 |(start, cond, then_block, else_block)| {
@@ -386,47 +366,13 @@ impl Parser for ExprLit {
 
 
 /**
- * Parse a local variable (let binding).
- */
-impl Parser for ExprLocal {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "local variable",
-            map(tuple((
-                preceded(multispace0, tag("let")),
-                opt(preceded(multispace1, tag("mut"))),
-                preceded(multispace1, ExprIdent::parse),
-                preceded(multispace0, tag(":")),
-                preceded(multispace0, Ty::parse),
-                preceded(multispace0, tag("=")),
-                preceded(multispace0, Expr::parse_math),
-                preceded(multispace0, tag(";")),
-            )),
-                |(start, mutable, ident, _, ty, _, expr, end)| ExprLocal {
-                    mutable: mutable.is_some(),
-                    ident: ident,
-                    ty: ty,
-                    init: Box::new(expr),
-                    span: Span::from_bounds(
-                        LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1),
-                        input.extra
-                    ),
-                }
-            )
-        )(input)
-    }
-}
-
-
-/**
- * Parse a prenthesized expression.
+ * Parse a parenthesized expression.
  */
 impl Parser for ExprParen {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         map(tuple((
             preceded(multispace0, tag("(")),
-            Expr::parse_math,
+            Expr::parse,
             preceded(multispace0, tag(")"))
         )),
             |(start, expr, end)| ExprParen {
@@ -443,6 +389,29 @@ impl Parser for ExprParen {
 
 
 /**
+ * Parse a reference expression.
+ */
+impl Parser for ExprReference {
+    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+        map(tuple((
+            preceded(multispace0, tag("&")),
+            opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
+            preceded(multispace0, Expr::parse),
+        )),
+            |(amp, mutability, expr)| ExprReference {
+                mutability: mutability.is_some(),
+                expr: Box::new(expr),
+                span: Span::from_bounds(
+                    LineColumn::new(amp.line, amp.get_column()),
+                    LineColumn::new(input.line, input.get_column()), input.extra
+                ),
+            }
+        )(input)
+    }
+}
+
+
+/**
  * Parse a return statement with optional return expression.
  */
 impl Parser for ExprReturn {
@@ -451,8 +420,8 @@ impl Parser for ExprReturn {
             "return",
             map(tuple((
                 preceded(multispace0, tag("return")),
-                opt(preceded(multispace1, Expr::parse_math)),
-                preceded(multispace0, tag(";")),
+                opt(preceded(multispace1, Expr::parse)),
+                preceded(multispace0, peek(tag(";"))),
             )),
                 |(start, expr, end)| ExprReturn {
                     expr: Box::new(expr),
@@ -498,8 +467,8 @@ impl Parser for ExprWhile {
             "while loop",
             map(tuple((
                 preceded(multispace0, tag("while")),
-                preceded(multispace1, Expr::parse_math),
-                preceded(multispace0, ExprBlock::parse)
+                preceded(multispace1, Expr::parse),
+                preceded(multispace0, Block::parse)
             )),
                 |(start, cond, block)| {
                     let rblock = block.clone();

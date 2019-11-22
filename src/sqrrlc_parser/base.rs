@@ -17,7 +17,8 @@ use nom::{
 use crate::sqrrlc_ast::{
     span::{Span, LineColumn},
     base::*,
-    expr::{ExprBlock, ExprIdent},
+    expr::ExprIdent,
+    stmt::Block,
     ty::Ty,
 };
 use crate::sqrrlc_parser::{
@@ -81,7 +82,7 @@ impl Parser for FnItem {
                 preceded(multispace0, tag("fn")),
                 preceded(multispace1, ExprIdent::parse),
                 FnDecl::parse,
-                ExprBlock::parse,
+                Block::parse,
             )),
                 |(start, id, decl, block)| {
                     let block_clone = block.clone();

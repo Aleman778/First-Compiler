@@ -76,6 +76,7 @@ fn main() {
     let span = ParseSpan::new_extra(&file.source, 0);
     let mut expr = File::parse(span).unwrap().1;
     expr.extend(debug_functions());
+    // println!("AST Expr: {:#?}", expr);
 
     let _symbols = gen_sym_table(&expr);
     // println!("{:#?}", symbols);
@@ -94,8 +95,4 @@ fn main() {
     
     let mut env = RuntimeEnv::new(&sess);
     expr.eval(&mut env);
-}
-
-fn test(a: i32, b: i32) {
-    println!("{}. {}", a, b);
 }

@@ -32,6 +32,7 @@ pub mod env;
 pub mod scope;
 pub mod memory;
 pub mod base;
+pub mod stmt;
 pub mod expr;
 pub mod lit;
 pub mod op;
