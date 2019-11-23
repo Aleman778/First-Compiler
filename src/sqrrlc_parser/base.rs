@@ -22,6 +22,7 @@ use crate::sqrrlc_ast::{
     ty::Ty,
 };
 use crate::sqrrlc_parser::{
+    comment::multispace_comment0,
     error::convert_error,
     ParseSpan,
     IResult,
@@ -34,13 +35,13 @@ use crate::sqrrlc_parser::{
  */
 impl Parser for File {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        let mut output = input;
+        let (mut output, _) = multispace_comment0(input)?;
         let mut items = Vec::new();
         while output.fragment.len() > 0 {
             match Item::parse(output) {
                 Ok((input, item)) => {
                     items.push(item);
-                    let (span, _) = multispace0(input)?;
+                    let (span, _) = multispace_comment0(input)?;
                     output = span;
                 },
                 Err(Err::Error(e)) => {

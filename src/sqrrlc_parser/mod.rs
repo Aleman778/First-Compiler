@@ -41,3 +41,4 @@ pub mod op;
 pub mod lit;
 pub mod expr;
 pub mod ty;
+pub mod comment;

@@ -21,6 +21,7 @@ use crate::sqrrlc_ast::{
     stmt::*,
 };
 use crate::sqrrlc_parser::{
+    comment::multispace_comment0,
     ParseSpan,
     IResult,
     Parser,
@@ -36,8 +37,8 @@ impl Parser for Block {
             "block statement",
             map(tuple((
                 preceded(multispace0, tag("{")),
-                many0(Stmt::parse),
-                opt(Expr::parse),
+                many0(preceded(multispace_comment0, Stmt::parse)),
+                opt(preceded(multispace_comment0, Expr::parse)),
                 preceded(multispace0, tag("}")),
             )),
                 |(start, mut stmts, ret, end)| {
