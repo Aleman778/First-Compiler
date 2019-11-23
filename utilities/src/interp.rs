@@ -4,6 +4,7 @@
  ***************************************************************************/
 
 
+use std::path::Path;
 use sqrrl::sqrrlc::session::Session;
 use sqrrl::sqrrlc_ast::{
     span::Span,
@@ -18,7 +19,7 @@ use sqrrl::sqrrlc_interp::{
     Eval,
     IResult,
     env::RuntimeEnv,
-    value::Val,
+    value::*,
 };
 
 
@@ -40,7 +41,7 @@ pub fn interp_expr(input: &str) -> IResult<Val> {
     let sess = Session::new();
     let mut env = RuntimeEnv::new(&sess);
     setup_env(&mut env);
-    let expr = Expr::parse(ParseSpan::new_extra(input, )).unwrap().1;
+    let expr = Expr::parse(ParseSpan::new_extra(input, 0)).unwrap().1;
     expr.eval(&mut env)
 }
 
@@ -49,13 +50,15 @@ pub fn interp_expr(input: &str) -> IResult<Val> {
  * Interprets a file source and after that interprets teh input string.
  */
 pub fn interp_file(file: &str, input: &str) -> IResult<Val> {
-    let span = ParseSpan::new_extra(file, "");
-    let file = File::parse(span).unwrap().1;
-    let expr = Expr::parse(ParseSpan::new_extra(input, "")).unwrap().1;
-    let mut env = RuntimeEnv::new("".to_string());
+    let sess = Session::new();
+    let file = sess.source_map().load_file(&Path::new(&format!("tests/{}", file))).unwrap();
+    let span = ParseSpan::new_extra(&file.source, 0);
+    let file_ast = File::parse(span).unwrap().1;
+    let expr_ast = Expr::parse(ParseSpan::new_extra(input, 0)).unwrap().1;
+    let mut env = RuntimeEnv::new(&sess);
     setup_env(&mut env);
-    file.eval(&mut env)?;
-    expr.eval(&mut env)
+    file_ast.eval(&mut env);
+    expr_ast.eval(&mut env)
 }
 
 
@@ -64,9 +67,12 @@ pub fn interp_file(file: &str, input: &str) -> IResult<Val> {
  * Setup the environment.
  */
 pub fn setup_env(env: &mut RuntimeEnv) {
-    let main = FnItem::parse(ParseSpan::new_extra("fn main() {}", "")).unwrap().1;
+    let main = FnItem::parse(ParseSpan::new_extra("fn main() {}", 0)).unwrap().1;
     env.store_item(Item::Fn(main));
-    env.push_main().unwrap();
+    match env.load_main() {
+        Ok(func) => { env.push_func(&func, Vec::new()).unwrap(); },
+        Err(_) => panic!("Failed to load main function"),
+    }
 }
 
     
@@ -90,7 +96,7 @@ pub fn val_bool(val: bool) -> Val {
  * Returns a break value
  */
 pub fn val_break() -> Val {
-    Val::Break(Span::new_empty())
+    Val::from_data(ValData::Break, None, Span::new_empty())
 }
 
 
@@ -98,7 +104,13 @@ pub fn val_break() -> Val {
  * Returns a break value
  */
 pub fn val_continue() -> Val {
-    Val::Continue(Span::new_empty())
+    Val::from_data(ValData::Continue, None, Span::new_empty())
 }
 
-    
+
+/**
+ * Returns a break value
+ */
+pub fn val_none() -> Val {
+    Val::from_data(ValData::None, None, Span::new_empty())
+}

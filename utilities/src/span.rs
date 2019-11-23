@@ -13,7 +13,7 @@ use nom_locate::LocatedSpanEx;
  * Returns a ParseSpan used as input to parser.
  */
 pub fn input(input: &str) -> ParseSpan {
-    ParseSpan::new(input)
+    ParseSpan::new_extra(input, 0)
 }
 
 
@@ -25,7 +25,7 @@ pub fn output(offset: usize, frag: &str) -> ParseSpan {
         offset: offset,
         line: 1,
         fragment: frag,
-        extra: (),
+        extra: 0,
     }
 }
 
@@ -34,5 +34,5 @@ pub fn output(offset: usize, frag: &str) -> ParseSpan {
  * Easily define span information to test whats left after parsing.
  */
 pub fn span(offset: usize, frag: &str) -> Span {
-    Span::new(output(offset, frag))
+    Span::new(output(offset, frag), 0)
 }

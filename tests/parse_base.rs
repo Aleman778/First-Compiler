@@ -6,6 +6,7 @@
 
 use utilities::span::*;
 use sqrrl::sqrrlc_ast::{
+    stmt::*,
     expr::*,
     base::*,
     ty::*,
@@ -25,18 +26,19 @@ fn parse_fn_item() {
             decl: FnDecl {
                 inputs: vec![
                     Argument {
+                        mutable: false,
                         ident: ExprIdent {
                             to_string: "id".to_string(),
                             span: span(15, "id"),
                         },
-                        ty: Type::Int32{span: span(19, "i32")},
+                        ty: Ty{kind: TyKind::Int(IntTy::I32), span: span(19, "i32")},
                         span: span(15, "id: i32"),
                     },
                 ],
-                output: Some(Type::Bool{span: span(27, "bool")}),
+                output: Ty{kind: TyKind::Bool, span: span(27, "bool")},
                 span: span(14, "(id: i32) -> bool"),
             },
-            block: ExprBlock {
+            block: Block {
                 stmts: vec![],
                 span: span(32, "{  }"),
             },
@@ -53,23 +55,25 @@ fn parse_fn_decl() {
         FnDecl {
             inputs: vec![
                 Argument {
+                    mutable: false,
                     ident: ExprIdent {
                         to_string: "val".to_string(),
                         span: span(1, "val"),
                     },
-                    ty: Type::Int32{span: span(6, "i32")},
+                    ty: Ty{kind: TyKind::Int(IntTy::I32), span: span(6, "i32")},
                     span: span(1, "val: i32"),
                 },
                 Argument {
+                    mutable: false,
                     ident: ExprIdent {
                         to_string: "b".to_string(),
                         span: span(11, "b"),
                     },
-                    ty: Type::Bool{span: span(14, "bool")},
+                    ty: Ty{kind: TyKind::Bool, span: span(14, "bool")},
                     span: span(11, "b: bool"),
                 },
             ],
-            output: Some(Type::Int32{span: span(23, "i32")}),
+            output: Ty{kind: TyKind::Int(IntTy::I32), span: span(23, "i32")},
             span: span(0, "(val: i32, b: bool) -> i32"),
         }
     )
@@ -81,25 +85,27 @@ fn parse_argument() {
     assert_eq!(
         Argument::parse(input("  a:i32  ")).unwrap().1,
         Argument {
+            mutable: false,
             ident: ExprIdent {
                 to_string: "a".to_string(),
                 span: span(2, "a"),
             },
-            ty: Type::Int32{span: span(4, "i32")},
+            ty: Ty{kind: TyKind::Int(IntTy::I32), span: span(4, "i32")},
             span: span(2, "a:i32"),
         }       
     );
 
     
     assert_eq!(
-        Argument::parse(input("  b  :  bool  ")).unwrap().1,
+        Argument::parse(input("  mut  b  :  bool  ")).unwrap().1,
         Argument {
+            mutable: true,
             ident: ExprIdent {
                 to_string: "b".to_string(),
-                span: span(2, "b"),
+                span: span(7, "b"),
             },
-            ty: Type::Bool{span: span(8, "bool")},
-            span: span(2, "b  :  bool"),
+            ty: Ty{kind: TyKind::Bool, span: span(13, "bool")},
+            span: span(2, "mut  b  :  bool"),
         }       
     );
 }
@@ -107,6 +113,8 @@ fn parse_argument() {
 
 #[test]
 fn parse_type() {
-    assert_eq!(Type::parse(input("  i32  ")).unwrap().1, Type::Int32{span: span(2, "i32")});
-    assert_eq!(Type::parse(input("  bool  ")).unwrap().1, Type::Bool{span: span(2, "bool")});
+    assert_eq!(Ty::parse(input("  i32  ")).unwrap().1,
+               Ty{kind: TyKind::Int(IntTy::I32), span: span(2, "i32")});
+    assert_eq!(Ty::parse(input("  bool  ")).unwrap().1, 
+               Ty{kind: TyKind::Bool, span: span(2, "bool")});
 }

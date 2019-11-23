@@ -36,6 +36,7 @@ pub enum Level {
  * Diagnostic struct defines a message from the compiler.
  * This can be an error message with span info and explanations.
  */
+#[derive(Debug)]
 pub struct Diagnostic {
     /// The diagnostic level e.g. `Level::Warning` etc.
     pub level: Level,
@@ -57,6 +58,7 @@ pub struct Diagnostic {
 /**
  * Sub diagnostic e.g. note attached to an error.
  */
+#[derive(Debug)]
 pub struct SubDiagnostic {
     /// The diagnostic level e.g. `Level::Warning` etc.
     pub level: Level,

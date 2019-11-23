@@ -9,6 +9,7 @@ use utilities::ast::*;
 use utilities::math_eval::*;
 use sqrrl::sqrrlc_parser::Parser;
 use sqrrl::sqrrlc_ast::{
+    stmt::*,
     op::*,
     lit::*,
     expr::*,
@@ -73,26 +74,35 @@ fn parse_block() {
     assert_eq!(
         ExprBlock::parse(input("{ { a } { b } }  ")).unwrap().1,
         ExprBlock {
-            stmts: vec![
-                Expr::Block(ExprBlock {
-                    stmts: vec![
-                        Expr::Ident(ExprIdent {
-                            to_string: "a".to_string(),
-                            span: span(4, "a"),
-                        }),
-                    ],
-                    span: span(2, "{ a }"),
-                }),
-                Expr::Block(ExprBlock {
-                    stmts: vec![
-                        Expr::Ident(ExprIdent {
-                            to_string: "b".to_string(),
-                            span: span(10, "b"),
-                        }),
-                    ],
-                    span: span(8, "{ b }"),
-                }),
-            ],
+            block: Block {
+                stmts: vec![
+                    Stmt::Expr(Expr::Block(ExprBlock {
+                        block: Block {
+                            stmts: vec![
+                                Stmt::Expr(Expr::Ident(ExprIdent {
+                                    to_string: "a".to_string(),
+                                span: span(4, "a"),
+                                })),
+                            ],
+                            span: span(2, "{ a }"),
+                        },
+                        span: span(2, "{ a }"),
+                    })),
+                    Stmt::Expr(Expr::Block(ExprBlock {
+                        block: Block {
+                            stmts: vec![
+                                Stmt::Expr(Expr::Ident(ExprIdent {
+                                    to_string: "b".to_string(),
+                                    span: span(10, "b"),
+                                })),
+                            ],
+                            span: span(8, "{ b }"),
+                        },
+                        span: span(8, "{ b }"),
+                    })),
+                ],
+                span: span(0, "{ { a } { b } }"),
+            },
             span: span(0, "{ { a } { b } }"),
         }
     );
@@ -176,9 +186,9 @@ fn parse_if() {
                 right: Box::new(Expr::Lit(expr_lit_int(5, span(7, "5")))),
                 span: span(3, "a > 5"),
             })),
-            then_block: ExprBlock{
+            then_block: Block {
                 stmts: vec![
-                    Expr::Lit(expr_lit_bool(true, span(11, "true"))),
+                    Stmt::Expr(Expr::Lit(expr_lit_bool(true, span(11, "true")))),
                 ],
                 span: span(9, "{ true }"),
             },
@@ -199,15 +209,15 @@ fn parse_if() {
                 right: Box::new(Expr::Lit(expr_lit_int(5, span(7, "5")))),
                 span: span(3, "a > 5"),
             })),
-            then_block: ExprBlock{
+            then_block: Block {
                 stmts: vec![
-                    Expr::Lit(expr_lit_bool(true, span(11, "true"))),
+                    Stmt::Expr(Expr::Lit(expr_lit_bool(true, span(11, "true")))),
                 ],
                 span: span(9, "{ true }"),
             },
-            else_block: Some(ExprBlock{
+            else_block: Some(Block {
                 stmts: vec![
-                   Expr::Lit(expr_lit_bool(false, span(25, "false"))),
+                   Stmt::Expr(Expr::Lit(expr_lit_bool(false, span(25, "false")))),
                 ],
                 span: span(23, "{ false }"),
             }),
@@ -244,12 +254,12 @@ fn parse_lit() {
 #[test]
 fn parse_local() {
     assert_eq!(
-        ExprLocal::parse(input("let mut a: i32 = 5;  ")).unwrap().1,
-        ExprLocal {
+        Local::parse(input("let mut a: i32 = 5;  ")).unwrap().1,
+        Local {
             mutable: true,
             ident: ExprIdent{to_string: "a".to_string(), span: span(8, "a")},
-            ty: Type::Int32{span: span(11, "i32")},
-            init: Box::new(Expr::Lit(expr_lit_int(5, span(17, "5")))),
+            ty: Ty{kind: TyKind::Int(IntTy::I32), span: span(11, "i32")},
+            init: Box::new(Some(Expr::Lit(expr_lit_int(5, span(17, "5"))))),
             span: span(0, "let mut a: i32 = 5;"),
         }
     );
@@ -334,9 +344,9 @@ fn parse_while() {
                 right: Box::new(Expr::Lit(expr_lit_int(10, span(10, "10")))),
                 span: span(6, "x < 10"),
             })),
-            block: ExprBlock {
+            block: Block {
                 stmts: vec![
-                    Expr::Assign(ExprAssign {
+                    Stmt::Expr(Expr::Assign(ExprAssign {
                         ident: ExprIdent{to_string: "x".to_string(), span: span(15, "x")},
                         expr: Box::new(Expr::Binary(ExprBinary {
                             left: Box::new(Expr::Ident(ExprIdent {
@@ -348,7 +358,7 @@ fn parse_while() {
                             span: span(19, "x + 1"),
                         })),
                         span: span(15, "x = x + 1;"),
-                    }),
+                    })),
                 ],
                 span: span(13, "{ x = x + 1; }"),
             },

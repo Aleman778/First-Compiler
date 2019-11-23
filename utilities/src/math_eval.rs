@@ -27,7 +27,7 @@ pub enum Val {
  * Parses and evaluates the input expression.
  */
 pub fn eval_math(input: &str) -> Val {
-    let (_, expr) = Expr::parse_math(ParseSpan::new(input)).unwrap();
+    let (_, expr) = Expr::parse_math(ParseSpan::new_extra(input, 0)).unwrap();
     eval_expr(expr)
 }
 

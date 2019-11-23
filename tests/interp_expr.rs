@@ -5,7 +5,6 @@
 
 
 use utilities::interp::*;
-use sqrrl::sqrrlc_interp::value::Val;
 
 
 #[test]
@@ -41,7 +40,7 @@ fn interp_break() {
 
 #[test]
 fn interp_call() {
-    let program = "fn sqr(a: i32) -> i32 { a * a } fn inv(b: bool) -> bool { !b }";
+    let program = "sqrrl/math.sq";
     assert_eq!(
         interp_file(program, "sqr(9);").unwrap(),
         val_i32(81)
@@ -91,7 +90,7 @@ fn interp_if() {
 
     assert_eq!(
         interp_expr("if 10 < 5 { true }").unwrap(),
-        Val::None
+        val_none()
     );
 }
 
@@ -112,9 +111,9 @@ fn interp_local() {
         interp_expr("{ let mut a: i32 = 32; a = a + 5; }").is_ok()
     );
         
-    // assert!(
-        // interp_expr("{ let a: i32 = 32; a = a + 5; }").is_err()
-    // );
+    assert!(
+        interp_expr("{ let a: i32 = 32; a = a + 5; }").is_err()
+    );
 }
 
 
