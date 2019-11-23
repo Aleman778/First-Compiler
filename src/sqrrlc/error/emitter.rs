@@ -9,22 +9,18 @@
 extern crate unicode_width;
 
 use std::rc::Rc;
+use std::io;
+use std::io::Write;
 use std::cmp::{min, max, Reverse};
 use std::collections::HashMap;
-use ansi_term::Color;
+use termcolor::{StandardStream, ColorChoice, ColorSpec};
+use termcolor::{WriteColor, Color};
 use crate::sqrrlc::error::{
     styled_buffer::*,
     diagnostic::*,
     snippet::*,
 };
 use crate::sqrrlc::source_map::*;
-
-
-/**
- * Rename ansi_term::Style to ColorSpec to avoid confusion with
- * crate::sqrrlc::error::snippet::Style
- */
-type ColorSpec = ansi_term::Style;
 
 
 /**
@@ -35,9 +31,7 @@ pub struct Emitter {
     /// The source map containing all the source files.
     pub sm: Rc<SourceMap>,
 
-    /// Flag for if ANSI mode is supported for windows.
-    pub ansi_support: bool,
-
+    /// The maximum width of the terminal.
     pub terminal_width: Option<usize>,
 }
 
@@ -50,14 +44,8 @@ impl Emitter {
      * Creates a new emitter with default settings.
      */
     pub fn new(source_map: Rc<SourceMap>) -> Self {
-        let mut enable_ansi = true;
-        if cfg!(windows) {
-            let response = ansi_term::enable_ansi_support();
-            enable_ansi = response.is_ok();
-        }
         Emitter {
             sm: source_map,
-            ansi_support: enable_ansi,
             terminal_width: None,
         }
     }
@@ -104,7 +92,10 @@ impl Emitter {
             buf.append(&s.text, s.style, 0);
         }
         self.draw_code_snippet(buf, span, max_linum_len);
-        self.write_buffer(level, buf);
+        match self.write_buffer(level, buf) {
+            Ok(_) => {}
+            Err(e) => eprintln!("{}", e)
+        }
     }
 
 
@@ -407,7 +398,7 @@ impl Emitter {
 
         // Draw the labels on annotations that actually have a label
         for &(pos, ann) in &annotations_pos {
-            let style = get_underline_style(ann.is_primary);
+            let style = get_label_style(ann.is_primary);
             let (pos, col) = if pos == 0 {
                 (pos + 1, ann.end_col.saturating_sub(left))
             } else {
@@ -580,19 +571,19 @@ impl Emitter {
      * The styled text data is then written in the console using eprint/ eprintln.
      * TODO: this should be moved out to enum for controlling the destination...
      */
-    fn write_buffer(&self, level: &Level, buf: &StyledBuffer) {
+    fn write_buffer(&self, level: &Level, buf: &StyledBuffer) -> io::Result<usize> {
+        let mut dest = StandardStream::stderr(ColorChoice::AlwaysAnsi);
         let data = buf.render();
         for line in &data {
             for string in line {
-                if self.ansi_support {
-                    let spec = self.get_color_spec(level, &string.style);
-                    eprint!("{}", spec.paint(&string.text));
-                } else {
-                    eprint!("{}", string.text);
-                }
+                let spec = self.get_color_spec(level, &string.style);
+                dest.set_color(&spec)?;
+                dest.write(string.text.as_bytes())?;
             }
-            eprintln!("");
+            dest.write(&['\n' as u8])?;
         }
+        dest.set_color(&ColorSpec::new())?;
+        Ok(0)
     }
 
     
@@ -600,22 +591,38 @@ impl Emitter {
      * Returns the color spec based on the diagnostic level and style type.
      */
     fn get_color_spec(&self, level: &Level, style: &Style) -> ColorSpec {
+        let mut spec = ColorSpec::new();
         match style {
-            Style::LineNumber => Color::Blue.bold(),
-            Style::UnderlineSecondary |
-            Style::UnderlinePrimary => {
+            Style::LineNumber => {
+                spec.set_bold(true);
+                spec.set_fg(Some(Color::Blue));
+            }
+            Style::UnderlinePrimary |
+            Style::LabelPrimary => {
                 if let Level::Fatal = level {
-                    Color::Red.bold()
+                    spec.set_fg(Some(Color::Red));
+                    spec.set_bold(true);
                 } else {
-                    self.get_level_spec(level)
+                    spec = self.get_level_spec(level);
                 }
+            }
+            Style::UnderlineSecondary |
+            Style::LabelSecondary => {
+                spec.set_bold(true);
+                spec.set_fg(Some(Color::Blue));
+            }
+            Style::Level(lvl) => {
+                spec = self.get_level_spec(&lvl);
             },
-            Style::Level(lvl) => self.get_level_spec(&lvl),
+            Style::MainHeaderMsg => {
+                spec.set_bold(true);
+            }
             Style::HeaderMessage |
             Style::LineAndColumn |
             Style::Quotation |
-            Style::NoStyle => ColorSpec::new(),
-        }
+            Style::NoStyle => {}
+        };
+        spec
     }
 
 
@@ -623,12 +630,28 @@ impl Emitter {
      * Returns the color spec based on the diagnostic level.
      */
     fn get_level_spec(&self, level: &Level) -> ColorSpec {
+        let mut spec = ColorSpec::new();
         match level {
-            Level::Warning => Color::Yellow.bold(),
-            Level::Error => Color::Red.bold(),
-            Level::Fatal => Color::Black.on(Color::Red),
-            _ => ColorSpec::new(),
+            Level::Fatal => {
+                spec.set_bg(Some(Color::Red))
+                    .set_fg(Some(Color::Black))
+                    .set_bold(true);
+            }
+            Level::Error => {
+                spec.set_fg(Some(Color::Red))
+                    .set_bold(true);
+            }
+            Level::Warning => {
+                spec.set_fg(Some(Color::Yellow))
+                    .set_bold(true);
+            }
+            Level::Note => {
+                spec.set_fg(Some(Color::Green))
+                    .set_bold(true);
+            }
+            Level::Cancelled => unreachable!(),
         }
+        spec
     }
 
     
@@ -717,7 +740,7 @@ fn draw_range(buf: &mut StyledBuffer, symbol: char, style: Style, line: usize, c
  * The margin defines values for different margins used for 
  * helping the rendering of code snippets.
  */
-pub struct Margin {
+struct Margin {
     /// The available whitespace in the left taht can be consumed when centering.
     pub whitespace_left: usize,
     /// The column of the beginning of left-most span

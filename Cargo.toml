@@ -10,7 +10,7 @@ publish = false
 [dependencies]
 nom = "5"
 nom_locate = "1"
-ansi_term = "0.12"
+termcolor = "1.0.5"
 unicode-width = "0.1.5"
 
 [dev-dependencies]

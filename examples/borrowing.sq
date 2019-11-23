@@ -1,41 +1,59 @@
 
+/***************************************************************************
+ * Some different borrowing tests, some should work and others that
+ * yields a fatal error. The borrow checker should catch all these errors.
+ ***************************************************************************/
 
 
-
-
-
+/**
+ * Entry point.
+ */
 fn main() {
-    test_self_referencing();
-    test_reference_chain();
-    test_self_referencing();
-    let a: i32;
-    a = 10;
-    trace();
+    // test_self_referencing();
+    // test_reference_chain();
+    // test_self_referencing();
+    // test_returning_reference();
+    reference_out_of_scope();
+    // mutate_while_borrow();
 }
 
 
+/**
+ * Test uninitialized let bindings.
+ */
 fn test_uninitialized() {
-
+    let a
 }
 
 
+/**
+ * Test referencing the same let binding multiple times.
+ */
 fn test_self_referencing() {
     let a: &i32 = &10;
     let a: &&i32 = &a;
-    trace();
-    print_int(**a)
-}
-
-
-fn test_reference_chain() {
-    let a: &i32 = &5;
-    let a: &&i32 = &a;
     let a: &&&i32 = &a;
     trace();
-    print_int(***a);
+    print_int(***a)
 }
 
 
+/**
+ * Test referencing chain of multiple let bindings.
+ */
+fn test_reference_chain() {
+    let a: &i32 = &5;
+    let b: &&i32 = &a;
+    let c: &&&i32 = &b;
+    trace();
+    print_int(***c);
+}
+
+
+/**
+ * Test creating a cycle of references.
+ * Note: this does not create an infinite cycle.
+ */
 fn test_reference_cycles() {
     let mut a: &i32 = &5;
     let b: &&i32 = &a;
@@ -45,19 +63,31 @@ fn test_reference_cycles() {
 }
 
 
-
+/**
+ * Test returning a reference from a function.
+ * Note: should not work as the owned value is dropped.
+ * Note: requires lifetimes to work, this language has no lifetime support.
+ */
 fn test_returning_reference() {
     let a: &i32 = returning_reference();
     trace();
     print_int(*a);
 }
 
+
+/**
+ * The function used in the test above.
+ */
 fn returning_reference() -> &i32 {
     let a: &i32 = &42;
     a    
 }
 
 
+/**
+ * Referencing something out of scope.
+ & Borrow checker should catch this and report diagnostic.
+ */
 fn reference_out_of_scope() {
     let mut a: &i32 = &0;
     {
@@ -68,8 +98,13 @@ fn reference_out_of_scope() {
 }
 
 
+/**
+ * Mutate a variable that is borrowed.
+ * Note: this works fine but breaks the ownership rules.
+ * Borrow checker should catch this and report diagnostic.
+ */
 fn mutate_while_borrow() {
-    let a: i32 = 5;
+    let mut a: i32 = 5;
     let b: &i32 = &a;
     a = a + 5;
     print_int(*b);

@@ -88,7 +88,7 @@ impl Diagnostic {
         Diagnostic {
             level: level,
             code: code,
-            message: vec![StyledString::new(message.to_owned(), Style::NoStyle)],
+            message: vec![StyledString::new(message.to_owned(), Style::MainHeaderMsg)],
             span: MultiSpan::new(),
             children: vec![],
         }        

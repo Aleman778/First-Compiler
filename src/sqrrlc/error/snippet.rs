@@ -435,7 +435,10 @@ impl StyledString {
  */
 #[derive(Copy, Clone, Debug, PartialEq, Hash)]
 pub enum Style {
-    /// The header message is the message of the parent diagnostic.
+    /// The main header message is the message of the parent diagnostic
+    MainHeaderMsg,
+    
+    /// The header message is the message of the sub diagnostics.
     HeaderMessage,
 
     /// The line number display in code snippets.
@@ -447,8 +450,14 @@ pub enum Style {
     /// The underline of code defined by a primary span label.
     UnderlinePrimary,
 
+    /// The style of primary labels used for annotations.
+    LabelPrimary,
+
     /// The underline of code defined by a secondary span label.
     UnderlineSecondary,
+
+    /// The style of secondary labels used for annotations.
+    LabelSecondary,
 
     /// The actual source code referenced in errors.
     Quotation,
@@ -462,7 +471,7 @@ pub enum Style {
 
 
 /**
- * Returns the correct type of underline, either
+ * Returns the correct type of underline style, either
  * the primary or secondary style.
  */
 pub fn get_underline_style(is_primary: bool) -> Style {
@@ -471,4 +480,17 @@ pub fn get_underline_style(is_primary: bool) -> Style {
     } else {
         Style::UnderlineSecondary
     }        
+}
+
+
+/**
+ * Returns the correct type of label style, either
+ * the primary or secondary style.
+ */
+pub fn get_label_style(is_primary: bool) -> Style {
+    if is_primary {
+        Style::LabelPrimary
+    } else {
+        Style::LabelSecondary
+    }
 }

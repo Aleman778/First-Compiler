@@ -36,15 +36,11 @@ impl Parser for Block {
         context(
             "block statement",
             map(tuple((
-                preceded(multispace0, tag("{")),
+                preceded(multispace_comment0, tag("{")),
                 many0(preceded(multispace_comment0, Stmt::parse)),
-                opt(preceded(multispace_comment0, Expr::parse)),
-                preceded(multispace0, tag("}")),
+                preceded(multispace_comment0, tag("}")),
             )),
-                |(start, mut stmts, ret, end)| {
-                    if ret.is_some() {
-                        stmts.push(Stmt::Expr(ret.unwrap()));
-                    }
+                |(start, stmts, end)| {
                     Block {
                         stmts: stmts,
                         span: Span::from_bounds(
