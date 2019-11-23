@@ -1,5 +1,6 @@
 fn main() {
-    let a: i32 = 43;
+    let mut a: i32 = 43;
+    a = a - 5;
     let c: i32 = if (a > 40) {
         40
     } else {

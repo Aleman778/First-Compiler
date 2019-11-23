@@ -51,6 +51,6 @@ pub struct Local {
     pub mutable: bool,
     pub ident: ExprIdent,
     pub ty: Ty,
-    pub init: Box<Expr>,
+    pub init: Box<Option<Expr>>,
     pub span: Span,
 }

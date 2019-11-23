@@ -55,13 +55,18 @@ impl Eval for Stmt {
  */
 impl Eval for Local {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let val = (*self.init).eval(env)?;
-        let val_ty = val.get_type();
-        if val_ty != self.ty {
-            Err(mismatched_types_fatal!(env.sess, val.span, self.ty, val_ty))
-        } else {
-            env.store_var(&self.ident, &val)?;
-            Ok(Val::new())
-        }
+        let val = match &*self.init {
+            Some(init) => {
+                let val = init.eval(env)?;
+                let val_ty = val.get_type();
+                if val_ty != self.ty {
+                    return Err(mismatched_types_fatal!(env.sess, val.span, self.ty, val_ty));
+                }
+                val
+            }
+            None => Val::new(),
+        };
+        env.store_var(&self.ident, self.mutable, &val)?;
+        Ok(Val::new())
     }
 }

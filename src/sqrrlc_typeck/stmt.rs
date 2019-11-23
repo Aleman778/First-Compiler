@@ -56,10 +56,16 @@ impl TypeChecker for Stmt {
  */
 impl TypeChecker for Local {
     fn check_type(&self, env: &mut TypeEnv) -> Ty {
-        let init_ty = self.init.check_type(env);
-        if init_ty != self.ty {
-            env.err(TypeError::mismatched_types(self.ty.kind.clone(), &init_ty));
-        }
+        match &*self.init {
+            Some(init) => {
+                let init_ty = init.check_type(env);
+                if init_ty != self.ty {
+                    env.err(TypeError::mismatched_types(self.ty.kind.clone(), &init_ty));
+                }
+                
+            },
+            None => { },
+        };
         Ty::new()
     }
 }

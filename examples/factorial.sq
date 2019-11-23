@@ -1,15 +1,22 @@
 fn main() {
-    let a: i32 = factorial(10);
-    trace();
-    print_int(a);
+    countdown(52);
 }
 
 
 fn factorial(n: i32) -> i32 {
     if n <= 1 {
-        trace();
         1
     } else {
         n * factorial(n - 1)
+    }
+}
+
+
+fn countdown(n: i32) -> i32 {
+    if n < 1 {
+        0
+    } else {
+        print_int(n);
+        countdown(n - 1)
     }
 }

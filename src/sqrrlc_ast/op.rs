@@ -191,9 +191,9 @@ impl UnOp {
 impl fmt::Display for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UnOp::Neg{span: _}   => write!(f, "negate"),
-            UnOp::Not{span: _}   => write!(f, "logical invert"),
-            UnOp::Deref{span: _} => write!(f, "dereference"),
+            UnOp::Neg{span: _}   => write!(f, "negated"),
+            UnOp::Not{span: _}   => write!(f, "logical inverted"),
+            UnOp::Deref{span: _} => write!(f, "dereferenced"),
         }
     }
 }

@@ -175,7 +175,7 @@ pub struct ExprParen {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprReference {
-    pub mutability: bool,
+    pub mutable: bool,
     pub expr: Box<Expr>,
     pub span: Span,
 }

@@ -61,7 +61,7 @@ pub enum IntTy {
  */
 #[derive(Debug, Clone)]
 pub struct TypeRef {
-    pub mutability: bool,
+    pub mutable: bool,
     pub elem: Box<Ty>,
 }
 
@@ -187,7 +187,7 @@ impl fmt::Display for IntTy {
 impl fmt::Display for TypeRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut prefix = String::from("&");
-        if self.mutability {
+        if self.mutable {
             prefix.push_str("mut ");
         }
         write!(f, "{}{}", prefix, self.elem)

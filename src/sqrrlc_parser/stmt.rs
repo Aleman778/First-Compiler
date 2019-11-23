@@ -8,7 +8,7 @@ use nom::{
     character::complete::{multispace0, multispace1},
     bytes::complete::tag,
     combinator::{map, opt},
-    sequence::{preceded, terminated, tuple},
+    sequence::{preceded, terminated, tuple, pair},
     branch::alt,
     multi::many0,
     error::context,
@@ -91,16 +91,22 @@ impl Parser for Local {
                 preceded(multispace1, ExprIdent::parse),
                 preceded(multispace0, tag(":")),
                 preceded(multispace0, Ty::parse),
-                preceded(multispace0, tag("=")),
-                preceded(multispace0, Expr::parse),
+                opt(pair(
+                    preceded(multispace0, tag("=")),
+                    preceded(multispace0, Expr::parse)
+                )),
                 preceded(multispace0, tag(";")),
             )),
-                |(start, mutable, ident, _, ty, _, expr, end)| {
+                |(start, mutable, ident, _, ty, init, end)| {
+                    let init = match init {
+                        Some((_, expr)) => Some(expr),
+                        None => None,
+                    };
                     Local {
                         mutable: mutable.is_some(),
                         ident: ident,
                         ty: ty,
-                        init: Box::new(expr),
+                        init: Box::new(init),
                         span: Span::from_bounds(
                             LineColumn::new(start.line, start.get_column()),
                             LineColumn::new(end.line, end.get_column() + 1),

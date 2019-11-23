@@ -40,6 +40,7 @@ impl Parser for Expr {
                 map(ExprAssign::parse,    |expr_assign|   Expr::Assign(expr_assign)),
                 map(ExprIf::parse,        |expr_if|       Expr::If(expr_if)),
                 map(ExprWhile::parse,     |expr_while|    Expr::While(expr_while)),
+                map(ExprBlock::parse,     |expr_block|    Expr::Block(expr_block)),
                 map(ExprReference::parse, |expr_ref|      Expr::Reference(expr_ref)),
                 map(ExprReturn::parse,    |expr_return|   Expr::Return(expr_return)),
                 map(ExprBreak::parse,     |expr_break|    Expr::Break(expr_break)),
@@ -398,8 +399,8 @@ impl Parser for ExprReference {
             opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
             preceded(multispace0, Expr::parse),
         )),
-            |(amp, mutability, expr)| ExprReference {
-                mutability: mutability.is_some(),
+            |(amp, mut_token, expr)| ExprReference {
+                mutable: mut_token.is_some(),
                 expr: Box::new(expr),
                 span: Span::from_bounds(
                     LineColumn::new(amp.line, amp.get_column()),

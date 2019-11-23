@@ -7,10 +7,7 @@
 
 
 use std::fmt;
-use std::collections::{
-    hash_map::Values,
-    HashMap
-};
+use std::collections::HashMap;
 use crate::sqrrlc::{
     source_map::SourceFile,
     session::Session,
@@ -42,6 +39,9 @@ pub struct Scope<'a> {
     /// Variable memory mapper, maps strings to memory addresses.
     symbols: HashMap<String, usize>,
 
+    /// Address to values stored in this scope, used to free memory later.
+    values: Vec<usize>,
+
     /// The location in code where this scope was created from.
     pub span: Span,
 }
@@ -59,6 +59,7 @@ impl<'a> Scope<'a> {
             sess: session,
             child: Box::new(None),
             symbols: HashMap::new(),
+            values: vec![],
             span: span,
         }
     }
@@ -89,18 +90,39 @@ impl<'a> Scope<'a> {
     /**
      * Returns the registered addresses.
      */
-    pub fn addresses(&self) -> Values<'_, String, usize> {
-        self.symbols.values()
+    pub fn addresses(&self) -> Vec<usize> {
+        let mut addresses = self.symbols.iter().map(|(_, addr)| *addr).collect::<Vec<usize>>();
+        addresses.extend(&self.values);
+        addresses
     }
     
 
     /**
      * Registers the given address and identifier in the variable list.
+     * If you register an already existing identifier then the previous address
+     * will be changed to a regular value that is only accessable via the address.
+     * This enables the ability to shadow already existing let bindings.
      */
-    pub fn register(&mut self, id: &ExprIdent, addr: usize) -> Option<usize> {
+    pub fn register(&mut self, id: &ExprIdent, addr: usize) {
         match &mut *self.child {
             Some(child) => child.register(id, addr),
-            None => self.symbols.insert(id.to_string.clone(), addr),
+            None => {
+                match self.symbols.insert(id.to_string.clone(), addr) {
+                    Some(prev) => self.values.push(prev),
+                    None => { },
+                }
+            }
+        };
+    }
+
+
+    /**
+     * Registers the given address so it can be freed when exiting this scope.
+     */
+    pub fn register_addr(&mut self, addr: usize) {
+        match &mut *self.child {
+            Some(child) => child.register_addr(addr),
+            None => self.values.push(addr),
         }
     }
 

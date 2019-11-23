@@ -1,0 +1,76 @@
+
+
+
+
+
+
+fn main() {
+    test_self_referencing();
+    test_reference_chain();
+    test_self_referencing();
+    let a: i32;
+    a = 10;
+    trace();
+}
+
+
+fn test_uninitialized() {
+
+}
+
+
+fn test_self_referencing() {
+    let a: &i32 = &10;
+    let a: &&i32 = &a;
+    trace();
+    print_int(**a)
+}
+
+
+fn test_reference_chain() {
+    let a: &i32 = &5;
+    let a: &&i32 = &a;
+    let a: &&&i32 = &a;
+    trace();
+    print_int(***a);
+}
+
+
+fn test_reference_cycles() {
+    let mut a: &i32 = &5;
+    let b: &&i32 = &a;
+    a = &b;
+    trace();
+    print_int(***a)
+}
+
+
+
+fn test_returning_reference() {
+    let a: &i32 = returning_reference();
+    trace();
+    print_int(*a);
+}
+
+fn returning_reference() -> &i32 {
+    let a: &i32 = &42;
+    a    
+}
+
+
+fn reference_out_of_scope() {
+    let mut a: &i32 = &0;
+    {
+        let b: i32 = 5;
+        a = &b;
+    }
+    print_int(*a);
+}
+
+
+fn mutate_while_borrow() {
+    let a: i32 = 5;
+    let b: &i32 = &a;
+    a = a + 5;
+    print_int(*b);
+}

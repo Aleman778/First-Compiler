@@ -9,7 +9,7 @@ use nom::{
     character::complete::{multispace0, multispace1},
     bytes::complete::tag,
     combinator::{map, opt},
-    sequence::{preceded, pair, tuple},
+    sequence::{preceded, terminated, pair, tuple},
     multi::separated_list,
     error::context,
     Err,
@@ -158,17 +158,22 @@ impl Parser for Argument {
         context(
             "argument",
             map(tuple((
+                opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
                 ExprIdent::parse,
                 preceded(multispace0, tag(":")),
                 Ty::parse,
             )),
-                |(id, _, ty)| {
-                    let id_span = id.clone().span;
-                    let ty_span = ty.span;
+                |(mut_token, id, _, ty)| {
+                    let start_lc = match mut_token {
+                        Some(mutable) => LineColumn::new(mutable.line, mutable.get_column()),
+                        None => id.span.start,
+                    };
+                    let end_lc = ty.span.end;
                     Argument {
+                        mutable: mut_token.is_some(),
                         ident: id,
                         ty: ty,
-                        span: Span::from_bounds(id_span.start, ty_span.end, input.extra),
+                        span: Span::from_bounds(start_lc, end_lc, input.extra),
                     }
                 }
             )

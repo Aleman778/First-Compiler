@@ -121,6 +121,7 @@ pub struct FnDecl {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct Argument {
+    pub mutable: bool,
     pub ident: ExprIdent,
     pub ty: Ty,
     pub span: Span,

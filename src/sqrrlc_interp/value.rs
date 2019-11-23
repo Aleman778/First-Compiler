@@ -11,10 +11,14 @@ use crate::sqrrlc_ast::{
     span::Span,
     ty::*,
 };
-use crate::sqrrlc_interp::primitive::{
-    int::IntVal,
-    bool::BoolVal,
-    r#ref::RefVal,
+use crate::sqrrlc_interp::{
+    env::RuntimeEnv,
+    primitive::{
+        int::IntVal,
+        bool::BoolVal,
+        r#ref::RefVal,
+    },
+    IResult,
 };
 
 
@@ -23,7 +27,13 @@ use crate::sqrrlc_interp::primitive::{
  */
 #[derive(Debug, Clone)]
 pub struct Val {
+    /// The actual data storage for the value.
     pub data: ValData,
+
+    /// Optionally provide the identifier from where this value resides from.
+    pub ident: Option<String>,
+
+    /// The span informtion, e
     pub span: Span,
 }
 
@@ -69,15 +79,15 @@ impl Val {
      * Create a new empty value containing no data and no span info.
      */
     pub fn new() -> Self {
-        Val{data: ValData::None, span: Span::new_empty()}
+        Val{data: ValData::None, ident: None, span: Span::new_empty()}
     }
 
     
     /**
      * Constructs an value containing data and span information.
      */
-    pub fn from_data(data: ValData, span: Span) -> Self {
-        Val{data, span}
+    pub fn from_data(data: ValData, ident: Option<String>, span: Span) -> Self {
+        Val{data, ident, span}
     }
 
     
@@ -87,6 +97,7 @@ impl Val {
     pub fn from_i32(val: i32, span: Span) -> Self {
         Val {
             data: ValData::Int(IntVal::Int32(val)),
+            ident: None,
             span,
         }
     }
@@ -98,6 +109,7 @@ impl Val {
     pub fn from_i64(val: i64, span: Span) -> Self {
         Val {
             data: ValData::Int(IntVal::Int64(val)),
+            ident: None,
             span,
         }
     }
@@ -109,6 +121,7 @@ impl Val {
     pub fn from_bool(val: bool, span: Span) -> Self {
         Val {
             data: ValData::Bool(BoolVal{val}),
+            ident: None,
             span,
         }
     }
@@ -118,13 +131,14 @@ impl Val {
      * Constructs an reference value from the memory
      * address and the type of the value referenced to.
      */
-    pub fn from_ref(addr: usize, ref_ty: Ty, mutability: bool, span: Span) -> Self {
+    pub fn from_ref(addr: usize, ref_ty: Ty, mutable: bool, span: Span) -> Self {
         Val {
             data: ValData::Ref(RefVal {
                 addr: addr,
                 ref_ty,
-                mutability
+                mutable
             }),
+            ident: None,
             span,
         }
     }
@@ -321,16 +335,11 @@ impl Val {
     /**
      * Perform the dereferencing unary operation.
      */
-    pub fn deref(self, _span: Span) -> Option<Self> {
-        unimplemented!();
-    }
-
-
-    /**
-     * Perform the reference unary operation.
-     */
-    pub fn r#ref(self, _span: Span) -> Option<Self> {
-        unimplemented!();
+    pub fn deref(self, span: Span, env: &mut RuntimeEnv) -> IResult<Option<Self>> {
+        match self.data {
+            ValData::Ref(r) => Ok(Some(r.deref(span, env)?)),
+            _ => Ok(None),
+        }
     }
     
 
@@ -343,13 +352,7 @@ impl Val {
      * Returns true of this instance has a value.
      */
     pub fn has_data(&self) -> bool {
-        match self.data {
-            ValData::Continue |
-            ValData::Break |
-            ValData::Void |
-            ValData::None => false,
-            _ => true,
-        }
+        self.data.has_data()
     }
 
 
@@ -474,20 +477,45 @@ impl Val {
      * Returns the type of this value.
      */
     pub fn get_type(&self) -> Ty {
-        let ty_kind = match &self.data {
+        let ty_kind = self.data.get_type_kind();
+        Ty{kind: ty_kind, span: self.span}
+    }
+}
+
+
+/**
+ * Implementation of value data.
+ */
+impl ValData {
+    /**
+     * Returns true of this instance has a value.
+     */
+    pub fn has_data(&self) -> bool {
+        match self {
+            ValData::Continue |
+            ValData::Break |
+            ValData::Void |
+            ValData::None => false,
+            _ => true,
+        }
+    }
+
+
+    pub fn get_type_kind(&self) -> TyKind {
+        match self {
             ValData::Int(val) => val.get_type_kind(),
             ValData::Bool(_) => TyKind::Bool,
             ValData::Ref(val) => TyKind::Ref(
                 TypeRef {
-                    mutability: val.mutability,
+                    mutable: val.mutable,
                     elem: Box::new(val.ref_ty.clone()),
                 }
             ),
             _ => TyKind::None,
-        };
-        Ty{kind: ty_kind, span: self.span}
+        }
     }
 }
+
 
 
 /**

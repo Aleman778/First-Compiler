@@ -6,8 +6,15 @@
 
 use std::fmt;
 use std::cmp;
-use crate::sqrrlc_ast::ty::*;
-use crate::sqrrlc_interp::value::Val;
+use crate::sqrrlc_ast::{
+    span::Span,
+    ty::*,
+};
+use crate::sqrrlc_interp::{
+    value::Val,
+    env::RuntimeEnv,
+    IResult,
+};
 
 
 /**
@@ -22,7 +29,7 @@ pub struct RefVal {
     pub ref_ty: Ty,
 
     /// Is this a mutable reference?
-    pub mutability: bool,
+    pub mutable: bool,
 }
 
 
@@ -38,8 +45,24 @@ impl RefVal {
     /**
      * Dereferencing unary operator.
      */
-    pub fn deref(self) -> Option<Val> {
-        unimplemented!();
+    pub fn deref(self, span: Span, env: &mut RuntimeEnv) -> IResult<Val> {
+        match env.load_val(self.addr) {
+            Ok(val_data) => {
+                let val = Val::from_data(val_data, None, span);
+                let val_ty = val.get_type();
+                if val_ty != self.ref_ty {
+                    let mut err = struct_span_fatal!(env.sess, span, "mismatched type reference");
+                    err.span_label(span, &format!("referenced type is {}, but it was actually {}", self.ref_ty, val_ty));
+                    Err(err)
+                } else {
+                    Ok(val)
+                }
+            },
+            Err(mut err) => {
+                err.primary_span(span);
+                Err(err)
+            },
+        }
     }
 }
 

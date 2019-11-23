@@ -40,6 +40,7 @@ pub fn debug_functions() -> Vec<Item> {
             decl: FnDecl {
                 inputs: vec![
                     Argument {
+                        mutable: false,
                         ident: ExprIdent {
                             to_string: "val".to_string(),
                             span: Span::new_empty(),
@@ -64,6 +65,7 @@ pub fn debug_functions() -> Vec<Item> {
             decl: FnDecl {
                 inputs: vec![
                     Argument {
+                        mutable: false,
                         ident: ExprIdent {
                             to_string: "val".to_string(),
                             span: Span::new_empty(),

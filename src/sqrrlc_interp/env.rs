@@ -14,7 +14,7 @@ use crate::sqrrlc_ast::{
 };
 use crate::sqrrlc_interp::{
     IResult,
-    value::Val,
+    value::*,
     scope::Scope,
     memory::Memory,
 };
@@ -25,7 +25,6 @@ use crate::sqrrlc_interp::{
  * Environment stores runtime information such as
  * the memory, call stack and item signatures etc.
  */
-#[derive(Clone)]
 pub struct RuntimeEnv<'a> {
     /// The compiler session, used for storing common data.
     pub sess: &'a Session,
@@ -63,7 +62,7 @@ impl<'a> RuntimeEnv<'a> {
      * Note: there has to be a scope already on the call stack.
      */
     pub fn push_block(&mut self, new_scope: Scope<'a>) -> IResult<()> {
-        let scope = self.current()?;
+        let scope = self.current_scope()?;
         scope.push(new_scope);
         Ok(())
     }
@@ -78,7 +77,7 @@ impl<'a> RuntimeEnv<'a> {
         let scope = &mut self.call_stack[len - 1];
         let popped = scope.pop()?;
         for addr in popped.addresses() {
-            self.memory.free(*addr)?;
+            self.memory.free(addr)?;
         }
         Ok(())
     }
@@ -100,7 +99,7 @@ impl<'a> RuntimeEnv<'a> {
                     return Err(mismatched_types_fatal!(self.sess, span, arg_ty, val_ty));
                 }
                 let id = &inputs[i].ident;
-                let addr = self.memory.alloc(&values[i])?;
+                let addr = self.memory.alloc(&values[i], inputs[i].mutable)?;
                 new_scope.register(id, addr);
             }
             self.call_stack.push(new_scope);
@@ -147,15 +146,11 @@ impl<'a> RuntimeEnv<'a> {
         match self.call_stack.pop() {
             Some(scope) => {
                 for addr in scope.addresses() {
-                    self.memory.free(*addr)?;
+                    self.memory.free(addr)?;
                 }
                 Ok(())
             },
-            None => {
-                
-                panic!();
-                // Err(struct_fatal!(self.sess, "cannot pop an empty call stack"));
-            }
+            None => Err(struct_fatal!(self.sess, "cannot pop an empty call stack")),
         }
     }
 
@@ -196,19 +191,25 @@ impl<'a> RuntimeEnv<'a> {
      * Note: if trying to store to previously allocated variable then
      * that value will be overwritten with the provided value (shadowing).
      */
-    pub fn store_var(&mut self, ident: &ExprIdent, val: &Val) -> IResult<()> {
+    pub fn store_var(&mut self, ident: &ExprIdent, mutable: bool, val: &Val) -> IResult<()> {
         let len = self.call_stack.len();
         let scope = &mut self.call_stack[len - 1];
-        let prev = scope.address_of(&ident, false);
-        match prev {
-            Ok(addr) => self.memory.store(addr, val),
-            Err(mut err) => {
-                err.cancel();
-                let addr = self.memory.alloc(val)?;
-                scope.register(&ident, addr);
-                Ok(())
-            },
-        }
+        let addr = self.memory.alloc(val, mutable)?;
+        scope.register(&ident, addr);
+        Ok(())
+    }
+
+    
+    /**
+     * Stores a value without an identifier and registes it in the current scope.
+     * This method returns the address to this value so it can be accessed without identifier.
+     */
+    pub fn store_val(&mut self, val: &Val) -> IResult<usize> {
+        let len = self.call_stack.len();
+        let scope = &mut self.call_stack[len - 1];
+        let addr = self.memory.alloc(val, false)?;
+        scope.register_addr(addr);
+        Ok(addr)
     }
 
     
@@ -216,7 +217,7 @@ impl<'a> RuntimeEnv<'a> {
      * Assigns an already allocated mutable variable and updates the memory.
      */
     pub fn assign_var(&mut self, ident: &ExprIdent, val: &Val) -> IResult<()> {
-        let scope = self.current()?;
+        let scope = self.current_scope()?;
         let addr = scope.address_of(&ident, true)?;
         self.memory.store(addr, val)
     }
@@ -226,16 +227,24 @@ impl<'a> RuntimeEnv<'a> {
      * Loads an already allocated variable from the given identifier.
      */
     pub fn load_var(&mut self, ident: &ExprIdent) -> IResult<Val> {
-        let scope = self.current()?;
+        let scope = self.current_scope()?;
         let addr = scope.address_of(&ident, true)?;
-        Ok(Val::from_data(self.memory.load(addr)?, ident.span))
+        Ok(Val::from_data(self.memory.load(addr)?, Some(ident.to_string.clone()), ident.span))
+    }
+
+    /**
+     * Loads a value directly from memory at the given memory address.
+     * Note: reading outside allocated memory will result in memory error.
+     */
+    pub fn load_val(&mut self, addr: usize) -> IResult<ValData> {
+        self.memory.load(addr)
     }
     
     
     /**
      * Returns a mutable reference to the highest scope in the call stack.
      */
-    fn current(&mut self) -> IResult<&mut Scope<'a>> {
+    pub fn current_scope(&mut self) -> IResult<&mut Scope<'a>> {
         let len = self.call_stack.len();
         if len > 0 {
             Ok(&mut self.call_stack[len - 1])

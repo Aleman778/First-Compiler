@@ -86,7 +86,7 @@ impl Eval for ExprBlock {
  */
 impl Eval for ExprBreak {
     fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
-        Ok(Val::from_data(ValData::Break, self.span))
+        Ok(Val::from_data(ValData::Break, None, self.span))
     }
 }
 
@@ -125,7 +125,7 @@ impl Eval for ExprCall {
  */
 impl Eval for ExprContinue {
     fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
-        Ok(Val::from_data(ValData::Continue, self.span))
+        Ok(Val::from_data(ValData::Continue, None, self.span))
     }
 }
 
@@ -195,10 +195,32 @@ impl Eval for ExprParen {
  * Evaluates a reference expression.
  */
 impl Eval for ExprReference {
-    fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
-        // let val = (*self.expr).eval(env)?;
-        // Ok(Val::from_ref())
-        Ok(Val::new())
+    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
+        let val = (*self.expr).eval(env)?;
+        if !val.has_data() {
+            Ok(val)
+        } else {
+            let ref_ty = val.get_type();
+            match val.ident {
+                Some(name) => {
+                    // Reference to an already existing variable.
+                    let ident = ExprIdent{
+                        to_string: name,
+                        span: val.span,
+                    };
+                    let scope = env.current_scope()?;
+                    let addr = scope.address_of(&ident, true)?;
+                    let new_val = Val::from_ref(addr, ref_ty, self.mutable, self.span);
+                    Ok(new_val)
+                },
+                None => {
+                    // Reference to a new variable without identifier.
+                    let addr = env.store_val(&val)?;
+                    let new_val = Val::from_ref(addr, ref_ty, self.mutable, self.span);
+                    Ok(new_val)
+                },
+            }
+        }
     }
 }
 
@@ -210,7 +232,7 @@ impl Eval for ExprReturn {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         match &*self.expr {
             Some(expr) => expr.eval(env),
-            None => Ok(Val::from_data(ValData::Void, self.span)),
+            None => Ok(Val::from_data(ValData::Void, None, self.span)),
         }
     }
 }

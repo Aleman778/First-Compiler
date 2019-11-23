@@ -59,9 +59,9 @@ impl TypeRef {
                 opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
                 preceded(multispace0, Ty::parse),
             )),
-                |(amp, mutability, elem)| {
+                |(amp, mut_token, elem)| {
                     let elem_span = elem.span;
-                    (TypeRef{mutability: mutability.is_some(), elem: Box::new(elem)},
+                    (TypeRef{mutable: mut_token.is_some(), elem: Box::new(elem)},
                      Span::from_bounds(LineColumn::new(amp.line, amp.get_column()), elem_span.end, input.extra))
                 }
             )

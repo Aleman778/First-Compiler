@@ -71,7 +71,7 @@ impl UnOp {
         let (span, result) = match self {
             UnOp::Neg{span}   => (span, right.neg(combined_span)),
             UnOp::Not{span}   => (span, right.not(combined_span)),
-            UnOp::Deref{span} => (span, right.deref(combined_span)),
+            UnOp::Deref{span} => (span, right.deref(combined_span, env)?),
         };
 
         match result {
@@ -80,9 +80,9 @@ impl UnOp {
                 let mut err = struct_span_fatal!(
                     env.sess,
                     *span,
-                    "cannot do {} on `{}`",
+                    "type `{}` cannot be {}",
+                    right_type,
                     self,
-                    right_type
                 );
                 err.span_label(
                     *span,
