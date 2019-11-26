@@ -31,13 +31,16 @@ pub struct Block {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
-    /// Expression for local variable assignment e.g. `let a: i32 = 5;`.
+    /// Let binding for local variable assignment e.g. `let a: i32 = 5;`.
     Local(Local),
 
-    /// An item definition.
+    /// Item definition.
     Item(Item),
 
-    /// An expression.
+    /// Expression with a trailing semicolon.
+    Semi(Expr),
+    
+    /// An expression without a trailing semicolon.
     Expr(Expr),
 }
 

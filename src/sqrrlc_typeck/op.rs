@@ -9,8 +9,7 @@ use crate::sqrrlc_ast::{
     op::*,
 };
 use crate::sqrrlc_typeck::{
-    env::TypeEnv,
-    error::*,
+    TyCtxt,
 };
 
 
@@ -23,7 +22,7 @@ impl BinOp {
      * types supported for this operator. Reports an error if this operator
      * does not implement the given types.
      */
-    pub fn check_type(&self, lhs_ty: &Ty, rhs_ty: &Ty, env: &mut TypeEnv) {
+    pub fn check_type(&self, lhs_ty: &Ty, rhs_ty: &Ty, tcx: &mut TyCtxt) {
         let (span, ok) = match self {
             BinOp::Add{span} => (span, lhs_ty.check_int(rhs_ty)),
             BinOp::Sub{span} => (span, lhs_ty.check_int(rhs_ty)),
@@ -41,8 +40,9 @@ impl BinOp {
             BinOp::Ge{span}  => (span, lhs_ty.check_int(rhs_ty)),
         };
         if !ok {
-            env.err(TypeError::new(*span, ErrorKind::BinOpNotImplemented(
-                self.clone(), lhs_ty.clone(), rhs_ty.clone())));
+            let mut err = struct_span_err!(tcx.sess, *span, "cannot {} `{}` to `{}`", self, lhs_ty, rhs_ty);
+            err.span_label(*span, &format!("no implementation for `{} {} {}`", lhs_ty, self.token(), rhs_ty));
+            tcx.sess.emit(&err);
         }
     }
 }
@@ -57,14 +57,16 @@ impl UnOp {
      * Check the type given agains the implemented types supported for this operator.
      * Reports an error if this operator is not implemented for the given type.
      */
-    pub fn check_type(&self, ty: &Ty, env: &mut TypeEnv) {
+    pub fn check_type(&self, ty: &Ty, tcx: &mut TyCtxt) {
         let (span, ok) = match self {
             UnOp::Neg{span} => (span, ty.is_int()),
             UnOp::Not{span} => (span, ty.kind == TyKind::Bool),
             UnOp::Deref{span} => (span, ty.get_ref().is_some()),
         };
         if !ok {
-            env.err(TypeError::new(*span, ErrorKind::UnOpNotImplemented(self.clone(), ty.clone())));
+            let mut err = struct_span_err!(tcx.sess, *span, "type `{}` cannot be {}", ty, self);
+            err.span_label(*span, &format!("no implementation for `{}{}`", self.token(), ty));
+            tcx.sess.emit(&err);
         }
     }
 }

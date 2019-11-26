@@ -67,7 +67,7 @@ impl Parser for Stmt {
                 map(Local::parse, |local| Stmt::Local(local)),
                 map(Item::parse,  |item|  Stmt::Item(item)),
                 map(terminated(Expr::parse, preceded(multispace0, tag(";"))),
-                    |expr|  Stmt::Expr(expr)),
+                    |expr|  Stmt::Semi(expr)),
                 map(Expr::parse,  |expr|  Stmt::Expr(expr)),
             ))
         )(input)

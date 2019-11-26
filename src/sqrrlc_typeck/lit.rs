@@ -9,7 +9,7 @@ use crate::sqrrlc_ast::{
     lit::*,
 };
 use crate::sqrrlc_typeck::{
-    env::TypeEnv,
+    TyCtxt,
     TypeChecker,
 };
 
@@ -18,10 +18,10 @@ use crate::sqrrlc_typeck::{
  * General type checking implementation for literals.
  */
 impl TypeChecker for Lit {
-    fn check_type(&self, env: &mut TypeEnv) -> Ty {
+    fn check_type(&self, tcx: &mut TyCtxt) -> Ty {
         match self {
-            Lit::Int(lit) => lit.check_type(env),
-            Lit::Bool(lit) => lit.check_type(env),
+            Lit::Int(lit) => lit.check_type(tcx),
+            Lit::Bool(lit) => lit.check_type(tcx),
         }
     }
 }
@@ -31,7 +31,7 @@ impl TypeChecker for Lit {
  * Type checking implementation for literal integers.
  */
 impl TypeChecker for LitInt {
-    fn check_type(&self, _env: &mut TypeEnv) -> Ty {
+    fn check_type(&self, _tcx: &mut TyCtxt) -> Ty {
         Ty {
             kind: TyKind::Int(IntTy::I32),
             span: self.span,
@@ -44,7 +44,7 @@ impl TypeChecker for LitInt {
  * Type checking implementation for literal boolean.
  */
 impl TypeChecker for LitBool {
-    fn check_type(&self, _env: &mut TypeEnv) -> Ty {
+    fn check_type(&self, _tcx: &mut TyCtxt) -> Ty {
         Ty {
             kind: TyKind::Bool,
             span: self.span,

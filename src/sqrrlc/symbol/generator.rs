@@ -111,6 +111,7 @@ impl GenSymbolTable for Stmt {
         match self {
             Stmt::Local(local) => local.gen_sym_table(table),
             Stmt::Item(item) => item.gen_sym_table(table),
+            Stmt::Semi(expr) => expr.gen_sym_table(table),
             Stmt::Expr(expr) => expr.gen_sym_table(table),
         }
     }
@@ -137,20 +138,49 @@ impl GenSymbolTable for Local {
         let mut symbol = VarSymbol::new();
         symbol.ty = self.ty.clone();
         table.push_symbol(&self.ident, Symbol::Var(symbol));
+        match &*self.init {
+            Some(expr) => expr.gen_sym_table(table),
+            None => {},
+        };
     }
 }
 
 
 /**
- * Gen
+ * Generate symbol table for expressions.
  */
 impl GenSymbolTable for Expr {
     fn gen_sym_table(&self, table: &mut SymbolTable) {
-        if let Expr::Block(expr) = self {
-            let ident = table.current_id().clone();
-            table.push_scope(Scope::with_ident(expr.span, ident));
-            expr.block.gen_sym_table(table);
-            table.prev_scope();            
+        match self {
+            Expr::Block(expr) => {
+                let ident = table.current_id().clone();
+                table.push_scope(Scope::with_ident(expr.span, ident));
+                expr.block.gen_sym_table(table);
+                table.prev_scope();
+            }
+            Expr::If(expr) => {
+                let ident = table.current_id().clone();
+                table.push_scope(Scope::with_ident(expr.span, ident));
+                expr.then_block.gen_sym_table(table);
+                table.prev_scope();
+
+                match &expr.else_block {
+                    Some(else_block) => {
+                        let ident = table.current_id().clone();
+                        table.push_scope(Scope::with_ident(expr.span, ident));
+                        else_block.gen_sym_table(table);
+                        table.prev_scope();
+                    }
+                    None => {}
+                }
+            }
+            Expr::While(expr) => {
+                let ident = table.current_id().clone();
+                table.push_scope(Scope::with_ident(expr.span, ident));
+                expr.block.gen_sym_table(table);
+                table.prev_scope();
+            }
+            _ => {}
         }
     }
 }

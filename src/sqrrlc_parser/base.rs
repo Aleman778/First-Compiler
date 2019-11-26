@@ -124,7 +124,7 @@ impl Parser for FnDecl {
                 )),
             )),
                 |(start, args, end, ret_ty)| {
-                    let output;
+                    let mut output;
                     let end_span;
                     match ret_ty {
                         Some(ty) => {
@@ -134,6 +134,7 @@ impl Parser for FnDecl {
                         None => {
                             output = Ty::new();
                             end_span = LineColumn::new(end.line, end.get_column() + 1);
+                            output.span = Span::from_bounds(end_span, end_span, input.extra);
                         },  
                     };
                     FnDecl {

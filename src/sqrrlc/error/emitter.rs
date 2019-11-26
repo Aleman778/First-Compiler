@@ -583,6 +583,7 @@ impl Emitter {
             dest.write(&['\n' as u8])?;
         }
         dest.set_color(&ColorSpec::new())?;
+        dest.write(&['\n' as u8])?;
         Ok(0)
     }
 

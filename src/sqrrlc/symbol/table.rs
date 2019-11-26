@@ -141,6 +141,8 @@ impl SymbolTable {
      * Find a function symbol in the global scope.
      * There is no need to check other scopes since functions
      * cannot be defined inside another function or scope.
+     * Note: parser can support functions inside other functions.
+     * this will have to change to support that.
      */
     pub fn find_fn_symbol(&self, ident: &ExprIdent) -> Option<&FnSymbol> {
         match self.scopes[0].find_symbol(ident) {
@@ -150,6 +152,16 @@ impl SymbolTable {
             },
             _ => None,
         }
+    }
+
+
+    /**
+     * Finds the current function symbol currently being
+     * processed, returns None if not inside a function.
+     */
+    pub fn find_current_fn_symbol(&self) -> Option<&FnSymbol> {
+        let ident = self.current_id();
+        self.find_fn_symbol(ident)
     }
 
 

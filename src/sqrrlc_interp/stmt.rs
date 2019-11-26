@@ -23,8 +23,8 @@ use crate::sqrrlc_interp::{
 impl Eval for Block {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         let mut ret_val = Val::new();
-        for expr in &self.stmts {
-            let val = expr.eval(env)?;
+        for stmt in &self.stmts {
+            let val = stmt.eval(env)?;
             match val.data {
                 ValData::None => continue,
                 _ => ret_val = val,
@@ -44,6 +44,10 @@ impl Eval for Stmt {
         match self {
             Stmt::Local(local) => local.eval(env),
             Stmt::Item(_item) => Err(struct_fatal!(env.sess, "items in functions are not supported by the interpreter")),
+            Stmt::Semi(expr) => {
+                expr.eval(env)?;
+                Ok(Val::new())
+            },
             Stmt::Expr(expr) => expr.eval(env),
         }
     }

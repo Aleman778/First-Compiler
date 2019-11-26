@@ -27,8 +27,8 @@ use sqrrl::sqrrlc_interp::{
     Eval,
 };
 use sqrrl::sqrrlc_typeck::{
-    env::TypeEnv,
     TypeChecker,
+    TyCtxt,
 };
 use sqrrl::sqrrlc::symbol::{
     generator::*,
@@ -38,7 +38,7 @@ use sqrrl::sqrrlc::symbol::{
 
 fn main() {
     let sess = Session::with_dir(PathBuf::from(r"C:\dev\sqrrl-lang\"));
-    let file = sess.source_map().load_file(Path::new("examples/borrowing.sq")).unwrap();
+    let file = sess.source_map().load_file(Path::new("examples/type_err.sq")).unwrap();
     // println!("{:?}", file);
     
     // Test diagnostics
@@ -78,11 +78,11 @@ fn main() {
     expr.extend(debug_functions());
     // println!("AST Expr: {:#?}", expr);
 
-    let _symbols = gen_sym_table(&expr);
-    // println!("{:#?}", symbols);
-    
-    // let mut env = TypeEnv::new(symbols);
-    // expr.check_type(&mut env);
+    // Type checking routine
+    let mut sym = gen_sym_table(&expr);
+    // println!("{:#?}", sym);
+    let mut tcx = TyCtxt::new(&sess, &mut sym);
+    expr.check_type(&mut tcx);
     
     // Parse expression
     // let source = "5 + false";
