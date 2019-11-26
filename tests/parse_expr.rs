@@ -346,7 +346,7 @@ fn parse_while() {
             })),
             block: Block {
                 stmts: vec![
-                    Stmt::Expr(Expr::Assign(ExprAssign {
+                    Stmt::Semi(Expr::Assign(ExprAssign {
                         ident: ExprIdent{to_string: "x".to_string(), span: span(15, "x")},
                         expr: Box::new(Expr::Binary(ExprBinary {
                             left: Box::new(Expr::Ident(ExprIdent {

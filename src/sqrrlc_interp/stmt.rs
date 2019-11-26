@@ -6,7 +6,8 @@
 
 
 use crate::sqrrlc_ast::{
-    stmt::*
+    stmt::*,
+    expr::Expr,
 };
 use crate::sqrrlc_interp::{
     value::*,
@@ -45,8 +46,14 @@ impl Eval for Stmt {
             Stmt::Local(local) => local.eval(env),
             Stmt::Item(_item) => Err(struct_fatal!(env.sess, "items in functions are not supported by the interpreter")),
             Stmt::Semi(expr) => {
-                expr.eval(env)?;
-                Ok(Val::new())
+                let ret_val = expr.eval(env)?;
+                // Only perform explicit returns e.g. return expression.
+                Ok(match expr {
+                    Expr::Return(_) => ret_val,
+                    Expr::Continue(_) => ret_val,
+                    Expr::Break(_) => ret_val,
+                    _ => Val::new(),
+                })
             },
             Stmt::Expr(expr) => expr.eval(env),
         }

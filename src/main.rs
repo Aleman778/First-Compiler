@@ -38,7 +38,7 @@ use sqrrl::sqrrlc::symbol::{
 
 fn main() {
     let sess = Session::with_dir(PathBuf::from(r"C:\dev\sqrrl-lang\"));
-    let file = sess.source_map().load_file(Path::new("examples/type_err.sq")).unwrap();
+    let file = sess.source_map().load_file(Path::new("examples/borrowing.sq")).unwrap();
     // println!("{:?}", file);
     
     // Test diagnostics
