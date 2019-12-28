@@ -5,6 +5,7 @@
 
 
 use crate::sqrrlc_ast::{
+    span::Span,
     ty::*,
     op::*,
 };
@@ -45,6 +46,37 @@ impl BinOp {
             tcx.sess.emit(&err);
         }
     }
+
+    
+    /**
+     * Infer the type that is resulted from the operation.
+     * Special case for using comparators, needs to convert type to bool.
+     */
+    pub fn infer_type(&self, lhs_ty: &Ty, rhs_ty: &Ty) -> Ty {
+        match self {
+            BinOp::Eq{span: _} |
+            BinOp::Ne{span: _} |
+            BinOp::Lt{span: _} | 
+            BinOp::Le{span: _} |
+            BinOp::Gt{span: _} |
+            BinOp::Ge{span: _} => Ty {
+                kind: TyKind::Bool,
+                span: Span::from_bounds(
+                    lhs_ty.span.start,
+                    rhs_ty.span.end,
+                    lhs_ty.span.loc,
+                ),
+            },
+            _ => Ty {
+                kind: lhs_ty.kind.clone(),
+                span: Span::from_bounds(
+                    lhs_ty.span.start,
+                    rhs_ty.span.end,
+                    lhs_ty.span.loc
+                ),
+            }
+        }
+    }
 }
 
 
@@ -57,17 +89,24 @@ impl UnOp {
      * Check the type given agains the implemented types supported for this operator.
      * Reports an error if this operator is not implemented for the given type.
      */
-    pub fn check_type(&self, ty: &Ty, tcx: &mut TyCtxt) {
+    pub fn check_type(&self, mut ty: Ty, tcx: &mut TyCtxt) -> Ty {
         let (span, ok) = match self {
             UnOp::Neg{span} => (span, ty.is_int()),
             UnOp::Not{span} => (span, ty.kind == TyKind::Bool),
-            UnOp::Deref{span} => (span, ty.get_ref().is_some()),
+            UnOp::Deref{span} => match ty.get_ref() {
+                Some(r) => {
+                    ty = (*r.elem).clone();
+                    (span, true)
+                },
+                None => (span, false),
+            }
         };
         if !ok {
             let mut err = struct_span_err!(tcx.sess, *span, "type `{}` cannot be {}", ty, self);
             err.span_label(*span, &format!("no implementation for `{}{}`", self.token(), ty));
             tcx.sess.emit(&err);
         }
+        ty
     }
 }
 

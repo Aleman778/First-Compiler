@@ -21,17 +21,18 @@ use crate::sqrrlc_typeck::{
 impl TypeChecker for Expr {
     fn check_type(&self, tcx: &mut TyCtxt) -> Ty {
         match self {
-            Expr::Assign(expr) => expr.check_type(tcx),
-            Expr::Binary(expr) => expr.check_type(tcx),
-            Expr::Block(expr)  => expr.check_type(tcx),
-            Expr::Call(expr)   => expr.check_type(tcx),
-            Expr::Ident(expr)  => expr.check_type(tcx),
-            Expr::If(expr)     => expr.check_type(tcx),
-            Expr::Lit(expr)    => expr.check_type(tcx),
-            Expr::Paren(expr)  => expr.check_type(tcx),
-            Expr::Return(expr) => expr.check_type(tcx),
-            Expr::Unary(expr)  => expr.check_type(tcx),
-            Expr::While(expr)  => expr.check_type(tcx),
+            Expr::Assign(expr)    => expr.check_type(tcx),
+            Expr::Binary(expr)    => expr.check_type(tcx),
+            Expr::Block(expr)     => expr.check_type(tcx),
+            Expr::Call(expr)      => expr.check_type(tcx),
+            Expr::Ident(expr)     => expr.check_type(tcx),
+            Expr::If(expr)        => expr.check_type(tcx),
+            Expr::Lit(expr)       => expr.check_type(tcx),
+            Expr::Paren(expr)     => expr.check_type(tcx),
+            Expr::Reference(expr) => expr.check_type(tcx),
+            Expr::Return(expr)    => expr.check_type(tcx),
+            Expr::Unary(expr)     => expr.check_type(tcx),
+            Expr::While(expr)     => expr.check_type(tcx),
             _ => Ty::new(),
         }
     }
@@ -61,7 +62,7 @@ impl TypeChecker for ExprBinary {
         let left = self.left.check_type(tcx);
         let right = self.right.check_type(tcx);
         self.op.check_type(&left, &right, tcx);
-        left.clone()
+        self.op.infer_type(&left, &right)
     }
 }
 
@@ -196,13 +197,36 @@ impl TypeChecker for ExprReturn {
 
 
 /**
+ * Type checker implementation for reference expressions.
+ */
+impl TypeChecker for ExprReference {
+    fn check_type(&self, tcx: &mut TyCtxt) -> Ty {
+        let ty = (*self.expr).check_type(tcx);
+        if ty.is_none() {
+            let mut err = struct_span_err!(tcx.sess, self.span, "cannot reference none type");
+            err.span_label(ty.span, "expected a typed value here, got nothing");
+            tcx.sess.emit(&err);
+            Ty::new()
+        } else {
+            Ty {
+                span: self.span,
+                kind: TyKind::Ref(TypeRef {
+                    mutable: self.mutable,
+                    elem: Box::new(ty),
+                }),
+            }
+        }
+    }
+}
+
+
+/**
  * Type checker implementation for unary expressions.
  */
 impl TypeChecker for ExprUnary {
     fn check_type(&self, tcx: &mut TyCtxt) -> Ty {
         let ty = self.right.check_type(tcx);
-        self.op.check_type(&ty, tcx);
-        ty
+        self.op.check_type(ty, tcx)
     }
 }
 

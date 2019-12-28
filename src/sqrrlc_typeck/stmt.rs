@@ -4,6 +4,10 @@
  ***************************************************************************/
 
 
+use crate::sqrrlc::symbol::{
+    VarSymbol,
+    Symbol,
+};
 use crate::sqrrlc_ast::{
     ty::*,
     stmt::*,
@@ -66,6 +70,9 @@ impl TypeChecker for Local {
         match &*self.init {
             Some(init) => {
                 let init_ty = init.check_type(tcx);
+                let mut symbol = VarSymbol::new();
+                symbol.ty = self.ty.clone();
+                tcx.sym.push_symbol(&self.ident, Symbol::Var(symbol));
                 if init_ty != self.ty {
                     mismatched_types_err!(tcx.sess, init_ty.span, self.ty, init_ty);
                 }

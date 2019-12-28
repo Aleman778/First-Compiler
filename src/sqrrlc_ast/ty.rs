@@ -118,6 +118,16 @@ impl Ty {
         }
     }
 
+    /**
+     * Returns true if type is ref.
+     */
+    pub fn is_ref(&self) -> bool {
+        match self.kind {
+            TyKind::Ref(_) => true,
+            _ => false,
+        }
+    }
+
     
     /**
      * Returns the type reference or None if type is not a reference.

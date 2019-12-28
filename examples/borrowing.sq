@@ -11,10 +11,10 @@
 fn main() {
     // test_self_referencing();
     // test_reference_chain();
-    // test_self_referencing();
-    // test_returning_reference();
-    reference_out_of_scope();
-    // mutate_while_borrow();
+    // test_reference_cycles();    // Should fail
+    // test_returning_reference(); // Should fail
+    // reference_out_of_scope();   // Should fail
+    // mutate_while_borrow();      // Should fail
 }
 
 
@@ -22,7 +22,7 @@ fn main() {
  * Test uninitialized let bindings.
  */
 fn test_uninitialized() {
-    let a
+    let a;
 }
 
 
@@ -34,7 +34,7 @@ fn test_self_referencing() {
     let a: &&i32 = &a;
     let a: &&&i32 = &a;
     trace();
-    print_int(***a)
+    print_int(***a);
 }
 
 
@@ -47,19 +47,6 @@ fn test_reference_chain() {
     let c: &&&i32 = &b;
     trace();
     print_int(***c);
-}
-
-
-/**
- * Test creating a cycle of references.
- * Note: this does not create an infinite cycle.
- */
-fn test_reference_cycles() {
-    let mut a: &i32 = &5;
-    let b: &&i32 = &a;
-    a = &b;
-    trace();
-    print_int(***a)
 }
 
 

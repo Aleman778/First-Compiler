@@ -1,5 +1,6 @@
 fn main() {
-    countdown(52);
+    // countdown(46);
+    print_int(factorial(12));
 }
 
 
