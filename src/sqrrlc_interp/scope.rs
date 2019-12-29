@@ -67,6 +67,7 @@ impl<'a> Scope<'a> {
 
     /**
      * Returns the address of a given variable identifier.
+     * If backtracking is enabled than this will also search child scopes.
      */
     pub fn address_of(&self, id: &ExprIdent, backtrack: bool) -> IResult<usize> {
         match &*self.child {

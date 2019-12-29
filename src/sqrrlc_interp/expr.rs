@@ -6,6 +6,7 @@
 
 
 use crate::sqrrlc_ast::{
+    op::UnOp,
     ty::TyKind,
     base::Item,
     expr::*,
@@ -44,13 +45,52 @@ impl Eval for Expr {
 }
 
 
+impl Expr {
+    /**
+     * Evaluates the memory address of a given expression.
+     */
+    fn eval_addr(&self, env: &mut RuntimeEnv) -> IResult<usize> {
+        match self {
+            Expr::Ident(ident) => {
+                let scope = env.current_scope()?;
+                scope.address_of(&ident, true)
+            },
+            Expr::Unary(unary) => {
+                match unary.op {
+                    UnOp::Deref{span: _} => {
+                        let addr = (*unary.right).eval_addr(env)?;
+                        match env.load_val(addr)? {
+                            ValData::Ref(r) => Ok(r.addr),
+                            _ => Err(struct_fatal!(env.sess, "invalid expression")),
+                        }
+                    },
+                    _ => Err(struct_fatal!(env.sess, "invalid expression")),
+                }
+            },
+            _ => Err(struct_fatal!(env.sess, "invalid expression")),
+        }
+    }
+}
+
+
 /**
  * Evaluates an assignment expresson
  */
 impl Eval for ExprAssign {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let val = (*self.expr).eval(env)?;
-        env.assign_var(&self.ident, &val)?;
+        let addr = match (*self.left).eval_addr(env) {
+            Ok(addr) => addr,
+            Err(mut err) => {
+                if err.message[0].text == "invalid expression" {
+                    err.message[0].text = String::from("invalid left-hand side expression");
+                    err.primary_span(self.span);
+                    err.span_label(self.span, "left-hand of expression not valid");
+                }
+                return Err(err);
+            }
+        };
+        let val = (*self.right).eval(env)?;
+        env.assign_var(addr, &val)?;
         Ok(Val::new())
     }
 }

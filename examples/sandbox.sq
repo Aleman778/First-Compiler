@@ -1,29 +1,13 @@
-fn main() {
-    let mut a: i32 = 43;
-    a = a - 5;
-    let c: i32 = if (a > 40) {
-        40
-    } else {
-        60
-    };
-    print_int(c);
-    
-    let b: i32 = sub(a, 43);
-    let potatis: bool = !false;
-    print_bool(potatis);
-    while a > 30 {
-        print_int(a);
-        break;
-        a = a - 1;
-    }
-}
 
-fn sub(a: i32, b: i32) -> i32 {
-    let c: i32 = 5;
-    if c < 10 {
-        let d: i32 = a - b + c;
-        trace();
-    }
-    
-    return c;
+/***************************************************************************
+ * This is just a sandbox file where I write test code.
+ ***************************************************************************/
+
+fn main() {
+    let mut x: i32 = 5;
+    let y: &mut i32 = &mut x;
+    trace();
+    *y = 10;
+    trace();
+    print_int(x);   
 }

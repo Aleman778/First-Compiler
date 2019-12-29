@@ -49,7 +49,7 @@ fn main() {
     let mut sym = gen_sym_table(&expr);
     // println!("{:#?}", sym);
     let mut tcx = TyCtxt::new(&sess, &mut sym);
-    expr.check_type(&mut tcx);
+    // expr.check_type(&mut tcx);
 
     // Start the interpreter routine
     let mut env = RuntimeEnv::new(&sess);

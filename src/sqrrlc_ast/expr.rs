@@ -64,13 +64,37 @@ pub enum Expr {
 }
 
 
+impl Expr {
+    /**
+     * Returns the span of this expression
+     */
+    pub fn get_span(&self) -> Span {
+        match self {
+            Expr::Assign(expr)    => expr.span,
+            Expr::Binary(expr)    => expr.span,
+            Expr::Block(expr)     => expr.span,
+            Expr::Call(expr)      => expr.span,
+            Expr::Ident(expr)     => expr.span,
+            Expr::If(expr)        => expr.span,
+            Expr::Lit(expr)       => expr.span,
+            Expr::Paren(expr)     => expr.span,
+            Expr::Reference(expr) => expr.span,
+            Expr::Return(expr)    => expr.span,
+            Expr::Unary(expr)     => expr.span,
+            Expr::While(expr)     => expr.span,
+            _ => Span::new_empty(),
+        }
+    }
+}
+
+
 /**
  * Assignment of mutable variable, e.g. x = 5;
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprAssign {
-    pub ident: ExprIdent,
-    pub expr: Box<Expr>,
+    pub left: Box<Expr>,
+    pub right: Box<Expr>,
     pub span: Span,
 }
 

@@ -82,6 +82,10 @@ impl cmp::PartialEq for RefVal {
  */
 impl fmt::Display for RefVal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "ref {}", self.addr)
+        let mut ty_prefix = String::from("&");
+        if self.mutable {
+            ty_prefix.push_str("mut ");
+        }
+        write!(f, "{} ({}{})", self.addr, ty_prefix, self.ref_ty)
     }
 }

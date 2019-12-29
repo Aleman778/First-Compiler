@@ -44,8 +44,8 @@ impl TypeChecker for Expr {
  */
 impl TypeChecker for ExprAssign {
     fn check_type(&self, tcx: &mut TyCtxt) -> Ty {
-        let prev = self.ident.check_type(tcx);
-        let new = self.expr.check_type(tcx);
+        let prev = self.left.check_type(tcx);
+        let new = self.right.check_type(tcx);
         if prev != new {
             mismatched_types_err!(tcx.sess, new.span, prev, new);
         }

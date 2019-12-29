@@ -96,18 +96,18 @@ impl Parser for ExprAssign {
             preceded(
                 multispace0,
                 map(tuple((
-                    ExprIdent::parse,
+                    Expr::parse_atom,
                     preceded(multispace0, tag("=")),
                     Expr::parse,
                     preceded(multispace0, peek(tag(";"))),
                 )),
-                    |(id, _, expr, end)| {
-                        let rid = id.clone();
+                    |(left, _, right, end)| {
+                        let left_span = left.get_span();
                         ExprAssign {
-                            ident: id,
-                            expr: Box::new(expr),
+                            left: Box::new(left),
+                            right: Box::new(right),
                             span: Span::from_bounds(
-                                rid.span.start,
+                                left_span.start,
                                 LineColumn::new(end.line, end.get_column() + 1),
                                 input.extra
                             ),

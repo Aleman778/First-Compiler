@@ -215,10 +215,9 @@ impl<'a> RuntimeEnv<'a> {
     
     /**
      * Assigns an already allocated mutable variable and updates the memory.
+
      */
-    pub fn assign_var(&mut self, ident: &ExprIdent, val: &Val) -> IResult<()> {
-        let scope = self.current_scope()?;
-        let addr = scope.address_of(&ident, true)?;
+    pub fn assign_var(&mut self, addr: usize, val: &Val) -> IResult<()> {
         self.memory.store(addr, val)
     }
 

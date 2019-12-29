@@ -203,7 +203,11 @@ impl<'a> Memory<'a> {
         let mut dump = String::new();
         dump.push_str("[");
         for i in 0..self.next {
-            dump.push_str(&format!("\n    [{}] = {:?},", i, self.data[i]));
+            let mut mutable = String::new();
+            if self.data[i].mutable {
+                mutable.push_str(" mut");
+            }
+            dump.push_str(&format!("\n    [{}{}] = {:?},", i, mutable, self.data[i]));
         }
         dump.pop();
         dump.push_str("\n]");

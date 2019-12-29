@@ -33,7 +33,7 @@ pub struct Val {
     /// Optionally provide the identifier from where this value resides from.
     pub ident: Option<String>,
 
-    /// The span informtion, e
+    /// The span informtion.
     pub span: Span,
 }
 
