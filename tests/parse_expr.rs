@@ -22,8 +22,8 @@ fn parse_assign() {
     assert_eq!(
         ExprAssign::parse(input("x = x + 5;  ")).unwrap().1,
         ExprAssign {
-            ident: ExprIdent{to_string: "x".to_string(), span: span(0, "x")},
-            expr: Box::new(Expr::Binary(ExprBinary {
+            left: Box::new(Expr::Ident(ExprIdent{to_string: "x".to_string(), span: span(0, "x")})),
+            right: Box::new(Expr::Binary(ExprBinary {
                 left: Box::new(Expr::Ident(ExprIdent {
                     to_string: "x".to_string(),
                     span: span(4, "x"),
@@ -347,8 +347,8 @@ fn parse_while() {
             block: Block {
                 stmts: vec![
                     Stmt::Semi(Expr::Assign(ExprAssign {
-                        ident: ExprIdent{to_string: "x".to_string(), span: span(15, "x")},
-                        expr: Box::new(Expr::Binary(ExprBinary {
+                        left: Box::new(Expr::Ident(ExprIdent{to_string: "x".to_string(), span: span(15, "x")})),
+                        right: Box::new(Expr::Binary(ExprBinary {
                             left: Box::new(Expr::Ident(ExprIdent {
                                 to_string: "x".to_string(),
                                 span: span(19, "x"),

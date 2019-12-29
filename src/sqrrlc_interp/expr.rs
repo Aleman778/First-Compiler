@@ -60,7 +60,19 @@ impl Expr {
                     UnOp::Deref{span: _} => {
                         let addr = (*unary.right).eval_addr(env)?;
                         match env.load_val(addr)? {
-                            ValData::Ref(r) => Ok(r.addr),
+                            ValData::Ref(r) => {
+                                if r.mutable {
+                                    Ok(r.addr)
+                                } else {
+                                    let mut err = struct_span_fatal!(
+                                        env.sess,
+                                        self.get_span(),
+                                        "cannot assign to variable using immutable reference");
+                                    err.span_label(r.ref_ty.span, "help: consider changing this to be a mutable reference");
+                                    err.span_label(self.get_span(), "variable is a reference, so data it refers to cannot be written");
+                                    Err(err)
+                                }
+                            }
                             _ => Err(struct_fatal!(env.sess, "invalid expression")),
                         }
                     },

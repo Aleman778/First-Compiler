@@ -6,8 +6,10 @@
 fn main() {
     let mut x: i32 = 5;
     let y: &mut i32 = &mut x;
-    trace();
+    let z: &i32 = &x;
     *y = 10;
-    trace();
-    print_int(x);   
+    // *z = 15;
+    print_int(x);
+    print_int(*y);   
+    print_int(*z);
 }
