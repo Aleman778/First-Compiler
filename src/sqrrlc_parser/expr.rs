@@ -41,7 +41,6 @@ impl Parser for Expr {
                 map(ExprIf::parse,        |expr_if|       Expr::If(expr_if)),
                 map(ExprWhile::parse,     |expr_while|    Expr::While(expr_while)),
                 map(ExprBlock::parse,     |expr_block|    Expr::Block(expr_block)),
-                map(ExprReference::parse, |expr_ref|      Expr::Reference(expr_ref)),
                 map(ExprReturn::parse,    |expr_return|   Expr::Return(expr_return)),
                 map(ExprBreak::parse,     |expr_break|    Expr::Break(expr_break)),
                 map(ExprContinue::parse,  |expr_continue| Expr::Continue(expr_continue)),
@@ -75,11 +74,12 @@ impl Expr {
         context(
             "expression",
             alt((
-                map(ExprLit::parse,       |literal| Expr::Lit(literal)),
-                map(ExprParen::parse,     |expr|    Expr::Paren(expr)),
-                map(ExprCall::parse_term, |call|    Expr::Call(call)),
-                map(ExprIdent::parse,     |ident|   Expr::Ident(ident)),
-                map(ExprUnary::parse,     |unary|   Expr::Unary(unary)),
+                map(ExprLit::parse,       |literal|  Expr::Lit(literal)),
+                map(ExprParen::parse,     |expr|     Expr::Paren(expr)),
+                map(ExprCall::parse_term, |call|     Expr::Call(call)),
+                map(ExprIdent::parse,     |ident|    Expr::Ident(ident)),
+                map(ExprUnary::parse,     |unary|    Expr::Unary(unary)),
+                map(ExprReference::parse, |expr_ref| Expr::Reference(expr_ref)),
             ))
         )(input)
     }
@@ -397,7 +397,7 @@ impl Parser for ExprReference {
         map(tuple((
             preceded(multispace0, tag("&")),
             opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
-            preceded(multispace0, Expr::parse),
+            preceded(multispace0, Expr::parse_atom),
         )),
             |(amp, mut_token, expr)| ExprReference {
                 mutable: mut_token.is_some(),

@@ -8,7 +8,7 @@ fn main() {
     let y: &mut i32 = &mut x;
     let z: &i32 = &x;
     *y = 10;
-    // *z = 15;
+    
     print_int(x);
     print_int(*y);   
     print_int(*z);
