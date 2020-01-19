@@ -1,5 +1,5 @@
 [package]
-name = "utilities"
+name = "tools"
 version = "0.1.0"
 authors = ["Alexander Mennborg <alexander.mennborg@gmail.com>"]
 edition = "2018"
@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 nom_locate = "1"
-sqrrl = { path = "../" }
+sqrrl = { path = "../../" }

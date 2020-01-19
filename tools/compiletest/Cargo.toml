@@ -1,17 +1,10 @@
 [package]
-name = "sqrrl"
+name = "tools"
 version = "0.1.0"
 authors = ["Alexander Mennborg <alexander.mennborg@gmail.com>"]
 edition = "2018"
-publish = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nom = "5"
-nom_locate = "1"
-termcolor = "1.0.5"
-unicode-width = "0.1.5"
-
-[dev-dependencies]
-compiletest = { path = "./tools/compiletest" }
+sqrrl = { path = "../../" }
