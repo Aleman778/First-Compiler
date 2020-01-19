@@ -14,4 +14,5 @@ termcolor = "1.0.5"
 unicode-width = "0.1.5"
 
 [dev-dependencies]
-compiletest = { path = "./tools/compiletest" }
+unit_test = { path = "./tools/unit_test" }
+compile_test = { path = "./tools/compile_test" }
