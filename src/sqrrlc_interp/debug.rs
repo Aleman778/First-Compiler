@@ -90,21 +90,21 @@ pub fn debug_functions() -> Vec<Item> {
  * Prints the environment
  */
 pub fn trace(env: &mut RuntimeEnv) {
-    println!("{:#?}", env)
+    env.sess.stdout.write(format!("{:#?}", envy));
 }
 
 
 /**
  * Prints the given integer.
  */
-pub fn print_int(val: i32) {
-    println!("{}", val);
+pub fn print_int(env: &mut RuntimeEnv, val: i32) {
+    env.sess.stdout.write(format!("{}", val));
 }
 
 
 /**
  * Prints the given boolean.
  */
-pub fn print_bool(val: bool) {
-    println!("{}", val);
+pub fn print_bool(env: &mut RuntimeEnv, val: bool) {
+    env.sess.stdout.write(format!("{:#?}", val));
 }

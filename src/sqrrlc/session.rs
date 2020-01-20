@@ -8,6 +8,7 @@
 use std::rc::Rc;
 use std::path::PathBuf;
 use crate::sqrrlc::{
+    utils::{ColorConfig, Destination, WritableDst},
     error::{diagnostic::*, emitter::Emitter, Handler},
     source_map::SourceMap,
 };
@@ -19,14 +20,20 @@ use crate::sqrrlc_ast::span::Span;
  * e.g. error handler, compilation target, current directory.
  */
 pub struct Session {
-    // The handler is used to deal with error reporting.
+    /// The handler is used to deal with error reporting.
     pub handler: Handler,
 
-    // The working directory of the compiler.
+    /// The working directory of the compiler.
     pub working_dir: PathBuf,
 
-    // The mapping of source files in use.
+    /// The mapping of source files in use.
     source_map: Rc<SourceMap>,
+
+    /// The writable stdout destination.
+    stdout: WritableDst,
+
+    /// The writable stderr destination.
+    stderr: WritableDst,
 }
 
 

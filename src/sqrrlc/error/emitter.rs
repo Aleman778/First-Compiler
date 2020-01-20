@@ -33,6 +33,9 @@ pub struct Emitter {
 
     /// The maximum width of the terminal.
     pub terminal_width: Option<usize>,
+
+    /// The destination to write to.
+    dest: Destination,
 }
 
 
@@ -43,7 +46,7 @@ impl Emitter {
     /**
      * Creates a new emitter with default settings.
      */
-    pub fn new(source_map: Rc<SourceMap>) -> Self {
+    pub fn new(source_map: Rc<SourceMap>, destination: Destination) -> Self {
         Emitter {
             sm: source_map,
             terminal_width: None,
@@ -568,13 +571,12 @@ impl Emitter {
 
     /**
      * Renders the buffered diagnostic message into data containing styled texts.
-     * The styled text data is then written in the console using eprint/ eprintln.
-     * TODO: this should be moved out to enum for controlling the destination...
+     * The styled text data is then written to the given writable destination.
      */
     fn write_buffer(&self, level: &Level, buf: &StyledBuffer) -> io::Result<usize> {
-        let mut dest = StandardStream::stderr(ColorChoice::AlwaysAnsi);
-        let data = buf.render();
-        for line in &data {
+        let dest = 
+        let rendered = buf.render();
+        for line in &rendered {
             for string in line {
                 let spec = self.get_color_spec(level, &string.style);
                 dest.set_color(&spec)?;
@@ -583,10 +585,10 @@ impl Emitter {
             dest.write(&['\n' as u8])?;
         }
         dest.set_color(&ColorSpec::new())?;
-        dest.write(&['\n' as u8])?;
+        dest.write(&['\n' as u8])?;        
         Ok(0)
     }
-
+    
     
     /**
      * Returns the color spec based on the diagnostic level and style type.

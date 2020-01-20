@@ -22,6 +22,5 @@ pub fn typeck_math(input: &str) -> IResult<TyKind> {
 pub fn setup_tcx() -> TyCtxt {
     let sess = Session::new();
     let sym = gen_sym_table(&expr);
-    let mut tcx = TyCtxt::new(sess, sym);
-
+    TyCtxt::new(sess, sym)
 }

@@ -4,7 +4,7 @@
  ***************************************************************************/
 
 
-use utilities::span::*;
+use unit_test::span::*;
 use sqrrl::sqrrlc_ast::{
     stmt::*,
     expr::*,
