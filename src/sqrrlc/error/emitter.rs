@@ -13,8 +13,8 @@ use std::io;
 use std::io::Write;
 use std::cmp::{min, max, Reverse};
 use std::collections::HashMap;
-use termcolor::{StandardStream, ColorChoice, ColorSpec};
-use termcolor::{WriteColor, Color};
+use termcolor::{WriteColor, Color, ColorSpec};
+use crate::sqrrlc::utils::WritableDest;
 use crate::sqrrlc::error::{
     styled_buffer::*,
     diagnostic::*,
@@ -33,9 +33,6 @@ pub struct Emitter {
 
     /// The maximum width of the terminal.
     pub terminal_width: Option<usize>,
-
-    /// The destination to write to.
-    dest: Destination,
 }
 
 
@@ -46,7 +43,7 @@ impl Emitter {
     /**
      * Creates a new emitter with default settings.
      */
-    pub fn new(source_map: Rc<SourceMap>, destination: Destination) -> Self {
+    pub fn new(source_map: Rc<SourceMap>) -> Self {
         Emitter {
             sm: source_map,
             terminal_width: None,
@@ -57,14 +54,15 @@ impl Emitter {
     /**
      * Emit diagnostic information to console.
      */
-    pub fn emit_diagnostic(&self, d: &Diagnostic) {
+    pub fn emit_diagnostic(&self, d: &Diagnostic, dest: &mut WritableDest) {
         if d.cancelled() {
             return;
         }        
         let max_linum_len = self.get_max_linum_len(&d.span, &d.children);
-        self.emit_message(&d.level, &d.code, &d.message, &d.span, max_linum_len, false);
+        self.emit_message(dest, &d.level, &d.code, &d.message, &d.span, max_linum_len, false);
         for sub in &d.children {
             self.emit_message(
+                dest,
                 &sub.level,
                 &None,
                 &sub.message,
@@ -81,6 +79,7 @@ impl Emitter {
      */
     fn emit_message(
         &self,
+        dest: &mut WritableDest,
         level: &Level,
         code: &Option<String>,
         message: &Vec<StyledString>,
@@ -95,10 +94,7 @@ impl Emitter {
             buf.append(&s.text, s.style, 0);
         }
         self.draw_code_snippet(buf, span, max_linum_len);
-        match self.write_buffer(level, buf) {
-            Ok(_) => {}
-            Err(e) => eprintln!("{}", e)
-        }
+        self.emit_to_dest(level, buf, dest);
     }
 
 
@@ -573,19 +569,18 @@ impl Emitter {
      * Renders the buffered diagnostic message into data containing styled texts.
      * The styled text data is then written to the given writable destination.
      */
-    fn write_buffer(&self, level: &Level, buf: &StyledBuffer) -> io::Result<usize> {
-        let dest = 
+    fn emit_to_dest(&self, level: &Level, buf: &StyledBuffer, dest: &mut WritableDest) -> io::Result<usize> {
         let rendered = buf.render();
         for line in &rendered {
             for string in line {
                 let spec = self.get_color_spec(level, &string.style);
                 dest.set_color(&spec)?;
-                dest.write(string.text.as_bytes())?;
+                write!(dest, "{}", string.text);
             }
-            dest.write(&['\n' as u8])?;
+            write!(dest, "\n");
         }
         dest.set_color(&ColorSpec::new())?;
-        dest.write(&['\n' as u8])?;        
+        write!(dest, "\n");
         Ok(0)
     }
     

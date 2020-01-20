@@ -90,7 +90,7 @@ pub fn debug_functions() -> Vec<Item> {
  * Prints the environment
  */
 pub fn trace(env: &mut RuntimeEnv) {
-    env.sess.stdout.write(format!("{:#?}", envy));
+    env.sess.stdout.write(format!("{:#?}", env));
 }
 
 

@@ -6,6 +6,7 @@
 
 
 use std::sync::Mutex;
+use crate::sqrrlc::utils::WritableDest;
 use crate::sqrrlc::error::{emitter::Emitter, diagnostic::*};
 use crate::sqrrlc_ast::span::Span;
 
@@ -99,19 +100,22 @@ impl Handler {
     /**
      * Emits the diagnostic, cancelled diagnostics are not emitted however.
      */
-    pub fn emit_diagnostic(&self, diagnostic: &Diagnostic) {
+    pub fn emit_diagnostic(&self, diagnostic: &Diagnostic, dest: &mut WritableDest) {
         let mut inner = self.0.lock().unwrap();
-        inner.emit_diagnostic(diagnostic);
+        inner.emit_diagnostic(diagnostic, dest);
     }
 }
 
 
 impl HandlerInner {
-    pub fn emit_diagnostic(&mut self, diagnostic: &Diagnostic)  {
+    /**
+     * Emits the given diagnostic to the provided writable destination.
+     */
+    pub fn emit_diagnostic(&mut self, diagnostic: &Diagnostic, dest: &mut WritableDest)  {
         if diagnostic.is_err() {
             self.error_count += 1;
         }
-        self.emitter.emit_diagnostic(diagnostic);
+        self.emitter.emit_diagnostic(diagnostic, dest);
     }
 }    
 

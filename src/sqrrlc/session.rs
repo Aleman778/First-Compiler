@@ -8,7 +8,7 @@
 use std::rc::Rc;
 use std::path::PathBuf;
 use crate::sqrrlc::{
-    utils::{ColorConfig, Destination, WritableDst},
+    utils::{ColorConfig, Destination},
     error::{diagnostic::*, emitter::Emitter, Handler},
     source_map::SourceMap,
 };
@@ -29,11 +29,11 @@ pub struct Session {
     /// The mapping of source files in use.
     source_map: Rc<SourceMap>,
 
-    /// The writable stdout destination.
-    stdout: WritableDst,
+    /// The destination for writing outputs.
+    dest_out: Destination,
 
-    /// The writable stderr destination.
-    stderr: WritableDst,
+    /// The destination for writing error outputs.
+    dest_err: Destination,
 }
 
 
@@ -51,10 +51,14 @@ impl Session {
      */
     pub fn with_dir(working_dir: PathBuf) -> Self {
         let src_map = Rc::new(SourceMap::new(working_dir.clone()));
+        let stdout = Destination::from_stdout(ColorConfig::Never);
+        let stderr = Destination::from_stderr(ColorConfig::Alawys);
         Session {
             handler: Handler::new(Emitter::new(Rc::clone(&src_map))),
             working_dir: working_dir,
             source_map: src_map,
+            dest_out: stdout,
+            dest_err: stderr,
         }
     }
 
@@ -173,6 +177,6 @@ impl Session {
      * Emits the diagnostic to be displayed.
      */
     pub fn emit(&self, diagnostic: &Diagnostic) {
-        self.handler.emit_diagnostic(diagnostic);
+        self.handler.emit_diagnostic(diagnostic, &mut self.dest_err.writable());
     }
 }

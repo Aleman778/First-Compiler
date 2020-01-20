@@ -21,14 +21,19 @@ use sqrrl::sqrrlc_typeck::{
 };
 use sqrrl::sqrrlc::symbol::{
     generator::*,
+    error::Handler,
     table::SymbolTable,
+    source_map::SourceMap,
 };
 
 
 /**
  * Runs the test code and evaluates the output.
  */
-pub fn run_test(test: Test, sess: Session) {
+pub fn run_test(test: Test, dir: &Path) {
+    let sess = setup_session(dir);
+
+    
     // Load the file
     let file = sess.source_map().load_file(test.file).unwrap();
     let span = ParseSpan::new_extra(&file.source, 0);
@@ -50,4 +55,17 @@ pub fn run_test(test: Test, sess: Session) {
     let mut env = RuntimeEnv::new(&sess);
     ast.eval(&mut env);
     
+}
+
+
+
+/**
+ * Setup a new session for this specific suite.
+ */
+fn setup_session(dir: &Path) {
+    let src_map = Rc::new(SourceMap)
+    let sess = Session {
+        handler: Handler::new(Emitter::new())
+    }
+
 }
