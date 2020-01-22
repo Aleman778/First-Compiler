@@ -47,7 +47,7 @@ impl Item {
      * Evaluates a function item.
      */
     #[allow(unreachable_patterns)]
-    pub fn eval_func(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
+    pub fn eval_func<'a>(&self, values: Vec<Val>, env: &mut RuntimeEnv<'a>) -> IResult<Val> {
         match self {
             Item::Fn(func) => func.eval(values, env),
             Item::ForeignFn(func) => func.eval(values, env),
@@ -72,7 +72,7 @@ impl Item {
  */
 
 impl FnItem {
-    fn eval(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval<'a>(&self, values: Vec<Val>, env: &mut RuntimeEnv<'a>) -> IResult<Val> {
         env.push_func(&self, values)?;
         let val = self.block.eval(env)?;
         env.pop_func()?;
@@ -96,14 +96,14 @@ impl ForeignFnItem {
             },
             "print_int" => {
                 match values[0].get_i32() {
-                    Some(arg) => print_int(arg),
+                    Some(arg) => print_int(env, arg),
                     None => return Err(mismatched_types_fatal!(
                         env.sess, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
                 };
             },
             "print_bool" => {
                 match values[0].get_bool() {
-                    Some(arg) => print_bool(arg),
+                    Some(arg) => print_bool(env, arg),
                     None => return Err(mismatched_types_fatal!(
                         env.sess, values[0].span, TyKind::Bool, values[0].get_type())),
                 };

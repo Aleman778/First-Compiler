@@ -9,16 +9,16 @@
 use std::fmt;
 use std::collections::HashMap;
 use crate::sqrrlc::{
-    source_map::SourceFile,
     session::Session,
+    source_map::{SourceMap, SourceFile},
 };
 use crate::sqrrlc_ast::{
     span::Span,
     expr::ExprIdent,
 };
 use crate::sqrrlc_interp::{
-    env::write_str,
     IResult,
+    env::write_str,
 };
 
 
@@ -29,12 +29,9 @@ use crate::sqrrlc_interp::{
  * the environment.
  */
 #[derive(Clone)]
-pub struct Scope<'a> {
-    /// The compiler session.
-    sess: &'a Session,
-    
+pub struct Scope {
     /// The child scope, used for sub-block expressions.
-    child: Box<Option<Scope<'a>>>,
+    child: Box<Option<Scope>>,
 
     /// Variable memory mapper, maps strings to memory addresses.
     symbols: HashMap<String, usize>,
@@ -50,13 +47,12 @@ pub struct Scope<'a> {
 /**
  * Implementation of scope.
  */
-impl<'a> Scope<'a> {
+impl Scope {
     /**
      * Constructs a new scope.
      */
-    pub fn new(session: &'a Session, span: Span) -> Self {
+    pub fn new(span: Span) -> Self {
         Scope {
-            sess: session,
             child: Box::new(None),
             symbols: HashMap::new(),
             values: vec![],
@@ -69,21 +65,21 @@ impl<'a> Scope<'a> {
      * Returns the address of a given variable identifier.
      * If backtracking is enabled than this will also search child scopes.
      */
-    pub fn address_of(&self, id: &ExprIdent, backtrack: bool) -> IResult<usize> {
+    pub fn address_of(&self, id: &ExprIdent, sess: &mut Session, backtrack: bool) -> IResult<usize> {
         match &*self.child {
             Some(child) => {
-                match child.address_of(id, backtrack) {
+                match child.address_of(id, sess, backtrack) {
                     Ok(addr) => Ok(addr),
                     Err(e) => {
                         if backtrack {
-                            self.find_mem(id)
+                            self.find_mem(id, sess)
                         } else {
                             Err(e)
                         }
                     }
                 }
             },
-            None => self.find_mem(id),
+            None => self.find_mem(id, sess),
         }
     }
 
@@ -131,7 +127,7 @@ impl<'a> Scope<'a> {
     /**
      * Push a new scope onto the outer most scope.
      */
-    pub fn push(&mut self, new_scope: Scope<'a>) {
+    pub fn push(&mut self, new_scope: Scope) {
         match &mut *self.child {
             Some(child) => child.push(new_scope),
             None => self.child = Box::new(Some(new_scope)),
@@ -142,11 +138,11 @@ impl<'a> Scope<'a> {
     /**
      * Pops the outer most scope. Returns the popped scope.
      */
-    pub fn pop(&mut self) -> IResult<Scope> {
+    pub fn pop(&mut self, sess: &mut Session) -> IResult<Scope> {
         let (opt, _) = self.pop_impl();
         match opt {
             Some(scope) => Ok(scope.clone()),
-            None => Err(struct_fatal!(self.sess, "cannot pop the function scope")),
+            None => Err(struct_fatal!(sess, "cannot pop the function scope")),
         }
     }
 
@@ -155,7 +151,7 @@ impl<'a> Scope<'a> {
      * Pop implementation returns true if the outer most
      * scope has been reached and should be popped.
      */
-    fn pop_impl(&mut self) -> (Option<Scope<'a>>, bool) {
+    fn pop_impl(&mut self) -> (Option<Scope>, bool) {
         match &mut *self.child {
             Some(child) => {
                 let (mut scope, found) = child.pop_impl();
@@ -174,10 +170,10 @@ impl<'a> Scope<'a> {
      * Find an address in the memory using the provided identifier.
      * Returns memory error if not found in this scope.
      */
-    fn find_mem(&self, ident: &ExprIdent) -> IResult<usize> {
+    fn find_mem(&self, ident: &ExprIdent, sess: &mut Session) -> IResult<usize> {
         match self.symbols.get(&ident.to_string) {
             Some(addr) => Ok(*addr),
-            None => Err(struct_span_fatal!(self.sess, ident.span, "not found in this scope")),
+            None => Err(struct_span_fatal!(sess, ident.span, "not found in this scope")),
         }
     }
 
@@ -188,10 +184,11 @@ impl<'a> Scope<'a> {
     pub fn fmt_scope(
         &self,
         f: &mut fmt::Formatter<'_>,
+        source_map: &SourceMap,
         mut indent: usize,
         index: usize
     ) -> fmt::Result {
-        match self.sess.source_map().get_file(self.span.loc) {
+        match source_map.get_file(self.span.loc) {
             Some(file) => {
                 write_str(f, &format!("\n{}: ", index), indent - 4)?;
                 self.fmt_sub_scope(f, indent + 4, &file, index, 1)?;
@@ -253,15 +250,5 @@ impl<'a> Scope<'a> {
             }
             None => Ok(()),
         }
-    }
-}
-
-
-/**
- * Debug formatting of scopes.
- */
-impl<'a> fmt::Debug for Scope<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.fmt_scope(f, 0, 0)
     }
 }

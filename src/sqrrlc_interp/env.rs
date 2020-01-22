@@ -27,16 +27,16 @@ use crate::sqrrlc_interp::{
  */
 pub struct RuntimeEnv<'a> {
     /// The compiler session, used for storing common data.
-    pub sess: &'a Session,
+    pub sess: &'a mut Session,
     
     /// Stores item signatures, maps strings to items
     signatures: HashMap<String, Item>,
 
     /// The call stack is a stack containing scopes
-    call_stack: Vec<Scope<'a>>,
+    call_stack: Vec<Scope>,
     
     /// The main memory heap storage, stores variables
-    memory: Memory<'a>,
+    memory: Memory,
 }
 
 
@@ -47,12 +47,12 @@ impl<'a> RuntimeEnv<'a> {
     /**
      * Constructs an empty environment.
      */
-    pub fn new(session: &'a Session) -> Self {
+    pub fn new(session: &'a mut Session) -> Self {
         RuntimeEnv {
             sess: session,
             signatures: HashMap::new(),
             call_stack: Vec::new(),
-            memory: Memory::new(session),
+            memory: Memory::new(),
         }
     }
 
@@ -61,7 +61,7 @@ impl<'a> RuntimeEnv<'a> {
      * Pushes a new block scope on the environment.
      * Note: there has to be a scope already on the call stack.
      */
-    pub fn push_block(&mut self, new_scope: Scope<'a>) -> IResult<()> {
+    pub fn push_block(&mut self, new_scope: Scope) -> IResult<()> {
         let scope = self.current_scope()?;
         scope.push(new_scope);
         Ok(())
@@ -75,9 +75,9 @@ impl<'a> RuntimeEnv<'a> {
     pub fn pop_block(&mut self) -> IResult<()> {
         let len = self.call_stack.len();
         let scope = &mut self.call_stack[len - 1];
-        let popped = scope.pop()?;
+        let popped = scope.pop(self.sess)?;
         for addr in popped.addresses() {
-            self.memory.free(addr)?;
+            self.memory.free(self.sess, addr)?;
         }
         Ok(())
     }
@@ -88,7 +88,7 @@ impl<'a> RuntimeEnv<'a> {
      * specific argument values. The arguments are stored in the new scope.
      */
     pub fn push_func(&mut self, func: &FnItem, values: Vec<Val>) -> IResult<()> {
-        let mut new_scope = Scope::new(self.sess, func.span);
+        let mut new_scope = Scope::new(func.span);
         let inputs = &func.decl.inputs;
         if inputs.len() == values.len() {
             for i in 0..inputs.len() {
@@ -99,7 +99,7 @@ impl<'a> RuntimeEnv<'a> {
                     return Err(mismatched_types_fatal!(self.sess, span, arg_ty, val_ty));
                 }
                 let id = &inputs[i].ident;
-                let addr = self.memory.alloc(&values[i], inputs[i].mutable)?;
+                let addr = self.memory.alloc(self.sess, &values[i], inputs[i].mutable)?;
                 new_scope.register(id, addr);
             }
             self.call_stack.push(new_scope);
@@ -146,7 +146,7 @@ impl<'a> RuntimeEnv<'a> {
         match self.call_stack.pop() {
             Some(scope) => {
                 for addr in scope.addresses() {
-                    self.memory.free(addr)?;
+                    self.memory.free(self.sess, addr)?;
                 }
                 Ok(())
             },
@@ -194,7 +194,7 @@ impl<'a> RuntimeEnv<'a> {
     pub fn store_var(&mut self, ident: &ExprIdent, mutable: bool, val: &Val) -> IResult<()> {
         let len = self.call_stack.len();
         let scope = &mut self.call_stack[len - 1];
-        let addr = self.memory.alloc(val, mutable)?;
+        let addr = self.memory.alloc(self.sess, val, mutable)?;
         scope.register(&ident, addr);
         Ok(())
     }
@@ -207,7 +207,7 @@ impl<'a> RuntimeEnv<'a> {
     pub fn store_val(&mut self, val: &Val) -> IResult<usize> {
         let len = self.call_stack.len();
         let scope = &mut self.call_stack[len - 1];
-        let addr = self.memory.alloc(val, false)?;
+        let addr = self.memory.alloc(self.sess, val, false)?;
         scope.register_addr(addr);
         Ok(addr)
     }
@@ -218,7 +218,7 @@ impl<'a> RuntimeEnv<'a> {
 
      */
     pub fn assign_var(&mut self, addr: usize, val: &Val) -> IResult<()> {
-        self.memory.store(addr, val)
+        self.memory.store(self.sess, addr, val)
     }
 
 
@@ -226,24 +226,37 @@ impl<'a> RuntimeEnv<'a> {
      * Loads an already allocated variable from the given identifier.
      */
     pub fn load_var(&mut self, ident: &ExprIdent) -> IResult<Val> {
-        let scope = self.current_scope()?;
-        let addr = scope.address_of(&ident, true)?;
-        Ok(Val::from_data(self.memory.load(addr)?, Some(ident.to_string.clone()), ident.span))
+        let len = self.call_stack.len();
+        let scope = &mut self.call_stack[len - 1];
+        let addr = scope.address_of(&ident, self.sess, true)?;
+        Ok(Val::from_data(self.memory.load(self.sess, addr)?, Some(ident.to_string.clone()), ident.span))
     }
 
+    
     /**
      * Loads a value directly from memory at the given memory address.
      * Note: reading outside allocated memory will result in memory error.
      */
     pub fn load_val(&mut self, addr: usize) -> IResult<ValData> {
-        self.memory.load(addr)
+        self.memory.load(self.sess, addr)
+    }
+
+
+    /**
+     * Looks up the address of a given identifier in the current scope.
+     * Enabling backtracking allows you to find variables outside your scope.
+     */
+    pub fn address_of(&mut self, ident: &ExprIdent, backtrack: bool) -> IResult<usize> {
+        let len = self.call_stack.len();
+        let scope = &mut self.call_stack[len - 1];
+        scope.address_of(&ident, self.sess, backtrack)
     }
     
     
     /**
      * Returns a mutable reference to the highest scope in the call stack.
      */
-    pub fn current_scope(&mut self) -> IResult<&mut Scope<'a>> {
+    pub fn current_scope(&mut self) -> IResult<&mut Scope> {
         let len = self.call_stack.len();
         if len > 0 {
             Ok(&mut self.call_stack[len - 1])
@@ -281,7 +294,7 @@ impl<'a> RuntimeEnv<'a> {
     pub fn fmt_call_stack(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
         write_str(f, "\nCall Stack: {", indent)?;
         for (index, scope) in self.call_stack.iter().rev().enumerate() {
-            scope.fmt_scope(f, indent + 8, index)?;
+            scope.fmt_scope(f, self.sess.source_map(), indent + 8, index)?;
         }
         write_str(f, "\n}", indent)
     }

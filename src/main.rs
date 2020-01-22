@@ -6,6 +6,11 @@
  ***************************************************************************/
 
 
+#[macro_use]
+extern crate log;
+extern crate simple_logger;
+
+
 use std::fs;
 use std::env;
 use std::path::{Path, PathBuf};
@@ -37,7 +42,10 @@ use sqrrl::sqrrlc::symbol::{
 
 
 fn main() {
-    let sess = Session::with_dir(PathBuf::from(r"C:\dev\sqrrl-lang\"));
+    // Enable the simple logging library.
+    simple_logger::init().unwrap();
+    
+    let mut sess = Session::with_dir(PathBuf::from(r"C:\dev\sqrrl-lang\"));
     let file = sess.source_map().load_file(Path::new("examples/sandbox.sq")).unwrap();
     // Parse the loaded file
     let span = ParseSpan::new_extra(&file.source, 0);
@@ -52,6 +60,6 @@ fn main() {
     expr.check_type(&mut tcx);
 
     // Start the interpreter routine
-    let mut env = RuntimeEnv::new(&sess);
+    let mut env = RuntimeEnv::new(&mut sess);
     expr.eval(&mut env);
 }

@@ -52,8 +52,7 @@ impl Expr {
     fn eval_addr(&self, env: &mut RuntimeEnv) -> IResult<usize> {
         match self {
             Expr::Ident(ident) => {
-                let scope = env.current_scope()?;
-                scope.address_of(&ident, true)
+                env.address_of(&ident, true)
             },
             Expr::Unary(unary) => {
                 match unary.op {
@@ -125,7 +124,7 @@ impl Eval for ExprBinary {
  */
 impl Eval for ExprBlock {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        env.push_block(Scope::new(env.sess, self.span))?;
+        env.push_block(Scope::new(self.span))?;
         let ret_val = self.block.eval(env)?;
         env.pop_block()?;
         Ok(ret_val)
@@ -201,14 +200,14 @@ impl Eval for ExprIf {
         match value.get_bool() {
             Some(cond) => {
                 if cond {
-                    env.push_block(Scope::new(env.sess, self.span))?;
+                    env.push_block(Scope::new(self.span))?;
                     let result = self.then_block.eval(env);
                     env.pop_block()?;
                     result
                 } else {
                     match self.else_block.clone() {
                         Some(block) => {
-                            env.push_block(Scope::new(env.sess, self.span))?;
+                            env.push_block(Scope::new(self.span))?;
                             let result = block.eval(env);
                             env.pop_block()?;
                             result
@@ -256,12 +255,11 @@ impl Eval for ExprReference {
             match val.ident {
                 Some(name) => {
                     // Reference to an already existing variable.
-                    let ident = ExprIdent{
+                    let ident = ExprIdent {
                         to_string: name,
                         span: val.span,
                     };
-                    let scope = env.current_scope()?;
-                    let addr = scope.address_of(&ident, true)?;
+                    let addr = env.address_of(&ident, true)?;
                     let new_val = Val::from_ref(addr, ref_ty, self.mutable, self.span);
                     Ok(new_val)
                 },
@@ -310,7 +308,7 @@ impl Eval for ExprWhile {
             match value.get_bool() {
                 Some(cond) => {
                     if cond {
-                        env.push_block(Scope::new(env.sess, self.span))?;
+                        env.push_block(Scope::new(self.span))?;
                         let val = self.block.eval(env)?;
                         env.pop_block()?;
                         match val.data {

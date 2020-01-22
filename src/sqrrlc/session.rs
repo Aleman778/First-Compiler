@@ -8,7 +8,7 @@
 use std::rc::Rc;
 use std::path::PathBuf;
 use crate::sqrrlc::{
-    utils::{ColorConfig, Destination},
+    utils::{ColorConfig, Destination, WritableDest},
     error::{diagnostic::*, emitter::Emitter, Handler},
     source_map::SourceMap,
 };
@@ -52,14 +52,33 @@ impl Session {
     pub fn with_dir(working_dir: PathBuf) -> Self {
         let src_map = Rc::new(SourceMap::new(working_dir.clone()));
         let stdout = Destination::from_stdout(ColorConfig::Never);
-        let stderr = Destination::from_stderr(ColorConfig::Alawys);
+        let stderr = Destination::from_stderr(ColorConfig::Always);
         Session {
-            handler: Handler::new(Emitter::new(Rc::clone(&src_map))),
+            handler: Handler::new(Emitter::stderr(
+                Rc::clone(&src_map),
+                None,
+                ColorConfig::Always)),
             working_dir: working_dir,
             source_map: src_map,
             dest_out: stdout,
             dest_err: stderr,
         }
+    }
+
+
+    /**
+     * Returns writable destination to the output.
+     */
+    pub fn writable_out(&mut self) -> WritableDest<'_> {
+        return self.dest_out.writable();
+    }
+
+
+    /**
+     * Returns writable destination to the error output.
+     */
+    pub fn writable_err(&mut self) -> WritableDest<'_> {
+        return self.dest_err.writable();
     }
 
 
@@ -177,6 +196,6 @@ impl Session {
      * Emits the diagnostic to be displayed.
      */
     pub fn emit(&self, diagnostic: &Diagnostic) {
-        self.handler.emit_diagnostic(diagnostic, &mut self.dest_err.writable());
+        self.handler.emit_diagnostic(diagnostic);
     }
 }

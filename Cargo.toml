@@ -12,6 +12,8 @@ nom = "5"
 nom_locate = "1"
 termcolor = "1.0.5"
 unicode-width = "0.1.5"
+log = "0.4"
+simple_logger = "1.4.0"
 
 [dev-dependencies]
 unit_test = { path = "./tools/unit_test" }

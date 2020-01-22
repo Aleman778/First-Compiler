@@ -9,7 +9,10 @@
 use std::rc::Rc;
 use std::cmp::{min, max};
 use crate::sqrrlc::source_map::*;
-use crate::sqrrlc::error::diagnostic::*;
+use crate::sqrrlc::error::{
+    Level,
+    diagnostic::*,
+};
 
 
 /**

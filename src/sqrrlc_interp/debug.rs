@@ -3,7 +3,8 @@
  * Defines rust (foreign) functions for debugging interpreted programs.
  ***************************************************************************/
 
-
+use log::info;
+use std::io::Write;
 use crate::sqrrlc_ast::{
     span::Span,
     expr::ExprIdent,
@@ -90,7 +91,12 @@ pub fn debug_functions() -> Vec<Item> {
  * Prints the environment
  */
 pub fn trace(env: &mut RuntimeEnv) {
-    env.sess.stdout.write(format!("{:#?}", env));
+    let trace = format!("{:#?}", env);
+    let mut dest = env.sess.writable_out();
+    match dest.write(trace.as_bytes()) {
+        Err(e) => info!("Failed to print the trace, err: {}", e),
+        Ok(_) => { },
+    }
 }
 
 
@@ -98,7 +104,11 @@ pub fn trace(env: &mut RuntimeEnv) {
  * Prints the given integer.
  */
 pub fn print_int(env: &mut RuntimeEnv, val: i32) {
-    env.sess.stdout.write(format!("{}", val));
+    let mut dest = env.sess.writable_out();
+    match write!(dest, "{}", val) {
+        Err(e) => info!("Failed to print int, err: {}", e),
+        Ok(_) => { },
+    }
 }
 
 
@@ -106,5 +116,9 @@ pub fn print_int(env: &mut RuntimeEnv, val: i32) {
  * Prints the given boolean.
  */
 pub fn print_bool(env: &mut RuntimeEnv, val: bool) {
-    env.sess.stdout.write(format!("{:#?}", val));
+    let mut dest = env.sess.writable_out();
+    match write!(dest, "{}", val) {
+        Err(e) => info!("Failed to print bool, err: {}", e),
+        Ok(_) => { },
+    }
 }

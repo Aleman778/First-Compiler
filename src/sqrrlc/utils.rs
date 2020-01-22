@@ -7,7 +7,12 @@
 use std::io;
 use std::io::Write;
 use termcolor::{
-    StandardStream, BufferWriter, Buffer, Ansi, ColorChoice, ColorSpec
+    StandardStream, WriteColor, BufferWriter,
+    Buffer, Ansi, ColorChoice, ColorSpec, Color
+};
+use crate::sqrrlc::error::{
+    Level,
+    snippet::Style,
 };
 
 
@@ -64,17 +69,6 @@ impl ColorConfig {
             ColorConfig::Auto  => ColorChoice::Auto,
         }
     }
-
-    
-    /**
-     * Returns true if this config should enable colors, false otherwise.
-     */
-    fn suggests_using_colors(self) -> bool {
-        match self {
-            ColorConfig::Always | ColorConfig::Auto => true,
-            ColorConfig::Never => false,
-        }
-    }
 }
 
 
@@ -86,7 +80,7 @@ impl Destination {
         let color = config.to_color_choice();
         if cfg!(windows) {
             // Global synchonization, no need to buffer.
-            Destination::Terminal(StandardStream::stdeout(color))
+            Destination::Terminal(StandardStream::stdout(color))
         } else {
             // Reiles on atomicity of `write` operation.
             Destination::Buffered(BufferWriter::stdout(color))
@@ -97,11 +91,11 @@ impl Destination {
     /**
      * Create destination from stderr stream.
      */
-    pub fn from_stderr(config: ColorChoice) -> Self {
+    pub fn from_stderr(config: ColorConfig) -> Self {
         let color = config.to_color_choice();
         if cfg!(windows) {
             // Global synchonization, no need to buffer.
-            Destination::Terminal(StandardStream::stdeerr(color))
+            Destination::Terminal(StandardStream::stderr(color))
         } else {
             // Reiles on atomicity of `write` operation.
             Destination::Buffered(BufferWriter::stderr(color))
@@ -119,7 +113,8 @@ impl Destination {
                 let buf = t.buffer();
                 WritableDest::Buffered(t, buf)
             }
-            
+            Destination::Raw(ref mut t, false) => WritableDest::Raw(t),
+            Destination::Raw(ref mut t, true) => WritableDest::ColoredRaw(Ansi::new(t)),
         }
 
     }
@@ -128,12 +123,51 @@ impl Destination {
 
 impl<'a> WritableDest<'a> {
     /**
+     * Returns the color spec based on the diagnostic level and style type.
+     */
+    pub fn apply_style(&self, level: &Level, style: &Style) -> ColorSpec {
+        let mut spec = ColorSpec::new();
+        match style {
+            Style::LineNumber => {
+                spec.set_bold(true);
+                spec.set_fg(Some(Color::Blue));
+            }
+            Style::UnderlinePrimary |
+            Style::LabelPrimary => {
+                if let Level::Fatal = level {
+                    spec.set_fg(Some(Color::Red));
+                    spec.set_bold(true);
+                } else {
+                    spec = level.color();
+                }
+            }
+            Style::UnderlineSecondary |
+            Style::LabelSecondary => {
+                spec.set_bold(true);
+                spec.set_fg(Some(Color::Blue));
+            }
+            Style::Level(lvl) => {
+                spec = lvl.color();
+            },
+            Style::MainHeaderMsg => {
+                spec.set_bold(true);
+            }
+            Style::HeaderMessage |
+            Style::LineAndColumn |
+            Style::Quotation |
+            Style::NoStyle => {}
+        };
+        spec
+    }
+
+
+    /**
      * Set the current color of writable destination.
      */
     pub fn set_color(&mut self, color: &ColorSpec) -> io::Result<()> {
         match *self {
             WritableDest::Terminal(ref mut t) => t.set_color(color),
-            WritableDest::Buffered(ref mut t) => t.set_color(color),
+            WritableDest::Buffered(_, ref mut t) => t.set_color(color),
             WritableDest::ColoredRaw(ref mut t) => t.set_color(color),
             WritableDest::Raw(_) => Ok(()), 
         }
@@ -144,10 +178,10 @@ impl<'a> WritableDest<'a> {
      * Reset the current color settings to their original settings.
      * If there is a problem with resettin the color an error is returned.
      */
-    pub fn reset(&mut self, color: &ColorSpec) -> io::Result<()> {
+    pub fn reset(&mut self) -> io::Result<()> {
         match *self {
             WritableDest::Terminal(ref mut t) => t.reset(),
-            WritableDest::Buffered(ref mut t) => t.reset(),
+            WritableDest::Buffered(_, ref mut t) => t.reset(),
             WritableDest::ColoredRaw(ref mut t) => t.reset(),
             WritableDest::Raw(_) => Ok(()), 
         }
