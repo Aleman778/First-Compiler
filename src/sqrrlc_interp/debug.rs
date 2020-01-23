@@ -91,7 +91,7 @@ pub fn debug_functions() -> Vec<Item> {
  * Prints the environment
  */
 pub fn trace(env: &mut RuntimeEnv) {
-    let trace = format!("{:#?}", env);
+    let trace = format!("{:#?}\n", env);
     let mut dest = env.sess.writable_out();
     match dest.write(trace.as_bytes()) {
         Err(e) => info!("Failed to print the trace, err: {}", e),
@@ -105,7 +105,7 @@ pub fn trace(env: &mut RuntimeEnv) {
  */
 pub fn print_int(env: &mut RuntimeEnv, val: i32) {
     let mut dest = env.sess.writable_out();
-    match write!(dest, "{}", val) {
+    match write!(dest, "{}\n", val) {
         Err(e) => info!("Failed to print int, err: {}", e),
         Ok(_) => { },
     }
@@ -117,7 +117,7 @@ pub fn print_int(env: &mut RuntimeEnv, val: i32) {
  */
 pub fn print_bool(env: &mut RuntimeEnv, val: bool) {
     let mut dest = env.sess.writable_out();
-    match write!(dest, "{}", val) {
+    match write!(dest, "{}\n", val) {
         Err(e) => info!("Failed to print bool, err: {}", e),
         Ok(_) => { },
     }

@@ -10,6 +10,7 @@
 extern crate unicode_width;
 
 
+use log::debug;
 use std::rc::Rc;
 use std::io;
 use std::io::Write;
@@ -118,7 +119,10 @@ impl Emitter {
             buf.append(&s.text, s.style, 0);
         }
         self.draw_code_snippet(buf, span, max_linum_len);
-        self.emit_to_dest(level, buf);
+        match self.emit_to_dest(level, buf) {
+            Err(e) => debug!("Failed to emit error to destination, err: {}", e),
+            Ok(_) => { },
+        }
     }
 
 
@@ -599,12 +603,12 @@ impl Emitter {
         for line in &rendered {
             for string in line {
                 dest.apply_style(level, &string.style);
-                write!(dest, "{}", string.text);
+                write!(dest, "{}", string.text)?;
             }
-            write!(dest, "\n");
+            write!(dest, "\n")?;
         }
         dest.set_color(&ColorSpec::new())?;
-        write!(dest, "\n");
+        write!(dest, "\n")?;
         Ok(0)
     }
     
