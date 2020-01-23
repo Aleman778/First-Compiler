@@ -8,4 +8,4 @@ edition = "2018"
 
 [dependencies]
 nom_locate = "1"
-sqrrl = { path = "../" }
+sqrrlc = { path = "../" }

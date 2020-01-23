@@ -5,7 +5,7 @@
  ***************************************************************************/
 
 
-use std::{fmt, io, fs};
+use std::{fmt, io, fs, env};
 use std::rc::Rc;
 use std::sync::Mutex;
 use std::path::{Path, PathBuf};
@@ -17,16 +17,13 @@ use crate::sqrrlc_ast::span::Span;
  * Contains a map of all the loaded source files.
  * File paths are mapped to source files.
  */
-#[derive(Debug)]
 pub struct SourceMap {
     /// The list of loaded files
     files: Mutex<Vec<Rc<SourceFile>>>,
-
     /// The file mapper, maps filenames to file ids.
     mapper: Mutex<HashMap<PathBuf, usize>>,
-    
-    /// The current working directory.
-    pub working_dir: PathBuf,
+    /// The file loader used by the source mapper.
+    file_loader: Box<dyn FileLoader + Sync + Send>,
 }
 
 
@@ -35,13 +32,40 @@ pub struct SourceMap {
  */
 impl SourceMap {
     /**
-     * Creates a new source map
+     * Creates a new source map from the current working directory.
      */
-    pub fn new(cwd: PathBuf) -> Self {
+    pub fn new() -> Self {
         SourceMap {
             files: Mutex::new(Vec::new()),
             mapper: Mutex::new(HashMap::new()),
-            working_dir: cwd,
+            file_loader: Box::new(SimpleFileLoader{
+                working_dir: None,
+            }),
+        }
+    }
+    
+    
+    /**
+     * Creates a new source map using the specific directory
+     * as the working directory for loading files.
+     */
+    pub fn from_dir(dir: &Path) -> Self {
+        SourceMap {
+            files: Mutex::new(Vec::new()),
+            mapper: Mutex::new(HashMap::new()),
+            file_loader: Box::new(SimpleFileLoader{working_dir: Some(dir.to_path_buf())}),
+        }
+    }
+
+
+    /**
+     * Creates a new source map with a custom file loader.
+     */
+    pub fn with_file_loader(file_loader: Box<dyn FileLoader + Sync + Send>) -> Self {
+        SourceMap {
+            files: Mutex::new(Vec::new()),
+            mapper: Mutex::new(HashMap::new()),
+            file_loader,
         }
     }
 
@@ -52,15 +76,12 @@ impl SourceMap {
     pub fn load_file(&self, path: &Path) -> io::Result<Rc<SourceFile>> {
         let mut mapper = self.mapper.lock().unwrap();
         let mut files = self.files.lock().unwrap();
-
-        // Check if the file already is loaded,
-        // then simply return that instead of reloading!
-        // if mapper.contains_key(path) {
-            // let file_id = mapper.get(path).unwrap();
-            // return Ok(files[file_id]); what happens here? file_id should be ok?
-        // }
-        
-        let source = fs::read_to_string(self.abs_path(&path))?;
+        if let Some(file_id) = mapper.get(path) {
+            if let Some(src_file) = files.get(*file_id) {
+                 return Ok(Rc::clone(src_file))
+            }
+        }
+        let source = self.file_loader.read_file(path)?;
         let filename = path.to_path_buf();
         let file_id = files.len();
         let src_file = Rc::new(SourceFile::new(filename.clone(), file_id, source, 0, 0));
@@ -114,7 +135,7 @@ impl SourceMap {
      * Check if a given file path exists.
      */
     pub fn file_exists(&self, path: &Path) -> bool {
-        fs::metadata(path).is_ok()
+        self.file_loader.file_exists(path)
     }
     
     
@@ -122,15 +143,79 @@ impl SourceMap {
      * Returns a path buffer to the absolute path derived from the
      * given path. If path is already absolute then the path remains the same.
      */
-    fn abs_path(&self, path: &Path) -> PathBuf {
-        if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            self.working_dir.join(path)
-        }
+    fn abs_path(&self, path: &Path) -> Option<PathBuf> {
+        self.file_loader.abs_path(path)
     }
 }
 
+
+/**
+ * File loader provides simple interface for loading source files.
+ */
+pub trait FileLoader {
+    /**
+     * Checks if the given path exists.
+     */
+    fn file_exists(&self, path: &Path) -> bool;
+
+    
+    /**
+     * Returns the absoluate path of the given path.
+     */
+    fn abs_path(&self, path: &Path) -> Option<PathBuf>;
+
+
+    /**
+     * Tries to read a file at the given file path.
+     */
+    fn read_file(&self, path: &Path) -> io::Result<String>;
+}
+
+
+/**
+ * Simple file loader that loads files with absolute
+ * filenames based on either a given working_dir or
+ * the actual working directory of running the compiler.
+ * This is implemented using std::io library.
+ */
+pub struct SimpleFileLoader {
+    working_dir: Option<PathBuf>,
+}
+
+
+impl FileLoader for SimpleFileLoader {
+    /**
+     * Simply checks that the file exists.
+     */
+    fn file_exists(&self, path: &Path) -> bool {
+        path.exists()
+    }
+
+
+    /**
+     * For relative paths the output will be the
+     * working directory joined with the provided path.
+     */
+    fn abs_path(&self, path: &Path) -> Option<PathBuf> {
+        if path.is_absolute() {
+            Some(path.to_path_buf())
+        } else {
+            if let Some(dir) = &self.working_dir {
+                Some(dir.join(path))
+            } else {
+                env::current_dir().ok().map(|cwd| cwd.join(path))
+            }
+        }
+    }
+
+
+    /**
+     * Reads the given file path to string.
+     */
+    fn read_file(&self, path: &Path) -> io::Result<String> {
+        fs::read_to_string(path)
+    }
+}
 
 
 /**

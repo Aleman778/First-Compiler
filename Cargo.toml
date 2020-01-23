@@ -1,5 +1,5 @@
 [package]
-name = "sqrrl"
+name = "sqrrlc"
 version = "0.1.0"
 authors = ["Alexander Mennborg <alexander.mennborg@gmail.com>"]
 edition = "2018"
@@ -12,6 +12,7 @@ nom = "5"
 nom_locate = "1"
 termcolor = "1.0.5"
 unicode-width = "0.1.5"
+clap = "2.33.0"
 
 [dev-dependencies]
 utilities = { path = "utilities" }
