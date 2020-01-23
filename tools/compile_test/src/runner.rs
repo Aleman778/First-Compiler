@@ -4,8 +4,12 @@
  ***************************************************************************/
 
 
+use log::debug;
+use std::rc::Rc;
+use std::path::Path;
 use crate::test::Test;
 use sqrrl::sqrrlc::session::Session;
+use sqrrl::sqrrlc_ast::base::File;
 use sqrrl::sqrrlc_parser::{
     Parser,
     ParseSpan
@@ -13,16 +17,15 @@ use sqrrl::sqrrlc_parser::{
 use sqrrl::sqrrlc_interp::{
     debug::debug_functions,
     env::RuntimeEnv,
-    Eval,
 };
 use sqrrl::sqrrlc_typeck::{
     TypeChecker,
     TyCtxt,
 };
-use sqrrl::sqrrlc::symbol::{
-    generator::*,
-    error::Handler,
-    table::SymbolTable,
+use sqrrl::sqrrlc::{
+    symbol::generator::*,
+    error::{Handler, emitter::Emitter},
+    utils::Destination,
     source_map::SourceMap,
 };
 
@@ -30,12 +33,12 @@ use sqrrl::sqrrlc::symbol::{
 /**
  * Runs the test code and evaluates the output.
  */
-pub fn run_test(test: Test, dir: &Path) {
-    let sess = setup_session(dir);
-
+pub fn run_test(test: &Test, dir: &Path) -> bool {
+    // Setup the compiler session
+    let mut sess = setup_session(dir);
     
     // Load the file
-    let file = sess.source_map().load_file(test.file).unwrap();
+    let file = sess.source_map().load_file(&test.file).unwrap();
     let span = ParseSpan::new_extra(&file.source, 0);
 
     // Parse the file
@@ -52,9 +55,16 @@ pub fn run_test(test: Test, dir: &Path) {
     ast.check_type(&mut tcx);
 
     // Interpreting
-    let mut env = RuntimeEnv::new(&sess);
+    let mut env = RuntimeEnv::new(&mut sess);
     ast.eval(&mut env);
+
+    // match sess.dest_out {
+        // Destination::Raw(data, _) => println!("{}", data),
+        // _ => debug!("invalid destination"),
+    // };
     
+
+    return true;
 }
 
 
@@ -62,10 +72,22 @@ pub fn run_test(test: Test, dir: &Path) {
 /**
  * Setup a new session for this specific suite.
  */
-fn setup_session(dir: &Path) {
-    let src_map = Rc::new(SourceMap)
-    let sess = Session {
-        handler: Handler::new(Emitter::new())
+fn setup_session(dir: &Path) -> Session {
+    let emitter = Vec::new();
+    let out = Vec::new();
+    let err = Vec::new();
+    let out2 = &out;
+    let source_map = Rc::new(SourceMap::new(dir.to_path_buf()));
+    println!("{:?}", out2);
+    Session {
+        handler: Handler::new(Emitter::new(
+            Box::new(emitter),
+            Rc::clone(&source_map),
+            None,
+            false)),
+        working_dir: dir.to_path_buf(),
+        source_map,
+        dest_out: Destination::Raw(Box::new(out), false),
+        dest_err: Destination::Raw(Box::new(err), false),
     }
-
 }

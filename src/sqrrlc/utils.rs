@@ -54,7 +54,7 @@ pub enum WritableDest<'a> {
     /// Writes to raw object.
     Raw(&'a mut (dyn Write + Send)),
     /// Writes to raw object with ANSI colors.
-    ColoredRaw( Ansi<&'a mut (dyn Write + Send)>),
+    ColoredRaw(Ansi<&'a mut (dyn Write + Send)>),
 }
 
 
@@ -116,7 +116,6 @@ impl Destination {
             Destination::Raw(ref mut t, false) => WritableDest::Raw(t),
             Destination::Raw(ref mut t, true) => WritableDest::ColoredRaw(Ansi::new(t)),
         }
-
     }
 }
 

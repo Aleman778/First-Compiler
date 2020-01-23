@@ -27,13 +27,13 @@ pub struct Session {
     pub working_dir: PathBuf,
 
     /// The mapping of source files in use.
-    source_map: Rc<SourceMap>,
+    pub source_map: Rc<SourceMap>,
 
     /// The destination for writing outputs.
-    dest_out: Destination,
+    pub dest_out: Destination,
 
     /// The destination for writing error outputs.
-    dest_err: Destination,
+    pub dest_err: Destination,
 }
 
 

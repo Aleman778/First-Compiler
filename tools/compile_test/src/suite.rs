@@ -8,8 +8,9 @@
 use std::io;
 use std::fs;
 use std::ffi::OsStr;
-use std::path::{Path};
+use std::path::{Path, PathBuf};
 use crate::test::Test;
+use crate::runner::run_test;
 
 
 /**
@@ -19,15 +20,15 @@ use crate::test::Test;
  */
 pub struct TestSuite {
     /// The test suite source directory.
-    dir: PathBuf
+    pub dir: PathBuf,
     /// The list of tests in this suite.
-    tests: Vec<Test>,
+    pub tests: Vec<Test>,
     /// The current test index.
-    current: u32,
+    pub current: u32,
     /// Number of tests passed.
-    passed: u32,
+    pub passed: u32,
     /// Number of tests failed.
-    failed: u32,
+    pub failed: u32,
 }
 
 
@@ -52,9 +53,17 @@ impl TestSuite {
     /**
      * Runs the entire test suite.
      */
-    pub fn run() {
-        for () {
-            
+    pub fn run(&mut self) {
+        self.current = 0;
+        self.passed = 0;
+        self.failed = 0;
+        for test in &self.tests {
+            if run_test(test, &self.dir) {
+                self.passed += 1;
+            } else {
+                self.failed += 1;
+            }
+            self.current += 1;
         }
     }
 }
