@@ -124,7 +124,7 @@ impl<'a> WritableDest<'a> {
     /**
      * Returns the color spec based on the diagnostic level and style type.
      */
-    pub fn apply_style(&self, level: &Level, style: &Style) -> ColorSpec {
+    pub fn apply_style(&mut self, level: &Level, style: &Style) -> io::Result<()> {
         let mut spec = ColorSpec::new();
         match style {
             Style::LineNumber => {
@@ -156,7 +156,7 @@ impl<'a> WritableDest<'a> {
             Style::Quotation |
             Style::NoStyle => {}
         };
-        spec
+        self.set_color(&spec)
     }
 
 
