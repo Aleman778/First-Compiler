@@ -7,8 +7,8 @@
 use unit_test::span::*;
 use unit_test::ast::*;
 use unit_test::math_eval::*;
-use sqrrl::sqrrlc_parser::Parser;
-use sqrrl::sqrrlc_ast::{
+use sqrrlc::sqrrlc_parser::Parser;
+use sqrrlc::sqrrlc_ast::{
     stmt::*,
     op::*,
     lit::*,

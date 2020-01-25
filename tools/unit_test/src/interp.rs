@@ -28,8 +28,8 @@ use sqrrlc::sqrrlc_interp::{
  */
 pub fn interp_math(input: &str) -> IResult<Val> {
     let expr = Expr::parse_math(ParseSpan::new_extra(input, 0)).unwrap().1;
-    let sess = Session::new();
-    let mut env = RuntimeEnv::new(&sess);
+    let mut sess = Session::new();
+    let mut env = RuntimeEnv::new(&mut sess);
     expr.eval(&mut env)
 }
 
@@ -38,8 +38,8 @@ pub fn interp_math(input: &str) -> IResult<Val> {
  * Interprets an expression.
  */
 pub fn interp_expr(input: &str) -> IResult<Val> {
-    let sess = Session::new();
-    let mut env = RuntimeEnv::new(&sess);
+    let mut sess = Session::new();
+    let mut env = RuntimeEnv::new(&mut sess);
     setup_env(&mut env);
     let expr = Expr::parse(ParseSpan::new_extra(input, 0)).unwrap().1;
     expr.eval(&mut env)
@@ -50,12 +50,12 @@ pub fn interp_expr(input: &str) -> IResult<Val> {
  * Interprets a file source and after that interprets teh input string.
  */
 pub fn interp_file(file: &str, input: &str) -> IResult<Val> {
-    let sess = Session::new();
+    let mut sess = Session::new();
     let file = sess.source_map().load_file(&Path::new(&format!("tests/{}", file))).unwrap();
     let span = ParseSpan::new_extra(&file.source, 0);
     let file_ast = File::parse(span).unwrap().1;
     let expr_ast = Expr::parse(ParseSpan::new_extra(input, 0)).unwrap().1;
-    let mut env = RuntimeEnv::new(&sess);
+    let mut env = RuntimeEnv::new(&mut sess);
     setup_env(&mut env);
     file_ast.eval(&mut env);
     expr_ast.eval(&mut env)
