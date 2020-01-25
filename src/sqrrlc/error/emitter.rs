@@ -177,7 +177,7 @@ impl Emitter {
                         }
                     } else if line_idx_delta == 2 {
                         let unannotated_line = annotated_file.file
-                            .get_line(annotated_file.lines[line_idx].line_index as u32 - 1);
+                            .get_line(annotated_file.lines[line_idx].line_index as u32);
 
                         let last_buf_line_num = buf.num_lines();
 
@@ -228,9 +228,9 @@ impl Emitter {
             } else {
                 String::new()
             };
-            format!("{}:{}{}", annotated_file.file.filename.display(), first_line.line_index, col)
+            format!("{}:{}{}", annotated_file.file.filename, first_line.line_index, col)
         } else {
-            format!("{}", annotated_file.file.filename.display())
+            format!("{}", annotated_file.file.filename)
         };
         buf.append(&loc, Style::LineAndColumn, buf_line_offset);
         buf.prepend(&" ".repeat(max_linum_len), Style::NoStyle, buf_line_offset);
@@ -498,7 +498,7 @@ impl Emitter {
         let mut whitespace_margin = std::usize::MAX;
         for line_idx in 0..annotated_file.lines.len() {
             let line = &annotated_file.lines[line_idx];
-            let source_string = file.get_line(line.line_index as u32 - 1);
+            let source_string = file.get_line(line.line_index as u32);
             let leading_whitespace = source_string
                 .chars()
                 .take_while(|c| c.is_whitespace())

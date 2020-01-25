@@ -6,20 +6,27 @@
 
 
 use std::path::{Path, PathBuf};
-use std::env;
-
-
-/**
- * Filename defines different kinds of 
- * refering to a file, e.g. path and filename.
- */
-#[derive(Debug)]
-pub enum Filename {
-    /// The filename is based on the real file path.
-    Real(PathBuf),
-    /// The filename is a custom string.
-    Custom(String),
-}
+use std::{rc::Rc, env};
+use crate::sqrrlc::{
+    session::Session,
+    source_map::{SourceMap, Filename},
+    error::Handler,
+    error::emitter::Emitter,
+};
+use crate::sqrrlc_ast::base::File;
+use crate::sqrrlc_parser::{
+    Parser, ParseSpan
+};
+use crate::sqrrlc_interp::{
+    debug::debug_functions,
+    env::RuntimeEnv
+};
+use crate::sqrrlc_typeck::{
+    TypeChecker, TyCtxt,
+};
+use crate::sqrrlc::symbol::{
+    generator::gen_sym_table
+};
 
 
 /**
@@ -27,7 +34,6 @@ pub enum Filename {
  * This can either contain the actual code or reference
  * the code via file.
  */
-#[derive(Debug)]
 pub enum Input {
     /// Load input source code from file.
     File(PathBuf),
@@ -45,7 +51,6 @@ pub enum Input {
  * Compiler configuations defines variables that
  * the compiler uses to build the program.
  */
-#[derive(Debug)]
 pub struct Config {
     /// The input is the target that will be compiled.
     input: Input,
@@ -58,11 +63,47 @@ pub struct Config {
 }
 
 
-
+/**
+ * The main function for running the actual compiler.
+ * The compiler needs to be configured using the provided config struct.
+ */
 pub fn run_compiler(config: Config) {
-    println!("{:#?}", config);
+    let input_dir = match config.input_dir {
+        Some(dir) => dir,
+        None => env::current_dir().unwrap()
+    };
+    let source_map = Rc::new(SourceMap::from_dir(&input_dir));
+    let mut sess = Session {
+        handler: Handler::new(Emitter::new(Rc::clone(&source_map))),
+        working_dir: input_dir.to_path_buf(),
+        source_map
+    };
+    let file = match config.input {
+        Input::File(file) => {
+            match sess.source_map().load_file(&file) {
+                Ok(file) => file,
+                Err(err) => {
+                    let err = struct_err!(
+                        sess,
+                        "could not read the file `{}`: {}",
+                        file.display(), err
+                    );
+                    sess.emit(&err);
+                    return;
+                }
+            }
+        }
+        Input::Code{name, input} => sess.source_map().add_from_source(name, input, 0, 0),
+    };
+    let span = ParseSpan::new_extra(&file.source, 0);
+    let mut ast = File::parse(span).unwrap().1;
+    ast.extend(debug_functions());
+    let mut sym_table = gen_sym_table(&ast);
+    let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);
+    ast.check_type(&mut ty_ctxt);
+    let mut env = RuntimeEnv::new(&mut sess);
+    ast.eval(&mut env);
 }
-
 
 
 /**
@@ -73,12 +114,10 @@ pub fn main() {
     use clap::{App, Arg, AppSettings};
     
     let matches = App::new("sqrrlc")
-
         .setting(AppSettings::ArgRequiredElseHelp)
         .arg(Arg::with_name("INPUT")
              .help("The input source file to compile")
-             .required(true)
-             .value_name("FILENAME")
+             .value_name("FILE")
              .index(1))
         .arg(Arg::with_name("run")
              .short("r")
@@ -86,7 +125,7 @@ pub fn main() {
              .help("Code that executes the code before running main"))
         .arg(Arg::with_name("output")
              .short("o")
-             .value_name("FILENAME")
+             .value_name("FILE")
              .help("Write output to <filename>"))
         .arg(Arg::with_name("version")
              .short("V")
@@ -99,16 +138,12 @@ pub fn main() {
     if let Some(path_str) = matches.value_of("INPUT") {
         let input_path = Path::new(path_str);
         let input = Input::File(input_path.to_path_buf());
-        let input_dir = if input_path.is_relative() {
-            env::current_dir().ok()
+        let input_dir = if input_path.is_absolute() {
+            input_path.parent().map(|p| p.to_path_buf())
         } else {
-            if let Some(p) = input_path.parent() {
-                Some(p.to_path_buf())
-            } else {
-                None
-            }
+            None
         };
-        let output_path = matches.value_of("o").map(|s| Path::new(s));;
+        let output_path = matches.value_of("output").map(|s| Path::new(s));
         let output_file = output_path.map(|p| PathBuf::from(p.file_name().unwrap()));
         let output_dir = output_path.map(|p| p.parent().unwrap().to_path_buf());
         let config = Config {

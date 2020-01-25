@@ -25,7 +25,7 @@ pub struct Session {
     pub working_dir: PathBuf,
 
     // The mapping of source files in use.
-    source_map: Rc<SourceMap>,
+    pub source_map: Rc<SourceMap>,
 }
 
 
