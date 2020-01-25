@@ -4,8 +4,8 @@
  ***************************************************************************/
 
 
-use sqrrl::sqrrlc_ast::span::Span;
-use sqrrl::sqrrlc_parser::ParseSpan;
+use sqrrlc::sqrrlc_ast::span::Span;
+use sqrrlc::sqrrlc_parser::ParseSpan;
 use nom_locate::LocatedSpanEx;
 
 

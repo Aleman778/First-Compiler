@@ -10,3 +10,4 @@ pub mod error;
 pub mod session;
 pub mod symbol;
 pub mod source_map;
+pub mod driver;

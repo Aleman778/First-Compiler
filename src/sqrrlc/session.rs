@@ -8,15 +8,14 @@
 use std::rc::Rc;
 use std::path::PathBuf;
 use crate::sqrrlc::{
-    error::{diagnostic::*, emitter::Emitter, Handler},
+    error::{diagnostic::*, Handler},
     source_map::SourceMap,
 };
 use crate::sqrrlc_ast::span::Span;
 
 
 /**
- * The session struct defines the current compilation state,
- * e.g. error handler, compilation target, current directory.
+ * The session struct holds compilation data,
  */
 pub struct Session {
     // The handler is used to deal with error reporting.
@@ -26,32 +25,11 @@ pub struct Session {
     pub working_dir: PathBuf,
 
     // The mapping of source files in use.
-    source_map: Rc<SourceMap>,
+    pub source_map: Rc<SourceMap>,
 }
 
 
 impl Session {
-    /**
-     * Creats a new empty session without specified working directory.
-     */
-    pub fn new() -> Self {
-        Session::with_dir(std::env::current_dir().unwrap())
-    }
-    
-    
-    /**
-     * Create a new empty session with a specific working directory.
-     */
-    pub fn with_dir(working_dir: PathBuf) -> Self {
-        let src_map = Rc::new(SourceMap::new(working_dir.clone()));
-        Session {
-            handler: Handler::new(Emitter::new(Rc::clone(&src_map))),
-            working_dir: working_dir,
-            source_map: src_map,
-        }
-    }
-
-
     /**
      * Returns reference to the source map.
      */

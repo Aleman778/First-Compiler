@@ -4,12 +4,12 @@
  ***************************************************************************/
 
 
-use sqrrl::sqrrlc_ast::{
+use sqrrlc::sqrrlc_ast::{
     op::*,
     lit::*,
     expr::*,
 };
-use sqrrl::sqrrlc_parser::ParseSpan;
+use sqrrlc::sqrrlc_parser::ParseSpan;
 
 
 /**

@@ -5,7 +5,7 @@
  ***************************************************************************/
 
 
-use sqrrl::sqrrlc_ast::{
+use sqrrlc::sqrrlc_ast::{
     expr::ExprLit,
     span::Span,
     lit::*

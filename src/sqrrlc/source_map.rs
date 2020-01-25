@@ -14,19 +14,29 @@ use crate::sqrrlc_ast::span::Span;
 
 
 /**
+ * Filename enum defines different ways of refering to a file,
+ * e.g. using filepath or custom filename.
+ */
+#[derive(PartialEq, Eq, Hash, Clone)]
+pub enum Filename {
+    /// The filename is based on the real file path.
+    Real(PathBuf),
+    /// The filename is a custom string.
+    Custom(String),
+}
+
+
+/**
  * Contains a map of all the loaded source files.
  * File paths are mapped to source files.
  */
-#[derive(Debug)]
 pub struct SourceMap {
     /// The list of loaded files
     files: Mutex<Vec<Rc<SourceFile>>>,
-
     /// The file mapper, maps filenames to file ids.
-    mapper: Mutex<HashMap<PathBuf, usize>>,
-    
+    mapper: Mutex<HashMap<Filename, usize>>,
     /// The current working directory.
-    pub working_dir: PathBuf,
+    working_dir: PathBuf,
 }
 
 
@@ -35,13 +45,14 @@ pub struct SourceMap {
  */
 impl SourceMap {
     /**
-     * Creates a new source map
+     * Creates a new source map using the specific directory
+     * as the working directory for loading files.
      */
-    pub fn new(cwd: PathBuf) -> Self {
+    pub fn from_dir(dir: &Path) -> Self {
         SourceMap {
             files: Mutex::new(Vec::new()),
             mapper: Mutex::new(HashMap::new()),
-            working_dir: cwd,
+            working_dir: dir.to_path_buf(),
         }
     }
 
@@ -52,22 +63,43 @@ impl SourceMap {
     pub fn load_file(&self, path: &Path) -> io::Result<Rc<SourceFile>> {
         let mut mapper = self.mapper.lock().unwrap();
         let mut files = self.files.lock().unwrap();
-
-        // Check if the file already is loaded,
-        // then simply return that instead of reloading!
-        // if mapper.contains_key(path) {
-            // let file_id = mapper.get(path).unwrap();
-            // return Ok(files[file_id]); what happens here? file_id should be ok?
-        // }
-        
-        let source = fs::read_to_string(self.abs_path(&path))?;
-        let filename = path.to_path_buf();
+        if let Some(file_id) = mapper.get(&Filename::Real(path.to_path_buf())) {
+            if let Some(src_file) = files.get(*file_id) {
+                return Ok(Rc::clone(src_file))
+            }
+        }
+        let source = fs::read_to_string(path)?;
+        let filename = Filename::Real(path.to_path_buf());
         let file_id = files.len();
         let src_file = Rc::new(SourceFile::new(filename.clone(), file_id, source, 0, 0));
         
         mapper.insert(filename, file_id);
         files.push(Rc::clone(&src_file));
         Ok(src_file)
+    }
+
+
+    /**
+     * Adds source code without using any files.
+     */
+    pub fn add_from_source(
+        &self,
+        filename: Filename,
+        source: String,
+        line: u32,
+        col: u32
+    ) -> Rc<SourceFile> {
+        let mut mapper = self.mapper.lock().unwrap();
+        let mut files = self.files.lock().unwrap();
+        if let Some(src_file) = mapper.get(&filename).map(|id| files.get(*id).unwrap()) {
+            return Rc::clone(src_file)
+        }
+        let file_id = files.len();
+        let src_file = Rc::new(SourceFile::new(
+            filename.clone(), file_id, source, line, col));
+        mapper.insert(filename, file_id);
+        files.push(Rc::clone(&src_file));
+        src_file
     }
 
 
@@ -88,9 +120,9 @@ impl SourceMap {
      * Returns the file id of the given filename.
      * If the filename is unmapped then None is returned instead.
      */
-    pub fn get_file_id(&self, filename: &Path) -> Option<usize> {
+    pub fn get_file_id(&self, filename: Filename) -> Option<usize> {
         let mapper = self.mapper.lock().unwrap();
-        match mapper.get(&filename.to_path_buf()) {
+        match mapper.get(&filename) {
             Some(file_id) => Some(*file_id),
             None => None,
         }
@@ -109,28 +141,15 @@ impl SourceMap {
         } + span.start.line;
     }
     
-
-    /**
-     * Check if a given file path exists.
-     */
-    pub fn file_exists(&self, path: &Path) -> bool {
-        fs::metadata(path).is_ok()
-    }
-    
     
     /**
      * Returns a path buffer to the absolute path derived from the
      * given path. If path is already absolute then the path remains the same.
      */
     fn abs_path(&self, path: &Path) -> PathBuf {
-        if path.is_absolute() {
-            path.to_path_buf()
-        } else {
-            self.working_dir.join(path)
-        }
+        self.working_dir.join(path)
     }
 }
-
 
 
 /**
@@ -138,7 +157,7 @@ impl SourceMap {
  */
 pub struct SourceFile {
     /// The filename of this source file.
-    pub filename: PathBuf,
+    pub filename: Filename,
 
     /// The file id given in the source map.
     pub file_id: usize,
@@ -168,7 +187,7 @@ impl SourceFile {
      * Creates a new source file.
      */
     pub fn new(
-        filename: PathBuf,
+        filename: Filename,
         file_id: usize,
         source: String,
         start_line: u32,
@@ -188,6 +207,9 @@ impl SourceFile {
                 },
                 None => break,
             }
+        }
+        if lines.last() != Some(&(source.len() as u32)) {
+            lines.push(source.len() as u32);
         }
         SourceFile {
             filename,
@@ -229,6 +251,16 @@ impl SourceFile {
  */
 impl fmt::Debug for SourceFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SourceFile({})", self.filename.display())
+        write!(f, "SourceFile({})", self.filename)
+    }
+}
+
+
+impl fmt::Display for Filename {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Filename::Real(path) => write!(f, "{}", path.display()),
+            Filename::Custom(name) => write!(f, "<{}>", name),
+        }
     }
 }
