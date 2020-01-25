@@ -5,17 +5,17 @@
 
 
 use std::path::Path;
-use sqrrl::sqrrlc::session::Session;
-use sqrrl::sqrrlc_ast::{
+use sqrrlc::sqrrlc::session::Session;
+use sqrrlc::sqrrlc_ast::{
     span::Span,
     base::{File, Item, FnItem},
     expr::Expr,
 };
-use sqrrl::sqrrlc_parser::{
+use sqrrlc::sqrrlc_parser::{
     Parser,
     ParseSpan,
 };
-use sqrrl::sqrrlc_interp::{
+use sqrrlc::sqrrlc_interp::{
     Eval,
     IResult,
     env::RuntimeEnv,

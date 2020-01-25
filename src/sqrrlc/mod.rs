@@ -11,3 +11,4 @@ pub mod session;
 pub mod symbol;
 pub mod source_map;
 pub mod utils;
+pub mod driver;

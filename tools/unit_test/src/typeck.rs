@@ -4,7 +4,7 @@
  ***************************************************************************/
 
 
-use sqrrl::sqrrlc::{
+use sqrrlc::sqrrlc::{
     session::Session,
     symbol:: {
         generator::*,

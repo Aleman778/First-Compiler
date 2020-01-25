@@ -8,21 +8,21 @@ use log::debug;
 use std::rc::Rc;
 use std::path::Path;
 use crate::test::Test;
-use sqrrl::sqrrlc::session::Session;
-use sqrrl::sqrrlc_ast::base::File;
-use sqrrl::sqrrlc_parser::{
+use sqrrlc::sqrrlc::session::Session;
+use sqrrlc::sqrrlc_ast::base::File;
+use sqrrlc::sqrrlc_parser::{
     Parser,
     ParseSpan
 };
-use sqrrl::sqrrlc_interp::{
+use sqrrlc::sqrrlc_interp::{
     debug::debug_functions,
     env::RuntimeEnv,
 };
-use sqrrl::sqrrlc_typeck::{
+use sqrrlc::sqrrlc_typeck::{
     TypeChecker,
     TyCtxt,
 };
-use sqrrl::sqrrlc::{
+use sqrrlc::sqrrlc::{
     symbol::generator::*,
     error::{Handler, emitter::Emitter},
     utils::Destination,

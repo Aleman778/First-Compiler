@@ -199,9 +199,9 @@ impl Scope {
                 let line = self.span.start.line;
                 if line > 0 {
                     write_str(f, file.get_line(line).trim(), indent)?;
-                    write_str(f, &format!("\n at {}:{}", file.filename.display(), line), indent)?;
+                    write_str(f, &format!("\n at {}:{}", file.filename, line), indent)?;
                 } else {
-                    write_str(f, &format!("{}", file.filename.display()), indent)?;
+                    write_str(f, &format!("{}", file.filename), indent)?;
                 }
                 if self.symbols.len() > 0 {
                     write_str(f, &format!("\nSymbols Table: {:#?},", &self.symbols), indent)?;
@@ -238,9 +238,9 @@ impl Scope {
                         write_str(f, &code.trim(), indent)?;
                     }
                     write_str(f, file.get_line(line).trim(), indent)?;
-                    write_str(f, &format!("\n at {}:{}", file.filename.display(), line), indent)?;
+                    write_str(f, &format!("\n at {}:{}", file.filename, line), indent)?;
                 } else {
-                    write_str(f, &format!("{}", file.filename.display()), indent)?;
+                    write_str(f, &format!("{}", file.filename), indent)?;
                 }
                 if self.symbols.len() > 0 {
                     write_str(f, &format!("\nSymbols Table: {:#?},", &child.symbols), indent)?;
