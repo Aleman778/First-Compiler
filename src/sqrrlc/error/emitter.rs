@@ -602,7 +602,7 @@ impl Emitter {
         let rendered = buf.render();
         for line in &rendered {
             for string in line {
-                dest.apply_style(level, &string.style);
+                dest.apply_style(level, &string.style)?;
                 write!(dest, "{}", string.text)?;
             }
             write!(dest, "\n")?;
