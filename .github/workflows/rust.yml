@@ -14,4 +14,4 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
       env:
-        PATH: "$PATH:$GITHUB_WORKSPACE/target/debug"
+        SQRRLC_BIN: "$GITHUB_WORKSPACE/target/debug/sqrrlc"
