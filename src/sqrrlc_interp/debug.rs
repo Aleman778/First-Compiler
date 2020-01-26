@@ -95,7 +95,12 @@ pub fn trace(env: &mut RuntimeEnv) {
     let mut dest = env.sess.writable_out();
     match dest.write(trace.as_bytes()) {
         Err(e) => info!("Failed to print the trace, err: {}", e),
-        Ok(_) => { },
+        Ok(_) => {
+            match dest.flush() {
+                Err(e) => info!("Failed to print bool, err: {}", e),
+                Ok(_) => { },
+            }
+        },
     }
 }
 
@@ -107,7 +112,12 @@ pub fn print_int(env: &mut RuntimeEnv, val: i32) {
     let mut dest = env.sess.writable_out();
     match write!(dest, "{}\n", val) {
         Err(e) => info!("Failed to print int, err: {}", e),
-        Ok(_) => { },
+        Ok(_) => {
+            match dest.flush() {
+                Err(e) => info!("Failed to print bool, err: {}", e),
+                Ok(_) => { },
+            }
+        },
     }
 }
 
@@ -119,6 +129,11 @@ pub fn print_bool(env: &mut RuntimeEnv, val: bool) {
     let mut dest = env.sess.writable_out();
     match write!(dest, "{}\n", val) {
         Err(e) => info!("Failed to print bool, err: {}", e),
-        Ok(_) => { },
+        Ok(_) => {
+            match dest.flush() {
+                Err(e) => info!("Failed to print bool, err: {}", e),
+                Ok(_) => { },
+            }
+        },
     }
 }

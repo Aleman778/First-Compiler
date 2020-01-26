@@ -609,6 +609,7 @@ impl Emitter {
         }
         dest.set_color(&ColorSpec::new())?;
         write!(dest, "\n")?;
+        dest.flush()?;
         Ok(0)
     }
     
