@@ -13,3 +13,5 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+      env:
+        SQRRLC_BIN: "$GITHUB_WORKSPACE/target/debug/sqrrlc"
