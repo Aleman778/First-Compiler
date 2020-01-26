@@ -9,7 +9,7 @@ use compile_test::generate_tests;
 use std::process::{Command, Stdio};
 use std::path::Path;
 use std::ffi::OsStr;
-use std::fs;
+use std::{fs, env};
 
 
 generate_tests!("src/test"; run_test);
@@ -20,7 +20,8 @@ generate_tests!("src/test"; run_test);
  * Returns true if the test passed, false is failure.
  */
 pub fn run_test(pass: &str, file: &str, output: &str) {
-    let out_res = Command::new("sqrrlc")
+    let command = env::var("SQRRLC_BIN").unwrap_or("sqrrlc".to_string());
+    let out_res = Command::new(command)
         .args(&[OsStr::new(file)])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
