@@ -14,4 +14,4 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
       env:
-        PATH: $GITHUB_WORKSPACE/target/debug:$PATH
+        PATH: "$PATH:$GITHUB_WORKSPACE/target/debug"
