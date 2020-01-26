@@ -6,10 +6,10 @@
 
 
 use std::path::{Path, PathBuf};
-use std::{rc::Rc, env};
+use std::env;
 use crate::sqrrlc::{
     session::Session,
-    source_map::{SourceMap, Filename},
+    source_map::Filename,
 };
 use crate::sqrrlc_ast::base::File;
 use crate::sqrrlc_parser::{
@@ -70,7 +70,6 @@ pub fn run_compiler(config: Config) {
         Some(dir) => dir,
         None => env::current_dir().unwrap()
     };
-    let source_map = Rc::new(SourceMap::from_dir(&input_dir));
     let mut sess = Session::from_dir(input_dir);
     let file = match config.input {
         Input::File(file) => {

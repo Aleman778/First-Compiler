@@ -70,7 +70,6 @@ pub fn generate_tests(item: TokenStream) -> TokenStream {
     };
     let mut tests = Vec::new();
     find_source_files(&Path::new(&path), &mut tests).unwrap();
-    println!("{:#?}", tests);
     let mut expanded: proc_macro2::TokenStream = "".parse().unwrap();
     for test in tests {
         let test_pass = &test.pass;

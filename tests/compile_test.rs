@@ -20,7 +20,7 @@ generate_tests!("src/test"; run_test);
  * Returns true if the test passed, false is failure.
  */
 pub fn run_test(pass: &str, file: &str, output: &str) {
-    let mut out_res = Command::new("sqrrlc")
+    let out_res = Command::new("sqrrlc")
         .args(&[OsStr::new(file)])
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
