@@ -71,7 +71,7 @@ impl SourceMap {
         let source = fs::read_to_string(path)?;
         let filename = Filename::Real(path.to_path_buf());
         let file_id = files.len();
-        let src_file = Rc::new(SourceFile::new(filename.clone(), file_id, source, 0, 0));
+        let src_file = Rc::new(SourceFile::new(file_id, filename.clone(), source, 0, 0));
         
         mapper.insert(filename, file_id);
         files.push(Rc::clone(&src_file));
@@ -95,8 +95,7 @@ impl SourceMap {
             return Rc::clone(src_file)
         }
         let file_id = files.len();
-        let src_file = Rc::new(SourceFile::new(
-            filename.clone(), file_id, source, line, col));
+        let src_file = Rc::new(SourceFile::new(file_id, filename.clone(), source, line, col));
         mapper.insert(filename, file_id);
         files.push(Rc::clone(&src_file));
         src_file
@@ -156,11 +155,11 @@ impl SourceMap {
  * A single source file stored in the `SourceMap`.
  */
 pub struct SourceFile {
+    /// The file id given in the source map.
+    pub id: usize,
+    
     /// The filename of this source file.
     pub filename: Filename,
-
-    /// The file id given in the source map.
-    pub file_id: usize,
 
     /// The actual loaded source file.
     pub source: String,
@@ -187,8 +186,8 @@ impl SourceFile {
      * Creates a new source file.
      */
     pub fn new(
+        id: usize,
         filename: Filename,
-        file_id: usize,
         source: String,
         start_line: u32,
         start_pos: u32,
@@ -212,8 +211,8 @@ impl SourceFile {
             lines.push(source.len() as u32);
         }
         SourceFile {
+            id,
             filename,
-            file_id,
             source,
             start_line,
             start_pos,

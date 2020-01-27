@@ -22,6 +22,13 @@ impl TypeChecker for Lit {
         match self {
             Lit::Int(lit) => lit.check_type(tcx),
             Lit::Bool(lit) => lit.check_type(tcx),
+            Lit::Str(lit) => {
+                let err = struct_span_fatal!(tcx.sess,
+                                             lit.span,
+                                             "unsupported literal type by the type checker");
+                tcx.sess.emit(&err);
+                Ty::new()
+            }
         }
     }
 }

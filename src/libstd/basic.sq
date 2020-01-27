@@ -1,0 +1,42 @@
+
+/***************************************************************************
+ * Defines foreign functions written in Rust
+ ***************************************************************************/
+
+
+extern "Rust" {
+    /**
+     * Prints the current runtime stack trace.
+     */
+    fn trace();
+
+    
+    /**
+     * Prints the provided integer.
+     */
+    fn print_int(val: i32);
+
+    
+    /**
+     * Prints the provided boolean.
+     */
+    fn print_bool(val: i32);
+
+
+    /**
+     * Assert bool value is true.
+     */
+    fn assert(val: bool);
+    
+    
+    /**
+     * Asserts equal for two integers.
+     */
+    fn assert_eq_int(left: i32, right: i32);
+    
+
+    /**
+     * Asserts equal for two bools.
+     */
+    fn assert_eq_bool(left: bool, right: bool);
+}

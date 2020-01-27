@@ -112,6 +112,7 @@ fn eval_literal(literal: ExprLit) -> Val {
     match literal.lit {
         Lit::Int(lit) => Val::Num(lit.value),
         Lit::Bool(lit) => Val::Bool(lit.value),
+        Lit::Str(_) => Val::Error,
     }
 }
 

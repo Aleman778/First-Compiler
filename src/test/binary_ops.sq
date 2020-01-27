@@ -1,0 +1,69 @@
+// run-pass
+
+// Simple program that asserts all the different kinds of binary operations.
+
+
+fn main() {
+    // Addition
+    assert_eq_int(1 + 2 + 3 + 4 + 5, 15);
+    
+    // Subtraction
+    assert_eq_int(10 - 5 - 2 - 1, 2);
+    
+    // Multiplication
+    assert_eq_int(2*3*1*2*5, 60);
+    
+    // Division
+    assert_eq_int(1000/10/2/25, 2);
+    
+    // Powers
+    assert_eq_int(2**3**2**1, 512);
+    
+    // Modulo
+    assert_eq_int(37%10%3, 1);
+
+    // And
+    assert_eq_bool(true  && true,  true);
+    assert_eq_bool(false && true,  false);
+    assert_eq_bool(true  && false, false);
+    assert_eq_bool(false && false, false);
+    
+    // Or
+    assert_eq_bool(true  || true,  true);
+    assert_eq_bool(false || true,  true);
+    assert_eq_bool(true  || false, true);
+    assert_eq_bool(false || false, false);
+
+    // Equal
+    assert_eq_bool(100 == 100, true);
+    assert_eq_bool(100 == 53, false);
+    assert_eq_bool(false == false, true);
+    assert_eq_bool(true == false, false);
+    
+    // Not equal
+    assert_eq_bool(100 != 100, false);
+    assert_eq_bool(100 != 52, true);
+    assert_eq_bool(false != false, false);
+    assert_eq_bool(true != false, true);
+    
+    // Less than
+    assert_eq_bool(32 < 50, true);
+    assert_eq_bool(32 < 32, false);
+    assert_eq_bool(32 < 10, false);
+
+    // Less than or equal to
+    assert_eq_bool(32 <= 50, true);
+    assert_eq_bool(32 <= 32, true);
+    assert_eq_bool(32 <= 10, false);
+
+        
+    // Less than
+    assert_eq_bool(32 > 50, false);
+    assert_eq_bool(32 > 32, false);
+    assert_eq_bool(32 > 10, true);
+
+    // Less than or equal to
+    assert_eq_bool(32 >= 50, false);
+    assert_eq_bool(32 >= 32, true);
+    assert_eq_bool(32 >= 10, true);
+}

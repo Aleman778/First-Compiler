@@ -11,6 +11,7 @@ use crate::sqrrlc_ast::{
     span::Span,
     expr::ExprIdent,
     stmt::Block,
+    lit::LitStr,
     ty::Ty,
 };
 
@@ -52,6 +53,9 @@ pub enum Item {
 
     /// Extern function item, defined somewhere else.
     ForeignFn(ForeignFnItem),
+
+    /// Extern module e.g. `extern { }`
+    ForeignMod(ForeignModItem),
 }
 
 
@@ -66,6 +70,7 @@ impl Item {
         match self {
             Item::Fn(func) => func.ident.to_string.clone(),
             Item::ForeignFn(func) => func.ident.to_string.clone(),
+            Item::ForeignMod(_) => String::new(),
         }
     }
 
@@ -74,6 +79,10 @@ impl Item {
         match self {
             Item::Fn(func) => func.ident.clone(),
             Item::ForeignFn(func) => func.ident.clone(),
+            Item::ForeignMod(_) => ExprIdent{
+                to_string: String::new(),
+                span: Span::new_empty()
+            }
         }
     }
 }
@@ -100,6 +109,18 @@ pub struct FnItem {
 pub struct ForeignFnItem {
     pub ident: ExprIdent,
     pub decl: FnDecl,
+    pub span: Span,
+}
+
+
+/**
+ * Foreign function module item defines a module containing
+ * foreign functions.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct ForeignModItem {
+    pub abi: Option<LitStr>,
+    pub items: Vec<ForeignFnItem>,
     pub span: Span,
 }
 

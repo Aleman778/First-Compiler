@@ -9,22 +9,13 @@ use std::path::{Path, PathBuf};
 use std::env;
 use crate::sqrrlc::{
     session::Session,
-    source_map::Filename,
+    source_map::{SourceMap, Filename},
+    symbol::generator::gen_sym_table,
 };
-use crate::sqrrlc_ast::base::File;
-use crate::sqrrlc_parser::{
-    Parser, ParseSpan
-};
-use crate::sqrrlc_interp::{
-    debug::debug_functions,
-    env::RuntimeEnv
-};
-use crate::sqrrlc_typeck::{
-    TypeChecker, TyCtxt,
-};
-use crate::sqrrlc::symbol::{
-    generator::gen_sym_table
-};
+use crate::sqrrlc_ast::base::{File, Item};
+use crate::sqrrlc_parser::{Parser, ParseSpan};
+use crate::sqrrlc_interp::env::RuntimeEnv;
+use crate::sqrrlc_typeck::{TypeChecker, TyCtxt};
 
 
 /**
@@ -88,9 +79,9 @@ pub fn run_compiler(config: Config) {
         }
         Input::Code{name, input} => sess.source_map().add_from_source(name, input, 0, 0),
     };
-    let span = ParseSpan::new_extra(&file.source, 0);
+    let span = ParseSpan::new_extra(&file.source, file.id);
     let mut ast = File::parse(span).unwrap().1;
-    ast.extend(debug_functions());
+    ast.extend(parse_stdlib_basic(sess.source_map()));
     let mut sym_table = gen_sym_table(&ast);
     let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);
     ast.check_type(&mut ty_ctxt);
@@ -98,6 +89,18 @@ pub fn run_compiler(config: Config) {
     ast.eval(&mut env);
 }
 
+
+/**
+ * Parses the FFI items in the stdlib basic.sq file.
+ */
+pub fn parse_stdlib_basic(source_map: &SourceMap) -> Vec<Item> {
+    let file = source_map.load_file(Path::new("src/libstd/basic.sq"))
+        .expect("could not find src/stdlib/basic.sq");
+    let span = ParseSpan::new_extra(&file.source, file.id);
+    let ast = File::parse(span).unwrap().1;
+    ast.items
+}
+    
 
 /**
  * The main function of the compilation driver,
