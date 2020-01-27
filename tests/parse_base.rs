@@ -4,14 +4,14 @@
  ***************************************************************************/
 
 
-use utilities::span::*;
-use sqrrl::sqrrlc_ast::{
+use unit_test::span::*;
+use sqrrlc::sqrrlc_ast::{
     stmt::*,
     expr::*,
     base::*,
     ty::*,
 };
-use sqrrl::sqrrlc_parser::Parser;
+use sqrrlc::sqrrlc_parser::Parser;
 
 
 #[test]

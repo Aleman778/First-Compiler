@@ -4,9 +4,9 @@
  ***************************************************************************/
 
 
-use utilities::span::*;
-use sqrrl::sqrrlc_ast::lit::*;
-use sqrrl::sqrrlc_parser::Parser;
+use unit_test::span::*;
+use sqrrlc::sqrrlc_ast::lit::*;
+use sqrrlc::sqrrlc_parser::Parser;
 
 
 #[test]

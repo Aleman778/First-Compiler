@@ -7,10 +7,8 @@
 
 use sqrrlc::sqrrlc::driver;
 
-
 #[macro_use]
 extern crate clap;
-
 
 fn main() {
     driver::main();

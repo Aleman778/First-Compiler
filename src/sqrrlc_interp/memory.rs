@@ -14,10 +14,7 @@ use crate::sqrrlc_interp::{
 /**
  * The main memory storage for interpreter.
  */
-pub struct Memory<'a> {
-    /// The compiler session.
-    sess: &'a Session,
-    
+pub struct Memory {
     /// The data storage is a vector of memory entries.
     data: Vec<MemEntry>,
 
@@ -63,14 +60,13 @@ impl MemEntry {
 /**
  * Implementation of the memory module.
  */
-impl<'a> Memory<'a> {
+impl Memory {
     /**
      * Constructs an empty memory module. Default capacity
      * is 1000, use `Memory::with_capacity` to set a custom capacity.
      */
-    pub fn new(session: &'a Session) -> Self {
+    pub fn new() -> Self {
         Memory {
-            sess: session,
             data: vec![MemEntry::new(); 1000],
             next: 0,
         }
@@ -80,9 +76,8 @@ impl<'a> Memory<'a> {
     /**
      * Constructs an empty memory module with specific capacity.
      */
-    pub fn with_capacity(session: &'a Session, capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Memory {
-            sess: session,
             data: vec![MemEntry::new(); capacity],
             next: 0,
         }
@@ -92,7 +87,7 @@ impl<'a> Memory<'a> {
     /**
      * Allocates value data and returns the memory address to that data.
      */
-    pub fn alloc(&mut self, val: &Val, mutable: bool) -> IResult<usize> {
+    pub fn alloc(&mut self, sess: &mut Session, val: &Val, mutable: bool) -> IResult<usize> {
         if self.next < self.data.capacity() {
             self.data[self.next] = MemEntry {
                 mutable,
@@ -103,7 +98,7 @@ impl<'a> Memory<'a> {
             self.find_next();
             Ok(addr)
         } else {
-            Err(struct_span_fatal!(self.sess, val.span, "out of memory error"))
+            Err(struct_span_fatal!(sess, val.span, "out of memory error"))
         }
     }
 
@@ -111,16 +106,16 @@ impl<'a> Memory<'a> {
     /**
      * Loads a value from memory at specific address.
      */
-    pub fn load(&self, addr: usize) -> IResult<ValData> {
+    pub fn load(&self, sess: &mut Session, addr: usize) -> IResult<ValData> {
         if addr < self.data.capacity() {
             let entry = &self.data[addr];
             if entry.data.has_data() {
                 Ok(entry.data.clone())
             } else {
-                Err(struct_fatal!(self.sess, "reading unallocated memory"))
+                Err(struct_fatal!(sess, "reading unallocated memory"))
             }
         } else {
-            Err(struct_fatal!(self.sess, "reading out of bounds"))
+            Err(struct_fatal!(sess, "reading out of bounds"))
         }
     }
 
@@ -129,7 +124,7 @@ impl<'a> Memory<'a> {
      * Stores a new value at a specific memory address.
      * Note: has to be an already allocated address.
      */
-    pub fn store(&mut self, addr: usize, val: &Val) -> IResult<()> {
+    pub fn store(&mut self, sess: &mut Session, addr: usize, val: &Val) -> IResult<()> {
         if addr < self.data.capacity() {
             let entry = &mut self.data[addr];
             if entry.reserved || entry.data.has_data() {
@@ -137,13 +132,13 @@ impl<'a> Memory<'a> {
                     entry.data = val.data.clone();
                     Ok(())
                 } else {
-                    Err(struct_span_fatal!(self.sess, val.span, "cannot assign twice to immutable variable"))
+                    Err(struct_span_fatal!(sess, val.span, "cannot assign twice to immutable variable"))
                 }
             } else {
-                Err(struct_span_fatal!(self.sess, val.span, "cannot update unallocated memory"))
+                Err(struct_span_fatal!(sess, val.span, "cannot update unallocated memory"))
             }
         } else {
-            Err(struct_fatal!(self.sess, "writing out of bounds"))
+            Err(struct_fatal!(sess, "writing out of bounds"))
         }
     }
     
@@ -151,7 +146,7 @@ impl<'a> Memory<'a> {
     /**
      * Frees the memory at the specific memory address.
      */
-    pub fn free(&mut self, addr: usize) -> IResult<()> {
+    pub fn free(&mut self, sess: &mut Session, addr: usize) -> IResult<()> {
         if addr < self.data.capacity() {
             if self.is_alloc(addr) {
                 let entry = &mut self.data[addr];
@@ -162,10 +157,10 @@ impl<'a> Memory<'a> {
                 }
                 Ok(())
             } else {
-                Err(struct_fatal!(self.sess, "cannot free unallocated memory"))
+                Err(struct_fatal!(sess, "cannot free unallocated memory"))
             }
         } else {
-            Err(struct_fatal!(self.sess, "cannot free out of bounds"))
+            Err(struct_fatal!(sess, "cannot free out of bounds"))
         }
     }
 
@@ -219,7 +214,7 @@ impl<'a> Memory<'a> {
 /**
  * Formatting the memory so it does print the entire memory state.
  */
-impl<'a> fmt::Debug for Memory<'a> {
+impl fmt::Debug for Memory {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Memory:")
             .field("capacity", &self.data.len())

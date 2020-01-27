@@ -6,16 +6,20 @@
  * Note: this code is based on the rust compiler (but simplified).
  ***************************************************************************/
 
+
 extern crate unicode_width;
 
+
+use log::debug;
 use std::rc::Rc;
 use std::io;
 use std::io::Write;
 use std::cmp::{min, max, Reverse};
 use std::collections::HashMap;
-use termcolor::{StandardStream, ColorChoice, ColorSpec};
-use termcolor::{WriteColor, Color};
+use termcolor::ColorSpec;
+use crate::sqrrlc::utils::{Destination, ColorConfig};
 use crate::sqrrlc::error::{
+    Level,
     styled_buffer::*,
     diagnostic::*,
     snippet::*,
@@ -28,25 +32,48 @@ use crate::sqrrlc::source_map::*;
  * to the console.
  */
 pub struct Emitter {
+    /// The writable destination.
+    dest: Destination,
+                    
     /// The source map containing all the source files.
-    pub sm: Rc<SourceMap>,
+    sm: Rc<SourceMap>,
 
     /// The maximum width of the terminal.
-    pub terminal_width: Option<usize>,
+    terminal_width: Option<usize>
 }
 
 
-/**
- * Implementation for emitter.
- */
 impl Emitter {
     /**
-     * Creates a new emitter with default settings.
+     * Creates a new standard error emitter.
      */
-    pub fn new(source_map: Rc<SourceMap>) -> Self {
+    pub fn stderr(
+        source_map: Rc<SourceMap>,
+        terminal_width: Option<usize>,
+        color_config: ColorConfig,
+    ) -> Self {
+        let dest = Destination::from_stderr(color_config);
         Emitter {
             sm: source_map,
-            terminal_width: None,
+            terminal_width,
+            dest,
+        }
+    }
+        
+    
+    /**
+     * Creates a new custom error emitter.
+     */
+    pub fn new(
+        dest: Box<dyn Write + Send>,
+        source_map: Rc<SourceMap>,
+        terminal_width: Option<usize>,
+        colored: bool,
+    ) -> Self {
+        Emitter {
+            sm: source_map,
+            terminal_width,
+            dest: Destination::Raw(dest, colored)
         }
     }
     
@@ -54,7 +81,7 @@ impl Emitter {
     /**
      * Emit diagnostic information to console.
      */
-    pub fn emit_diagnostic(&self, d: &Diagnostic) {
+    pub fn emit_diagnostic(&mut self, d: &Diagnostic) {
         if d.cancelled() {
             return;
         }        
@@ -77,7 +104,7 @@ impl Emitter {
      * Emits a message based on the given parameters.
      */
     fn emit_message(
-        &self,
+        &mut self,
         level: &Level,
         code: &Option<String>,
         message: &Vec<StyledString>,
@@ -92,9 +119,9 @@ impl Emitter {
             buf.append(&s.text, s.style, 0);
         }
         self.draw_code_snippet(buf, span, max_linum_len);
-        match self.write_buffer(level, buf) {
-            Ok(_) => {}
-            Err(e) => eprintln!("{}", e)
+        match self.emit_to_dest(level, buf) {
+            Err(e) => debug!("Failed to emit error to destination, err: {}", e),
+            Ok(_) => { },
         }
     }
 
@@ -568,93 +595,24 @@ impl Emitter {
 
     /**
      * Renders the buffered diagnostic message into data containing styled texts.
-     * The styled text data is then written in the console using eprint/ eprintln.
-     * TODO: this should be moved out to enum for controlling the destination...
+     * The styled text data is then written to the given writable destination.
      */
-    fn write_buffer(&self, level: &Level, buf: &StyledBuffer) -> io::Result<usize> {
-        let mut dest = StandardStream::stderr(ColorChoice::AlwaysAnsi);
-        let data = buf.render();
-        for line in &data {
+    fn emit_to_dest(&mut self, level: &Level, buf: &StyledBuffer) -> io::Result<usize> {
+        let mut dest = self.dest.writable();
+        let rendered = buf.render();
+        for line in &rendered {
             for string in line {
-                let spec = self.get_color_spec(level, &string.style);
-                dest.set_color(&spec)?;
-                dest.write(string.text.as_bytes())?;
+                dest.apply_style(level, &string.style)?;
+                write!(dest, "{}", string.text)?;
             }
-            dest.write(&['\n' as u8])?;
+            write!(dest, "\n")?;
         }
         dest.set_color(&ColorSpec::new())?;
-        dest.write(&['\n' as u8])?;
+        write!(dest, "\n")?;
+        dest.flush()?;
         Ok(0)
     }
-
     
-    /**
-     * Returns the color spec based on the diagnostic level and style type.
-     */
-    fn get_color_spec(&self, level: &Level, style: &Style) -> ColorSpec {
-        let mut spec = ColorSpec::new();
-        match style {
-            Style::LineNumber => {
-                spec.set_bold(true);
-                spec.set_fg(Some(Color::Blue));
-            }
-            Style::UnderlinePrimary |
-            Style::LabelPrimary => {
-                if let Level::Fatal = level {
-                    spec.set_fg(Some(Color::Red));
-                    spec.set_bold(true);
-                } else {
-                    spec = self.get_level_spec(level);
-                }
-            }
-            Style::UnderlineSecondary |
-            Style::LabelSecondary => {
-                spec.set_bold(true);
-                spec.set_fg(Some(Color::Blue));
-            }
-            Style::Level(lvl) => {
-                spec = self.get_level_spec(&lvl);
-            },
-            Style::MainHeaderMsg => {
-                spec.set_bold(true);
-            }
-            Style::HeaderMessage |
-            Style::LineAndColumn |
-            Style::Quotation |
-            Style::NoStyle => {}
-        };
-        spec
-    }
-
-
-    /**
-     * Returns the color spec based on the diagnostic level.
-     */
-    fn get_level_spec(&self, level: &Level) -> ColorSpec {
-        let mut spec = ColorSpec::new();
-        match level {
-            Level::Fatal => {
-                spec.set_bg(Some(Color::Red))
-                    .set_fg(Some(Color::Black))
-                    .set_bold(true);
-            }
-            Level::Error => {
-                spec.set_fg(Some(Color::Red))
-                    .set_bold(true);
-            }
-            Level::Warning => {
-                spec.set_fg(Some(Color::Yellow))
-                    .set_bold(true);
-            }
-            Level::Note => {
-                spec.set_fg(Some(Color::Green))
-                    .set_bold(true);
-            }
-            Level::Cancelled => unreachable!(),
-        }
-        spec
-    }
-
     
     /**
      * Returns the maximum line number length from the specified multispan.

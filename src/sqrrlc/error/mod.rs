@@ -6,6 +6,7 @@
 
 
 use std::sync::Mutex;
+use termcolor::{Color, ColorSpec};
 use crate::sqrrlc::error::{emitter::Emitter, diagnostic::*};
 use crate::sqrrlc_ast::span::Span;
 
@@ -107,6 +108,9 @@ impl Handler {
 
 
 impl HandlerInner {
+    /**
+     * Emits the given diagnostic to the provided writable destination.
+     */
     pub fn emit_diagnostic(&mut self, diagnostic: &Diagnostic)  {
         if diagnostic.is_err() {
             self.error_count += 1;
@@ -114,6 +118,61 @@ impl HandlerInner {
         self.emitter.emit_diagnostic(diagnostic);
     }
 }    
+
+
+
+
+/**
+ * The level of importance for this diagnostic.
+ */
+#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
+pub enum Level {
+    /// Note diagnostic, provides extra info to user.
+    Note,
+    
+    /// Warning diagnostic, can still compile fine.
+    Warning,
+    
+    /// Error diagnostic, won't compile but can still continue.
+    Error,
+
+    /// Fatal diagnstic, won't compile anymore and should abort immediately.
+    Fatal,
+
+    /// Cancelled diagnostic, diagnostic should be ignored and not emitted.
+    Cancelled,
+}
+
+
+impl Level {
+    /**
+     * Returns the color spec based on the diagnostic level.
+     */
+    pub fn color(&self) -> ColorSpec {
+        let mut spec = ColorSpec::new();
+        match self {
+            Level::Fatal => {
+                spec.set_bg(Some(Color::Red))
+                    .set_fg(Some(Color::Black))
+                    .set_bold(true);
+            }
+            Level::Error => {
+                spec.set_fg(Some(Color::Red))
+                    .set_bold(true);
+            }
+            Level::Warning => {
+                spec.set_fg(Some(Color::Yellow))
+                    .set_bold(true);
+            }
+            Level::Note => {
+                spec.set_fg(Some(Color::Green))
+                    .set_bold(true);
+            }
+            Level::Cancelled => unreachable!(),
+        }
+        spec
+    }
+}
 
 
 pub mod styled_buffer;

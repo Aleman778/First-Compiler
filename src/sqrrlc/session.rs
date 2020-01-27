@@ -8,7 +8,8 @@
 use std::rc::Rc;
 use std::path::PathBuf;
 use crate::sqrrlc::{
-    error::{diagnostic::*, Handler},
+    utils::{ColorConfig, Destination, WritableDest},
+    error::{diagnostic::*, emitter::Emitter, Handler},
     source_map::SourceMap,
 };
 use crate::sqrrlc_ast::span::Span;
@@ -18,18 +19,64 @@ use crate::sqrrlc_ast::span::Span;
  * The session struct holds compilation data,
  */
 pub struct Session {
-    // The handler is used to deal with error reporting.
+    /// The handler is used to deal with error reporting.
     pub handler: Handler,
-
-    // The working directory of the compiler.
+    /// The working directory of the compiler.
     pub working_dir: PathBuf,
-
-    // The mapping of source files in use.
+    /// The mapping of source files in use.
     pub source_map: Rc<SourceMap>,
+    /// The destination for writing outputs.
+    pub dest_out: Destination,
+    /// The destination for writing error outputs.
+    pub dest_err: Destination,
 }
 
 
 impl Session {
+    /**
+     * Creats a new empty session without specified working directory.
+     */
+    pub fn new() -> Self {
+        Session::from_dir(std::env::current_dir().unwrap())
+    }
+    
+    
+    /**
+     * Create a new empty session with a specific working directory.
+     */
+    pub fn from_dir(working_dir: PathBuf) -> Self {
+        let src_map = Rc::new(SourceMap::from_dir(&working_dir.as_path()));
+        let stdout = Destination::from_stdout(ColorConfig::Never);
+        let stderr = Destination::from_stderr(ColorConfig::Always);
+        Session {
+            handler: Handler::new(Emitter::stderr(
+                Rc::clone(&src_map),
+                None,
+                ColorConfig::Always)),
+            working_dir: working_dir,
+            source_map: src_map,
+            dest_out: stdout,
+            dest_err: stderr,
+        }
+    }
+
+
+    /**
+     * Returns writable destination to the output.
+     */
+    pub fn writable_out(&mut self) -> WritableDest<'_> {
+        return self.dest_out.writable();
+    }
+
+
+    /**
+     * Returns writable destination to the error output.
+     */
+    pub fn writable_err(&mut self) -> WritableDest<'_> {
+        return self.dest_err.writable();
+    }
+
+
     /**
      * Returns reference to the source map.
      */

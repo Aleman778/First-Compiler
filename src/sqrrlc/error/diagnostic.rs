@@ -6,30 +6,11 @@
 
 
 use std::fmt;
-use crate::sqrrlc::error::snippet::{Style, StyledString};
+use crate::sqrrlc::error::{
+    Level,
+    snippet::{Style, StyledString},
+};
 use crate::sqrrlc_ast::span::Span;
-
-
-/**
- * The level of importance for this diagnostic.
- */
-#[derive(Debug, Copy, Clone, Hash, PartialEq, Eq)]
-pub enum Level {
-    /// Note diagnostic, provides extra info to user.
-    Note,
-    
-    /// Warning diagnostic, can still compile fine.
-    Warning,
-    
-    /// Error diagnostic, won't compile but can still continue.
-    Error,
-
-    /// Fatal diagnstic, won't compile anymore and should abort immediately.
-    Fatal,
-
-    /// Cancelled diagnostic, diagnostic should be ignored and not emitted.
-    Cancelled,
-}
 
 
 /**

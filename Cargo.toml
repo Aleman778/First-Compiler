@@ -12,7 +12,10 @@ nom = "5"
 nom_locate = "1"
 termcolor = "1.0.5"
 unicode-width = "0.1.5"
+simple_logger = "1.4.0"
 clap = "2.33.0"
+log = "0.4"
 
 [dev-dependencies]
-utilities = { path = "utilities" }
+unit_test = { path = "./tools/unit_test" }
+compile_test = { path = "./tools/compile_test" }

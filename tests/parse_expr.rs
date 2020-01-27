@@ -4,11 +4,11 @@
  ***************************************************************************/
 
 
-use utilities::span::*;
-use utilities::ast::*;
-use utilities::math_eval::*;
-use sqrrl::sqrrlc_parser::Parser;
-use sqrrl::sqrrlc_ast::{
+use unit_test::span::*;
+use unit_test::ast::*;
+use unit_test::math_eval::*;
+use sqrrlc::sqrrlc_parser::Parser;
+use sqrrlc::sqrrlc_ast::{
     stmt::*,
     op::*,
     lit::*,
