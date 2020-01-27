@@ -7,8 +7,8 @@
 
 use nom::{
     character::complete::{digit1, multispace0},
-    bytes::complete::tag,
-    sequence::preceded,
+    bytes::complete::{tag, take_while},
+    sequence::{preceded, tuple},
     combinator::map,
     branch::alt,
     Err,
@@ -16,7 +16,7 @@ use nom::{
 
 
 use crate::sqrrlc_ast::{
-    span::Span,
+    span::{Span, LineColumn},
     lit::*,
 };
 
@@ -55,5 +55,27 @@ impl Parser for LitBool {
             map(tag("true"),  |s| LitBool{value:true,  span: Span::new(s, input.extra)}),
             map(tag("false"), |s| LitBool{value:false, span: Span::new(s, input.extra)}),
         )))(input)
+    }
+}
+
+
+/**
+ * Parser implementation for string literals.
+ */
+impl Parser for LitStr {
+    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+        preceded(multispace0, map(tuple((
+            tag("\""),
+            take_while(|c: char| c != '"'),
+            tag("\""),
+        )), |(left, s, right): (ParseSpan, ParseSpan, ParseSpan)| {
+            LitStr {
+                value: s.fragment.to_string(),
+                span: Span::from_bounds(
+                    LineColumn::new(left.line, left.get_column()),
+                    LineColumn::new(right.line, right.get_column()),
+                    input.extra),
+            }
+        }))(input)
     }
 }

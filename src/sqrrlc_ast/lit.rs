@@ -18,6 +18,8 @@ pub enum Lit {
     Int(LitInt),
     /// Literal for booleans e.g. false
     Bool(LitBool),
+    /// Literal for strings e.g. "hello"
+    Str(LitStr),
 }
 
 
@@ -37,5 +39,15 @@ pub struct LitInt {
 #[derive(Debug, Clone, PartialEq)]
 pub struct LitBool {
     pub value: bool,
+    pub span: Span,
+}
+
+
+/**
+ * Literal string struct has a str value.
+ */
+#[derive(Debug, Clone, PartialEq)]
+pub struct LitStr {
+    pub value: String,
     pub span: Span,
 }

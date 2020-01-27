@@ -159,6 +159,7 @@ impl Eval for ExprCall {
                 let len = match item {
                     Item::Fn(func) => func.decl.inputs.len(),
                     Item::ForeignFn(func) => func.decl.inputs.len(),
+                    _ => 0,
                 };
                 if self.args.len() != len {
                     err.primary_span(self.span);

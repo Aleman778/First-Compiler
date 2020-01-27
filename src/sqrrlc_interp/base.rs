@@ -24,7 +24,11 @@ use crate::sqrrlc_interp::{
 impl File {
     pub fn eval<'a>(&self, env: &mut RuntimeEnv<'a>) {
         for item in &self.items {
-            env.store_item(item.clone());
+            match item {
+                Item::Fn(_) => env.store_item(item.clone()),
+                Item::ForeignMod(module) => module.eval(env),
+                _ => { },
+            }
         }
         match env.load_main() {
             Ok(func) => {
@@ -46,7 +50,6 @@ impl Item {
     /**
      * Evaluates a function item.
      */
-    #[allow(unreachable_patterns)]
     pub fn eval_func<'a>(&self, values: Vec<Val>, env: &mut RuntimeEnv<'a>) -> IResult<Val> {
         match self {
             Item::Fn(func) => func.eval(values, env),
@@ -96,20 +99,58 @@ impl ForeignFnItem {
             },
             "print_int" => {
                 match values[0].get_i32() {
-                    Some(arg) => print_int(env, arg),
+                    Some(arg) => print_int(arg),
                     None => return Err(mismatched_types_fatal!(
                         env.sess, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
                 };
             },
             "print_bool" => {
                 match values[0].get_bool() {
-                    Some(arg) => print_bool(env, arg),
+                    Some(arg) => print_bool(arg),
                     None => return Err(mismatched_types_fatal!(
                         env.sess, values[0].span, TyKind::Bool, values[0].get_type())),
+                };
+            },
+            "assert" => {
+                match values[0].get_bool() {
+                    Some(arg) => assert(arg),
+                    None => return Err(mismatched_types_fatal!(
+                        env.sess, values[0].span, TyKind::Bool, values[0].get_type())),
+                };
+            },
+            "assert_eq_int" => {
+                match values[0].get_i32() {
+                    Some(arg0) => match values[1].get_i32() {
+                        Some(arg1) => assert_eq_int(arg0, arg1),
+                        None => return Err(mismatched_types_fatal!(
+                            env.sess, values[1].span, TyKind::Int(IntTy::I32), values[1].get_type()))
+                    }
+                    None => return Err(mismatched_types_fatal!(
+                        env.sess, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
+                };
+            },
+            "assert_eq_bool" => {
+                match values[0].get_bool() {
+                    Some(arg0) => match values[1].get_bool() {
+                        Some(arg1) => assert_eq_bool(arg0, arg1),
+                        None => return Err(mismatched_types_fatal!(
+                            env.sess, values[1].span, TyKind::Bool, values[1].get_type()))
+                    }
+                    None => return Err(mismatched_types_fatal!(
+                        env.sess, values[0].span, TyKind::Bool, values[0].get_type()))
                 };
             },
             _ => return Err(struct_fatal!(env.sess, "is not a debug function")),
         };
         Ok(Val::new())
+    }
+}
+
+
+impl ForeignModItem {
+    fn eval(&self, env: &mut RuntimeEnv) {
+        for item in &self.items {
+            env.store_item(Item::ForeignFn(item.clone()));
+        }
     }
 }

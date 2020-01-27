@@ -22,6 +22,9 @@ impl Eval for Lit {
         match self {
             Lit::Int(literal) => literal.eval(env),
             Lit::Bool(literal) => literal.eval(env),
+            Lit::Str(literal)  => Err(struct_span_fatal!(env.sess,
+                                                         literal.span,
+                                                         "unsupported literal type by the interpreter")),
         }
     }
 }

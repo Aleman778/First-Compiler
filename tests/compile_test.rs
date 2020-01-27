@@ -28,12 +28,14 @@ pub fn run_test(pass: &str, file: &str, output: &str) {
         // Check that the test passed with correct stdout output.
         "run-pass" => {
             let actual = String::from_utf8_lossy(&compilation.stdout);
+            let error = String::from_utf8_lossy(&compilation.stderr);
             if !output.is_empty() {
                 let expected = fs::read_to_string(Path::new(output)).unwrap().replace('\r', "");
                 assert_eq!(actual, expected);
             } else {
                 assert_eq!(actual, "");
             }
+            assert_eq!(error, "");
         }
         // Check that the test program was built without errors.
         "build-pass" | "check-pass" => {
@@ -51,4 +53,5 @@ pub fn run_test(pass: &str, file: &str, output: &str) {
             }
         }
     }
+    assert!(compilation.status.success());
 }

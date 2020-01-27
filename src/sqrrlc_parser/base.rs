@@ -10,7 +10,8 @@ use nom::{
     bytes::complete::tag,
     combinator::{map, opt},
     sequence::{preceded, terminated, pair, tuple},
-    multi::separated_list,
+    branch::alt,
+    multi::{many0, separated_list},
     error::context,
     Err,
 };
@@ -19,6 +20,7 @@ use crate::sqrrlc_ast::{
     base::*,
     expr::ExprIdent,
     stmt::Block,
+    lit::LitStr,
     ty::Ty,
 };
 use crate::sqrrlc_parser::{
@@ -66,7 +68,10 @@ impl Parser for Item {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
         context(
             "item",
-            map(FnItem::parse, |func| Item::Fn(func)),
+            alt((
+                map(FnItem::parse, |func| Item::Fn(func)),
+                map(ForeignModItem::parse, |module| Item::ForeignMod(module)),
+            ))
         )(input)
     }
 }
@@ -95,6 +100,59 @@ impl Parser for FnItem {
                             LineColumn::new(start.line, start.get_column()),
                             block_clone.span.end, input.extra
                         ),
+                    }
+                }
+            )
+        )(input)
+    }
+}
+
+
+impl Parser for ForeignFnItem {
+    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+        context(
+            "foreign function",
+            map(tuple((
+                preceded(multispace0, tag("fn")),
+                preceded(multispace1, ExprIdent::parse),
+                FnDecl::parse,
+                preceded(multispace0, tag(";")),
+            )),
+                |(start, id, decl, semi)| {
+                    ForeignFnItem {
+                        ident: id,
+                        decl: decl,
+                        span: Span::from_bounds(
+                            LineColumn::new(start.line, start.get_column()),
+                            LineColumn::new(semi.line, semi.get_column()),
+                            input.extra),
+                    }
+                }
+            )
+        )(input)
+    }
+}
+
+
+impl Parser for ForeignModItem {
+    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+        context(
+            "extern",
+            map(tuple((
+                preceded(multispace0, tag("extern")),
+                opt(preceded(multispace0, LitStr::parse)),
+                preceded(multispace0, tag("{")),
+                many0(preceded(multispace_comment0, ForeignFnItem::parse)),
+                preceded(multispace0, tag("}")),
+            )),
+                |(start, abi, _, items, end)| {
+                    ForeignModItem {
+                        abi,
+                        items,
+                        span: Span::from_bounds(
+                            LineColumn::new(start.line, start.get_column()),
+                            LineColumn::new(end.line, end.get_column()),
+                            input.extra),
                     }
                 }
             )

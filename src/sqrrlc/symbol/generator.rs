@@ -53,6 +53,7 @@ impl GenSymbolTable for Item {
         match self {
             Item::Fn(func) => func.gen_sym_table(table),
             Item::ForeignFn(func) => func.gen_sym_table(table),
+            Item::ForeignMod(func) => func.gen_sym_table(table),
         };
     }
 }
@@ -86,6 +87,18 @@ impl GenSymbolTable for ForeignFnItem {
         let mut symbol = FnSymbol::new();
         self.decl.gen_sym_table(table, &mut symbol);
         table.push_symbol(&self.ident, Symbol::Fn(symbol));
+    }
+}
+
+
+/**
+ * Generate symbol table for item AST node.
+ */
+impl GenSymbolTable for ForeignModItem {
+    fn gen_sym_table(&self, table: &mut SymbolTable) {
+        for item in &self.items {
+            item.gen_sym_table(table);
+        } 
     }
 }
 
