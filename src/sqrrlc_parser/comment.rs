@@ -56,7 +56,7 @@ fn any_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
 fn comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     context(
         "comment",
-        map(pair(tag("//"), take_until("\r\n")), |_| ())
+        map(pair(tag("//"), take_until("\n")), |_| ())
     )(input)
 }
 
@@ -90,7 +90,7 @@ fn block_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
 fn doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     context(
         "doc-comment",
-        map(pair(tag("///"), take_until("\r\n")), |_| ())
+        map(pair(tag("///"), take_until("\n")), |_| ())
     )(input)
 }
 
@@ -101,7 +101,7 @@ fn doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
 fn block_doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     let mut input = tag("/**")(input)?.0;
     loop {
-        let next: IResult<ParseSpan, ParseSpan> = take_until("\r\n")(input);
+        let next: IResult<ParseSpan, ParseSpan> = take_until("\n")(input);
         match next {
             Ok((inpt, _)) => input = inpt,
             Err(_) => return Err(Err::Error(ParseError::new(
