@@ -20,11 +20,19 @@ generate_tests!("src/test"; run_test);
  * Returns true if the test passed, false is failure.
  */
 pub fn run_test(pass: &str, file: &str, output: &str) {
-    let command = env::var("SQRRLC_BIN").unwrap_or("sqrrlc".to_string());
-    let compilation = Command::new(command)
-        .arg(OsStr::new(file))
-        .output()
-        .expect("failed to run the compiler");
+    let compiler = &env::var("SQRRLC_BIN").unwrap_or("sqrrlc".to_string());
+    let compilation = if cfg!(target_os = "windows") {
+        Command::new("cmd")
+            .args(&["/C", compiler, file])
+            .output()
+            .expect("failed to run the compiler")
+    } else {
+        Command::new("sh")
+            .arg("-c")
+            .args(&[compiler, file])
+            .output()
+            .expect("failed to run the compiler")
+    };
     match pass {
         // Check that the test passed with correct stdout output.
         "run-pass" => {
