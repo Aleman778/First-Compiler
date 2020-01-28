@@ -450,12 +450,16 @@ impl Emitter {
             } else {
                 ('-', Style::UnderlineSecondary)
             };
-            
             match ann.annotation_type {
                 AnnotationType::MultilineLine(_) => { },
                 _ => {
-                    for p in ann.start_col - 1..ann.end_col - 1 {
-                        buf.putc(symbol, style, line_offset + 1, (margin.code_offset + p).saturating_sub(left));
+                    for p in ann.start_col..ann.end_col {
+                        buf.putc(
+                            symbol,
+                            style,
+                            line_offset + 1,
+                            (margin.code_offset + p - 1).saturating_sub(left),
+                        );
                     }
                 },
             }
@@ -620,11 +624,13 @@ impl Emitter {
     fn get_multispan_max_len(&self, span: &MultiSpan) -> usize {
         let mut max_len = 0;
         for span in &span.primary_spans {
-            max_len = max_len.max(self.sm.lookup_linum(&span).to_string().len());
+            let linum = self.sm.lookup_linum(&span) + span.end.line;
+            max_len = max_len.max(linum.to_string().len());
         }
         
         for span_label in &span.span_labels {
-            max_len = max_len.max(self.sm.lookup_linum(&span_label.0).to_string().len());
+            let linum = self.sm.lookup_linum(&span_label.0) + span_label.0.end.line;
+            max_len = max_len.max(linum.to_string().len());
         }
         max_len
     }

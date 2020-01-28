@@ -104,7 +104,7 @@ macro_rules! struct_fatal {
 macro_rules! mismatched_types_err {
     ($session:expr, $span:expr, $expected:expr, $found:expr) => ({
         let mut err = $session.struct_span_err($span, "mismatched types");
-        err.span_label($span, &format!("expected {}, found {}", $expected, $found));
+        err.span_label($span, &format!("expected `{}`, found `{}`", $expected, $found));
         $session.emit(&err);
     })
 }
@@ -113,7 +113,7 @@ macro_rules! mismatched_types_err {
 macro_rules! mismatched_return_type_err {
     ($session:expr, $fn_sym:expr, $ret_ty:expr) => ({
         let mut err = $session.struct_span_err($ret_ty.span, "mismatched types");
-        err.span_label($ret_ty.span, &format!("expected {}, found {}", $fn_sym.output, $ret_ty));
+        err.span_label($ret_ty.span, &format!("expected `{}`, found `{}`", $fn_sym.output, $ret_ty));
         if $fn_sym.output.is_none() {
             err.span_label($fn_sym.output.span, "possibly return type missing here?");
         } else {
@@ -128,7 +128,7 @@ macro_rules! mismatched_return_type_err {
 macro_rules! mismatched_types_fatal {
     ($session:expr, $span:expr, $expected:expr, $found:expr) => ({
         let mut err = $session.struct_span_fatal($span, "mismatched types");
-        err.span_label($span, &format!("expected {}, found {}", $expected, $found));
+        err.span_label($span, &format!("expected `{}`, found `{}`", $expected, $found));
         err
     })
 }

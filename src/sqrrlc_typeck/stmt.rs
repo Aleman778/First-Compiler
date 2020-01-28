@@ -35,6 +35,7 @@ impl TypeChecker for Block {
             }
         }
         tcx.sym.prev_scope();
+        ret_ty.span = self.span.clone();
         ret_ty
     }
 }
@@ -74,6 +75,7 @@ impl TypeChecker for Local {
                 symbol.ty = self.ty.clone();
                 tcx.sym.push_symbol(&self.ident, Symbol::Var(symbol));
                 if init_ty != self.ty {
+                    println!("{:#?}", init_ty.span);
                     mismatched_types_err!(tcx.sess, init_ty.span, self.ty, init_ty);
                 }
             },

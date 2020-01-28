@@ -354,7 +354,7 @@ impl MultilineAnnotation {
     pub fn as_start(&self) -> Annotation {
         Annotation {
             start_col: self.start_col,
-            end_col: self.end_col,
+            end_col: self.start_col + 1,
             is_primary: self.is_primary,
             label: None,
             annotation_type: AnnotationType::MultilineStart(self.depth),
@@ -367,7 +367,7 @@ impl MultilineAnnotation {
      */
     pub fn as_end(&self) -> Annotation {
         Annotation {
-            start_col: self.start_col,
+            start_col: self.end_col.saturating_sub(1),
             end_col: self.end_col,
             is_primary: self.is_primary,
             label: self.label.clone(),

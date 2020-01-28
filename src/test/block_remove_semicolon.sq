@@ -6,6 +6,6 @@ fn foo() -> i32 {
 fn main() {
     let x: i32 = {
         
-        foo();
+        foo(); //~ error: mismatched types, remove semicolon
     };
 }

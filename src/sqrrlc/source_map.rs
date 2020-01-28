@@ -137,7 +137,7 @@ impl SourceMap {
         return match file {
             Some(file) => (&file).start_line,
             None => 0u32,
-        } + span.start.line;
+        }
     }
     
     
