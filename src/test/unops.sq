@@ -1,0 +1,22 @@
+// run-pass
+
+// Simple program that asserts the different kinds of unary operations.
+
+
+fn test_int() {
+    assert_eq_int(-32, 0 - 32);
+    assert_eq_int(--32, 32);
+    assert_eq_int(---32, 0 - 32);
+}
+
+
+fn test_bool() {
+    assert_eq_bool(!false, true);
+    assert_eq_bool(!true, false);
+}
+
+
+fn main() {
+    test_int();
+    test_bool();
+}

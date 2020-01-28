@@ -8,7 +8,7 @@
 use std::rc::Rc;
 use std::path::PathBuf;
 use crate::sqrrlc::{
-    utils::{ColorConfig, Destination, WritableDest},
+    utils::ColorConfig,
     error::{diagnostic::*, emitter::Emitter, Handler},
     source_map::SourceMap,
 };
@@ -25,10 +25,6 @@ pub struct Session {
     pub working_dir: PathBuf,
     /// The mapping of source files in use.
     pub source_map: Rc<SourceMap>,
-    /// The destination for writing outputs.
-    pub dest_out: Destination,
-    /// The destination for writing error outputs.
-    pub dest_err: Destination,
 }
 
 
@@ -45,35 +41,15 @@ impl Session {
      * Create a new empty session with a specific working directory.
      */
     pub fn from_dir(working_dir: PathBuf) -> Self {
-        let src_map = Rc::new(SourceMap::from_dir(&working_dir.as_path()));
-        let stdout = Destination::from_stdout(ColorConfig::Never);
-        let stderr = Destination::from_stderr(ColorConfig::Always);
+        let source_map = Rc::new(SourceMap::from_dir(&working_dir.as_path()));
         Session {
             handler: Handler::new(Emitter::stderr(
-                Rc::clone(&src_map),
+                Rc::clone(&source_map),
                 None,
                 ColorConfig::Always)),
-            working_dir: working_dir,
-            source_map: src_map,
-            dest_out: stdout,
-            dest_err: stderr,
+            working_dir,
+            source_map,
         }
-    }
-
-
-    /**
-     * Returns writable destination to the output.
-     */
-    pub fn writable_out(&mut self) -> WritableDest<'_> {
-        return self.dest_out.writable();
-    }
-
-
-    /**
-     * Returns writable destination to the error output.
-     */
-    pub fn writable_err(&mut self) -> WritableDest<'_> {
-        return self.dest_err.writable();
     }
 
 

@@ -1,0 +1,12 @@
+// run-pass
+
+fn test_assign() {
+    let mut a: i32 = 5;
+    a = a + a * 2;
+    assert_eq_int(a, 15);
+}
+
+
+fn main() {
+    test_assign();
+}

@@ -8,6 +8,7 @@
 use compile_test::generate_tests;
 use std::process::Command;
 use std::path::Path;
+use std::ffi::OsStr;
 use std::{fs, env};
 
 
@@ -20,8 +21,13 @@ generate_tests!("src/test"; run_test);
  */
 pub fn run_test(pass: &str, file: &str, output: &str) {
     let command = env::var("SQRRLC_BIN").unwrap_or("sqrrlc".to_string());
+    let mut args = vec![OsStr::new("--nocolor")];
+    if pass == "run-pass" {
+        args.push(OsStr::new("-i"))
+    };
+    args.push(OsStr::new(file));
     let compilation = Command::new(command)
-        .arg(file)
+        .args(&args)
         .output()
         .expect("failed to run the compiler");
     match pass {
