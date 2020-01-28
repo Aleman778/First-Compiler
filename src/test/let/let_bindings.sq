@@ -1,0 +1,17 @@
+// run-pass
+
+
+// Testing different let bindings.
+
+
+fn let_primitives() {
+    let x: i32 = 5;
+    print_int(x);
+    let y: bool = false;
+    print_bool(y);
+}
+
+
+fn main() {
+    let_primitives();
+}

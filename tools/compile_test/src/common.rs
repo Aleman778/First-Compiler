@@ -83,6 +83,7 @@ fn parse_pass(path: &Path) -> &str {
             if line.contains("// run-pass") { "run-pass" }
             else if line.contains("// build-pass") { "build-pass" }
             else if line.contains("// check-pass") { "check-pass" }
+            else if line.contains("// ignore") { "ignore" }
             else { "fail" }
         }
         Err(_) => "fail"

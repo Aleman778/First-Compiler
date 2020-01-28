@@ -20,7 +20,7 @@ extern "Rust" {
     /**
      * Prints the provided boolean.
      */
-    fn print_bool(val: i32);
+    fn print_bool(val: bool);
 
 
     /**

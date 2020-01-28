@@ -1,0 +1,11 @@
+// run-pass
+
+fn main() {
+    let a: i32;
+    let b: bool;
+    a = 10;
+    b = false;
+
+    assert_eq_int(a, 10);
+    assert_eq_bool(b, false);
+}

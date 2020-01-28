@@ -1,5 +1,7 @@
 // run-pass
 
+// Test assign a new value to mutable variable.
+
 fn test_assign() {
     let mut a: i32 = 5;
     a = a + a * 2;

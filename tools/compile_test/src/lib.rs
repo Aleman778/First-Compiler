@@ -79,6 +79,13 @@ pub fn generate_tests(item: TokenStream) -> TokenStream {
         let func_ident = proc_macro2::Ident::new(&test_name, proc_macro2::Span::call_site());
         expanded = concat_ts(expanded, quote! {
             #[test]
+        });
+        if test.pass == "ignore" {
+            expanded = concat_ts(expanded, quote! {
+                #[ignore]
+            });
+        }
+        expanded = concat_ts(expanded, quote! {
             fn #func_ident() {
                 #lambda(#test_pass, #test_file, #test_output);
             }

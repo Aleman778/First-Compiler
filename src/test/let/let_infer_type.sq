@@ -1,0 +1,6 @@
+
+// Type inference for let bindings is not supported currently by the compiler
+
+fn main() {
+    let a = 5;
+}
