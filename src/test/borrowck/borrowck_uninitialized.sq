@@ -1,0 +1,11 @@
+// ignore
+
+fn main() {
+    let x: i32;
+    borrow(&x);
+}
+
+
+fn borrow(x: &i32) -> i32 {
+    *x + 10
+}

@@ -1,0 +1,9 @@
+error: `b` does not live long enough
+  --> $DIR/borrowck_block_lifetime.sq:7:13
+   |
+LL |         a = &b;
+   |             ^^ borrowed value does not live long enough
+LL |     }
+   |     - `b` dropped here while still borrowed
+LL |     print_int(*a);
+   |               -- borrow later used here

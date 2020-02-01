@@ -61,6 +61,11 @@ impl SourceMap {
      * Loads a file from the given path.
      */
     pub fn load_file(&self, path: &Path) -> io::Result<Rc<SourceFile>> {
+        let load_path = if path.is_relative() {
+            self.abs_path(path)
+        } else {
+            path.to_path_buf()
+        };
         let mut mapper = self.mapper.lock().unwrap();
         let mut files = self.files.lock().unwrap();
         if let Some(file_id) = mapper.get(&Filename::Real(path.to_path_buf())) {
@@ -68,7 +73,7 @@ impl SourceMap {
                 return Ok(Rc::clone(src_file))
             }
         }
-        let source = fs::read_to_string(path)?;
+        let source = fs::read_to_string(load_path)?;
         let filename = Filename::Real(path.to_path_buf());
         let file_id = files.len();
         let src_file = Rc::new(SourceFile::new(file_id, filename.clone(), source, 0, 0));
@@ -159,7 +164,7 @@ pub struct SourceFile {
     pub id: usize,
     
     /// The filename of this source file.
-    pub filename: Filename,
+    pub name: Filename,
 
     /// The actual loaded source file.
     pub source: String,
@@ -187,7 +192,7 @@ impl SourceFile {
      */
     pub fn new(
         id: usize,
-        filename: Filename,
+        name: Filename,
         source: String,
         start_line: u32,
         start_pos: u32,
@@ -212,7 +217,7 @@ impl SourceFile {
         }
         SourceFile {
             id,
-            filename,
+            name,
             source,
             start_line,
             start_pos,
@@ -250,7 +255,7 @@ impl SourceFile {
  */
 impl fmt::Debug for SourceFile {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "SourceFile({})", self.filename)
+        write!(f, "SourceFile({})", self.name)
     }
 }
 

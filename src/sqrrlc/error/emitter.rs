@@ -14,6 +14,7 @@ use log::debug;
 use std::rc::Rc;
 use std::io;
 use std::io::Write;
+use std::ffi::OsStr;
 use std::cmp::{min, max, Reverse};
 use std::collections::HashMap;
 use termcolor::ColorSpec;
@@ -27,6 +28,9 @@ use crate::sqrrlc::error::{
 use crate::sqrrlc::source_map::*;
 
 
+const ANONYMIZED_LINENUM: &str = "LL";
+
+
 /**
  * The emitter struct prints the diagnostic information
  * to the console.
@@ -34,12 +38,12 @@ use crate::sqrrlc::source_map::*;
 pub struct Emitter {
     /// The writable destination.
     dest: Destination,
-                    
     /// The source map containing all the source files.
     sm: Rc<SourceMap>,
-
     /// The maximum width of the terminal.
-    terminal_width: Option<usize>
+    terminal_width: Option<usize>,
+    // Compile test flag, hide line number and dirctory.
+    compiletest: bool,
 }
 
 
@@ -55,6 +59,7 @@ impl Emitter {
         let dest = Destination::from_stderr(color_config);
         Emitter {
             sm: source_map,
+            compiletest: false,
             terminal_width,
             dest,
         }
@@ -73,7 +78,43 @@ impl Emitter {
         Emitter {
             sm: source_map,
             terminal_width,
+            compiletest: false,
             dest: Destination::Raw(dest, colored)
+        }
+    }
+
+
+    /**
+     * Change the compiletest flag in the emitter.
+     */
+    pub fn compile_test(mut self, compiletest: bool) -> Self {
+        self.compiletest = compiletest;
+        self
+    }
+
+
+    /**
+     * Converts linum to string, if anonymized set it to `LL`.
+     */
+    fn maybe_anonymized(&self, linum: usize) -> String {
+        if self.compiletest { ANONYMIZED_LINENUM.to_string() } else { linum.to_string() }
+    }
+
+
+    /**
+     * Transforms file names to strings.
+     * Note: anonymized files transforms  to `$DIR/file.sq`.
+     */
+    fn get_filename(&self, filename: &Filename) -> String {
+        match filename {
+            Filename::Real(path) => {
+                if self.compiletest {
+                    format!("$DIR/{}", path.file_name().map(|name| name.to_str().unwrap()).unwrap_or("<unknown>"))
+                } else {
+                    format!("{}", path.display())
+                }
+            },
+            _ => format!("{}", filename)
         }
     }
     
@@ -84,8 +125,12 @@ impl Emitter {
     pub fn emit_diagnostic(&mut self, d: &Diagnostic) {
         if d.cancelled() {
             return;
-        }        
-        let max_linum_len = self.get_max_linum_len(&d.span, &d.children);
+        }
+        let max_linum_len = if self.compiletest {
+            ANONYMIZED_LINENUM.len()
+        } else {
+            self.get_max_linum_len(&d.span, &d.children)
+        };
         self.emit_message(&d.level, &d.code, &d.message, &d.span, max_linum_len, false);
         for sub in &d.children {
             self.emit_message(
@@ -151,7 +196,7 @@ impl Emitter {
 
         for annotated_file in &annotated_files {
             let file = &annotated_file.file;
-            let is_primary = file.filename == primary_file.filename;
+            let is_primary = file.name == primary_file.name;
             self.draw_file_info(buf, annotated_file, max_linum_len, is_primary);
             let margin = self.calculate_margin(&annotated_file, max_linum_len);
             draw_col_separator_no_space(buf, buf.num_lines(), max_linum_len + 1);
@@ -255,9 +300,9 @@ impl Emitter {
             } else {
                 String::new()
             };
-            format!("{}:{}{}", annotated_file.file.filename, first_line.line_index, col)
+            format!("{}:{}{}", self.get_filename(&annotated_file.file.name), first_line.line_index, col)
         } else {
-            format!("{}", annotated_file.file.filename)
+            format!("{}", self.get_filename(&annotated_file.file.name))
         };
         buf.append(&loc, Style::LineAndColumn, buf_line_offset);
         buf.prepend(&" ".repeat(max_linum_len), Style::NoStyle, buf_line_offset);
@@ -513,7 +558,7 @@ impl Emitter {
         if margin.was_cut_right(line_len) {
             buf.puts("...", Style::LineNumber, line_offset, margin.code_offset + taken - 3);
         }
-        buf.puts(&line_index.to_string(), Style::LineNumber, line_offset, 0);
+        buf.puts(&self.maybe_anonymized(line_index), Style::LineNumber, line_offset, 0);
         draw_col_separator(buf, line_offset, margin.width_offset - 2);
     }
 

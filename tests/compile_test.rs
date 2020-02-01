@@ -21,7 +21,7 @@ generate_tests!("src/test/"; run_test);
  */
 pub fn run_test(pass: &str, file: &str, output: &str) {
     let command = env::var("SQRRLC_BIN").unwrap_or("sqrrlc".to_string());
-    let mut args = vec![OsStr::new("--nocolor")];
+    let mut args = vec![OsStr::new("--nocolor"), OsStr::new("--Zcompiletest")];
     if pass == "run-pass" {
         args.push(OsStr::new("-i"))
     };
@@ -34,9 +34,12 @@ pub fn run_test(pass: &str, file: &str, output: &str) {
         // Check that the test passed with correct stdout output.
         "run-pass" => {
             let actual = String::from_utf8_lossy(&compilation.stdout);
+            let actual = actual.trim();
             let error = String::from_utf8_lossy(&compilation.stderr);
+            let error = error.trim();
             if !output.is_empty() {
                 let expected = fs::read_to_string(Path::new(output)).unwrap().replace('\r', "");
+                let expected = expected.trim();
                 assert_eq!(actual, expected);
             } else {
                 assert_eq!(actual, "");
@@ -45,14 +48,17 @@ pub fn run_test(pass: &str, file: &str, output: &str) {
         }
         // Check that the test program was built without errors.
         "build-pass" | "check-pass" => {
-            let actual = String::from_utf8_lossy(&compilation.stderr);
-            assert_eq!(actual, "");
+            let error = String::from_utf8_lossy(&compilation.stderr);
+            let error = error.trim();
+            assert_eq!(error, "");
         }
         // Check that the test program failed to build with specific errors.
         _ => {
             let actual = String::from_utf8_lossy(&compilation.stderr);
+            let actual = actual.trim();
             if !output.is_empty() {
                 let expected = fs::read_to_string(Path::new(output)).unwrap().replace('\r', "");
+                let expected = expected.trim();
                 assert_eq!(actual, expected);
             } else {
                 assert_ne!(actual, "");

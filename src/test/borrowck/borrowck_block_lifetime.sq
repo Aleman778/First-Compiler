@@ -1,0 +1,10 @@
+// ignore
+
+fn main() {
+    let a: &i32;
+    {
+        let b: i32 = 5;
+        a = &b;
+    }
+    print_int(*a);
+}

@@ -1,6 +1,5 @@
 error: mismatched types
- --> src/test/let/let_infer_type.sq:5:13
-  |
-5 |     let a = 5;
-  |             ^ expected `()`, found `i32`
-
+  --> $DIR/let_infer_type.sq:5:13
+   |
+LL |     let a = 5;
+   |             ^ expected `()`, found `i32`

@@ -36,6 +36,18 @@ pub enum Input {
         name: Filename,
         /// The string containign the source code to compile.
         input: String
+    },
+    /// No input specified.
+    Empty,
+}
+
+
+impl Default for Input {
+    /**
+     * Default is empty input.
+     */
+    fn default() -> Self {
+        Input::Empty
     }
 }
 
@@ -44,6 +56,7 @@ pub enum Input {
  * Compiler configuations defines variables that
  * the compiler uses to build the program.
  */
+#[derive(Default)]
 pub struct Config {
     /// The input is the target that will be compiled.
     input: Input,
@@ -57,6 +70,8 @@ pub struct Config {
     interpret: bool,
     /// Disable colored text in errors.
     nocolor: bool,
+    /// Runs the compiler in testing mode.
+    compiletest: bool,
 }
 
 
@@ -76,8 +91,10 @@ pub fn run_compiler(config: Config) {
         ColorConfig::Always
     };
     let source_map = Rc::new(SourceMap::from_dir(&input_dir.as_path()));
+    let mut emitter = Emitter::stderr(Rc::clone(&source_map), None, color_config);
+    emitter = emitter.compile_test(config.compiletest);
     let mut sess = Session {
-        handler: Handler::new(Emitter::stderr(Rc::clone(&source_map), None, color_config)),
+        handler: Handler::new(emitter),
         working_dir: input_dir,
         source_map,
     };
@@ -97,6 +114,7 @@ pub fn run_compiler(config: Config) {
             }
         }
         Input::Code{name, input} => sess.source_map().add_from_source(name, input, 0, 0),
+        Input::Empty => { eprintln!("error: no input specified"); return; }
     };
     let span = ParseSpan::new_extra(&file.source, file.id);
     let mut ast = File::parse(span).unwrap().1;
@@ -129,7 +147,28 @@ pub fn parse_stdlib_basic(source_map: &SourceMap) -> Vec<Item> {
  * handles the command line interface.
  */
 pub fn main() {
-    use clap::{App, Arg, AppSettings};
+    use clap::{App, Arg, ArgMatches, AppSettings};
+
+
+    /**
+     * Creates basic compiler config with empty input.
+     */
+    fn make_compiler_config(matches: &ArgMatches) -> Config {
+        let output_path = matches.value_of("output").map(|s| Path::new(s));
+        let output_file = output_path.map(|p| PathBuf::from(p.file_name().unwrap()));
+        let output_dir = output_path.map(|p| p.parent().unwrap().to_path_buf());
+        let interpret = matches.is_present("interpret");
+        let nocolor = matches.is_present("nocolor");
+        let compiletest = matches.is_present("Zcompiletest");
+        Config {
+            output_file,
+            output_dir,
+            interpret,
+            nocolor,
+            compiletest,
+            ..Default::default()
+        }
+    }
     
     let matches = App::new("sqrrlc")
         .setting(AppSettings::ArgRequiredElseHelp)
@@ -154,51 +193,35 @@ pub fn main() {
              .help("Print version output and exit"))
         .arg(Arg::with_name("verbose")
              .short("v")
+             .long("verbose")
              .help("Enable verbose output"))
         .arg(Arg::with_name("nocolor")
              .long("nocolor")
              .help("Disables colored text in errors"))
+        .arg(Arg::with_name("Zcompiletest")
+             .long("Zcompiletest")
+             .help("Runs the compiler in testing mode")
+             .hidden(true))
         .get_matches();
 
     if matches.is_present("version") {
         const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
         println!("sqrrlc {}", VERSION.unwrap_or("unknown version"));
     }
-    
-    let interpret = matches.is_present("interpret");
-    let nocolor = matches.is_present("nocolor");
+    let mut config = make_compiler_config(&matches);
     if let Some(path_str) = matches.value_of("INPUT") {
         let input_path = Path::new(path_str);
-        let input = Input::File(input_path.to_path_buf());
-        let input_dir = if input_path.is_absolute() {
+        config.input = Input::File(input_path.to_path_buf());
+        config.input_dir = if input_path.is_absolute() {
             input_path.parent().map(|p| p.to_path_buf())
         } else {
             None
         };
-        let output_path = matches.value_of("output").map(|s| Path::new(s));
-        let output_file = output_path.map(|p| PathBuf::from(p.file_name().unwrap()));
-        let output_dir = output_path.map(|p| p.parent().unwrap().to_path_buf());
-        let config = Config {
-            input,
-            input_dir,
-            output_file,
-            output_dir,
-            interpret,
-            nocolor,
-        };
         run_compiler(config);
     } else if let Some(code) = matches.value_of("run") {
-        let input = Input::Code {
+        config.input = Input::Code {
             name: Filename::Custom(String::from("run")),
             input: String::from(code),
-        };
-        let config = Config {
-            input,
-            input_dir: None,
-            output_file: None,
-            output_dir: None,
-            interpret,
-            nocolor,
         };
         run_compiler(config);
     }

@@ -109,6 +109,7 @@ macro_rules! mismatched_types_err {
     })
 }
 
+
 #[macro_export]
 macro_rules! mismatched_return_type_err {
     ($session:expr, $fn_sym:expr, $ret_ty:expr) => ({
@@ -123,6 +124,7 @@ macro_rules! mismatched_return_type_err {
         $session.emit(&err);
     })
 }
+
 
 #[macro_export]
 macro_rules! mismatched_types_fatal {

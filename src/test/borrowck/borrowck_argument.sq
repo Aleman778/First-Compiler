@@ -1,0 +1,16 @@
+// ignore
+
+fn mutate(v: &mut i32) {
+    
+}
+
+
+fn foo(v: i32) {
+    mutate(v);
+}
+
+
+fn main() {
+    let x: &i32 = &10;
+    mutate(x);
+}

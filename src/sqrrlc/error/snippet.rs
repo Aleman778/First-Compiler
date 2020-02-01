@@ -162,7 +162,7 @@ fn add_annotation_to_file(
     ann: Annotation
 ) {
     for slot in file_vec.iter_mut() {
-        if slot.file.filename == file.filename {
+        if slot.file.name == file.name {
             for line_slot in &mut slot.lines {
                 if line_slot.line_index == line_index {
                     line_slot.annotations.push(ann);

@@ -220,6 +220,6 @@ impl cmp::PartialEq for Ty {
  */
 impl cmp::PartialEq for TypeRef {
     fn eq(&self, other: &TypeRef) -> bool {
-        self.elem == other.elem
+        self.elem == other.elem && self.mutable == other.mutable
     }
 }

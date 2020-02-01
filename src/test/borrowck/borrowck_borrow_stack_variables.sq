@@ -1,0 +1,37 @@
+// ignore
+
+// Testing the borrowing rules
+
+fn borrow_same_mut_twice() {
+    let mut x: i32 = 10;
+    let a: &mut i32 = &mut x;
+    let _b: &mut i32 = &mut x;
+    *a;
+}
+
+
+fn borrow_same_mut_imm() {
+    let mut x: i32 = 10;
+    let a: &mut i32 = &mut x;
+    let _b: &i32 = &x;
+    *a;
+}
+
+
+fn borrow_same_imm_mut() {
+    let mut x: i32 = 10;
+    let a: &i32 = &x;
+    let _b: &mut i32 = &mut x;
+    *a;
+}
+
+
+fn borrow_same_imm_imm() {
+    let mut x: i32 = 10;
+    let a: &i32 = &x;
+    let _b: &i32 = &x;
+    *a;
+}
+
+
+fn main() {}

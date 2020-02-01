@@ -1,0 +1,6 @@
+error: missing lifetime specifier
+  --> $DIR/borrowck_return_borrow.sq:10:29
+   |
+LL | fn returning_reference() -> &i32 {
+   |                             ^ help: consider giving it a 'static lifetime: `&'static`
+   |

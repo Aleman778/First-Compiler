@@ -1,10 +1,9 @@
 error: mismatched types
-  --> src/test/block_remove_semicolon.sq:7:18
+  --> $DIR/block_remove_semicolon.sq:7:18
    |
-7  |       let x: i32 = {
+LL |       let x: i32 = {
    |  __________________^
-8  | |
-9  | |         foo(); //~ error: mismatched types, remove semicolon
-10 | |     };
+LL | |
+LL | |         foo(); //~ error: mismatched types, remove semicolon
+LL | |     };
    | |_____^ expected `i32`, found `()`
-

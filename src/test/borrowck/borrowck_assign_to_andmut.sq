@@ -1,0 +1,15 @@
+// ignore
+
+fn a(s: &i32) {
+    *s = *s + 1;
+}
+
+fn b(s: &mut i32) {
+    *s = *s + 1;
+}
+
+fn c(s: & &mut i32) {
+    **s = **s + 1;
+}
+
+fn main() {}

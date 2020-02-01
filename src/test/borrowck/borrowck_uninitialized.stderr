@@ -1,0 +1,5 @@
+error: borrow of possibly uninitialized variable: `x`
+  --> $DIR/borrowck_uninitialized.sq:5:12
+   |
+LL |     borrow(&x);
+   |            ^^ use of possibly uninitialized `x`

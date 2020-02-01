@@ -1,0 +1,15 @@
+error: cannot assign to `*s` which is behind a `&` reference
+  --> $DIR/borrowck_assign_to_andmut.sq:4:5
+   |
+LL | fn a(s: &i32) {
+   |         ---- help: consider changing this to be a mutable reference: `&mut i32`
+LL |     *s = *s + 1;
+   |     ^^^^^^^^^^^ `s` is a `&` reference, so the data it refers to cannot be written
+
+error: cannot assign to `**s` which is behind a `&` reference
+  --> $DIR/borrowck_assign_to_andmut.sq:12:5
+   |
+LL | fn c(s: & &mut i32) {
+   |         ---------- help: consider changing this to be a mutable reference: `&mut &mut i32`
+LL |     **s = **s + 1;
+   |     ^^^^^^^^^^^^^ `s` is a `&` reference, so the data it refers to cannot be written

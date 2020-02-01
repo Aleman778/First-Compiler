@@ -1,0 +1,9 @@
+// ignore
+
+fn main() {
+    let mut a: i32 = 5;
+    let b: &i32 = &a;
+    a = a + 5;
+    print_int(a);
+    print_int(*b);
+}
