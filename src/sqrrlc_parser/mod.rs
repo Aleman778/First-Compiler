@@ -25,20 +25,17 @@ pub type ParseSpan<'a> = LocatedSpanEx<&'a str, usize>;
 type IResult<I, O, E = ParseError> = Result<(I, O), Err<E>>;
 
 
-/**
- * Parser trait defines a generic parser that should
- * be implemented by each structure of the AST.
- */
-pub trait Parser: Sized {
-    fn parse<'a>(input: ParseSpan) -> IResult<ParseSpan, Self>;
+struct Parser {
+    
 }
 
 
-pub mod error;
+
+// pub mod error;
 pub mod base;
-pub mod stmt;
-pub mod op;
-pub mod lit;
-pub mod expr;
-pub mod ty;
-pub mod comment;
+// pub mod stmt;
+// pub mod op;
+// pub mod lit;
+// pub mod expr;
+// pub mod ty;
+// pub mod comment;

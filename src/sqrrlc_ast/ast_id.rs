@@ -1,12 +1,10 @@
 
 /***************************************************************************
- * AST module implements an Abstract Syntax Tree data structure.
+ * Unique identifier of AST nodes.
  ***************************************************************************/
 
 
-mod ast;
-pub mod ast_id;
-pub mod span;
-    
-pub use ast::*;
-pub use ast_id::*;
+/**
+ * Identifier to an ast node.
+ */
+pub struct AstId(pub u32);

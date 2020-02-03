@@ -1,12 +1,11 @@
 
 /***************************************************************************
- * AST module implements an Abstract Syntax Tree data structure.
+ * The borrow checker module ensures that code is memory safe.
  ***************************************************************************/
 
 
-mod ast;
-pub mod ast_id;
-pub mod span;
+pub fn borrowck(File) {
+    let items = 
     
-pub use ast::*;
-pub use ast_id::*;
+    
+}
