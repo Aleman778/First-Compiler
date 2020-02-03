@@ -133,7 +133,6 @@ impl Span {
                 }
             }
         } else {
-            println!("{}", source);
             let fragment = lines[(self.start.line - 1) as usize];
             result.push_str(&fragment[(self.start.column - 1)..(self.end.column - 1)]);
         }

@@ -47,7 +47,7 @@ impl Parser for File {
                     output = span;
                 },
                 Err(Err::Error(e)) => {
-                    println!("{}", convert_error(&input, e));
+                    eprintln!("{}", convert_error(&input, e));
                     break;
                 },
                 _ => break,
