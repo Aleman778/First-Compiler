@@ -6,9 +6,11 @@
 
 
 use std::fmt;
-use crate::sqrrlc_parser::ParseSpan;
 
 
+/**
+ * The byte position in a source file.
+ */
 pub struct BytePos(pub u32);
 
 

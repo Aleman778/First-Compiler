@@ -33,16 +33,29 @@ impl<'a> Cursor<'a> {
      * Returns EOF if there are no more characters.
      */
     pub fn eat() -> char {
-        let char = 
+        if ptr < input.len() {
+            input[ptr++]
+        } else {
+            EOF
+        }
     }
 
 
     pub fn peek() -> char {
-
+        if ptr < input.len() {
+            input[ptr++]
+        } else {
+            EOF
+        }
     }
 
 
     pub fn consume() -> bool {
-        
+        if ptr < input.len() {
+            ptr++;
+            true
+        } else {
+            false
+        }
     }
 }
