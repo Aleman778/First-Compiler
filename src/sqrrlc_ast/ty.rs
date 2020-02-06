@@ -20,40 +20,6 @@ pub struct Ty {
 }
 
 
-/**
- * The different kinds of types supported.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub enum TyKind {
-    /// Different kinds of integer types e.g. `i32`.
-    Int(IntTy),
-
-    /// Boolean type defined by `bool`.
-    Bool,
-
-    /// Type reference is defined by `&` and another type.
-    Ref(TypeRef),
-
-    /// Infer means that no specific type was given and should infer to something.
-    Infer,
-
-    /// This type has no type, used for functions that does not return anything.
-    None,
-}
-
-
-/**
- * The different kinds of integer types.
- * The number defines the number of bits.
- * Default inferred type is `i32`.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub enum IntTy {
-    I32,
-    I64,
-}
-
-
 
 /**
  * Type reference struct defines the type as a reference.
