@@ -6,57 +6,7 @@
 
 
 use std::fmt;
-use crate::sqrrlc_ast::span::Span;
-
-
-/**
- * Binary  operators e.g. `+`, `&&`, `!` etc.
- */
-#[derive(Debug, Copy, Clone)]
-pub enum BinOp {
-    /// The `+` operator (addition)
-    Add{span: Span},
-    /// The `-` binary operator (subtraction)
-    Sub{span: Span},
-    /// The `*` operator (multiplication)
-    Mul{span: Span},
-    /// The `/` operator (division)
-    Div{span: Span},
-    /// The `**` operator (power)
-    Pow{span: Span},
-    /// The `%` operator (modulus)
-    Mod{span: Span},
-    /// The `&&` operator (logical and)
-    And{span: Span},
-    /// The `||` operator (logical or)
-    Or{span: Span},
-    /// The `=` operator (equality)
-    Eq{span: Span},
-    /// The `!=` operator (not equal to)
-    Ne{span: Span},
-    /// The `<` operator (less than)
-    Lt{span: Span},
-    /// The `<=` operator (less than or equal to)
-    Le{span: Span},
-    /// The `>` operator (greater than)
-    Gt{span: Span},
-    /// The `>=` operator (greater than or equal to)
-    Ge{span: Span},
-}
-
-
-/**
- * Unary operators e.g. `-`, `!`, `*` etc.
- */
-#[derive(Debug, Copy, Clone)]
-pub enum UnOp {
-    /// The `-` unary operator (negation)
-    Neg{span: Span},
-    /// The `!` operator (logical inversion)
-    Not{span: Span},
-    /// The `*` operator (dereferencing)
-    Deref{span: Span},
-}
+use crate::sqrrlc_ast::{BinOp, UnOp};
 
 
 /**

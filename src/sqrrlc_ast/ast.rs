@@ -1,33 +1,128 @@
-
-/***************************************************************************
- * Abstract Syntax Tree implementation
- ***************************************************************************/
+//! Implementation of Abstract Syntax Tree data structure.
+//! The root of the tree is 
 
 
-use crate::sqrrlc_ast::{
-    span::Span,
-    op::*,
-};
+use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc_ast::symbol::Symbol;
 
 
+/**
+ * Every node in the AST can be identified using this NodeId.
+ */
+#[derive(Clone, Copy, Debug)]
+pub struct NodeId(pub u32);
+
+
+/**
+ * Node is a general definintion of an AST node.
+ * A node can be for example an item, statement, expression etc.
+ * Every node has a parent node except for the root.
+ */
 #[derive(Clone, Debug)]
-pub struct Item {
+pub struct Node<'ast> {
+    pub parent: NodeId,
+    pub kind: NodeKind<'ast>,
+}
+
+
+/**
+ * An AST Node is the base object for every node in the tree.
+ */
+#[derive(Clone, Copy, Debug)]
+pub enum NodeKind<'ast> {
+    /// Item node defines e.g. functions, structs etc.
+    Item(&'ast Item<'ast>),
+    /// Statements is base type of AST but most statements are expressions.
+    Stmt(&'ast Stmt<'ast>),
+    /// Almost everything is expressions, except local variables and items.
+    Expr(&'ast Expr<'ast>),
+    /// Block contains list of statements.
+    Block(&'ast Block<'ast>),
+    /// Local variable declaration.
+    Local(&'ast Local<'ast>),
+    /// Type declaration.
+    Ty(&'ast Ty<'ast>),
+}
+
+
+/**
+ * Items are usually everything defined in global scope.
+ * However you can have nested items e.g. `fn test() { fn test2() { ... } ... }`
+ */
+#[derive(Debug)]
+pub struct Item<'ast> {
+    /// Identifier of this item.
+    pub ident: Ident,
+    /// The nodes identifier.
+    pub node_id: NodeId,
     /// Kind of item.
-    pub kind: ItemKind,
+    pub kind: ItemKind<'ast>,
+    /// The visibility of the item.
+    pub vis: Visibility,
     /// Location of item.
     pub span: Span,
 }
 
 
-#[derive(Clone, Copy, Debug)]
+/**
+ * Different kinds of items available.
+ */
+#[derive(Debug)]
 pub enum ItemKind<'ast> {
-    Fn(FnSig)
+    /// Function are defined by a signature and the block code.
+    Fn(FnSig<'ast>, &'ast Block<'ast>),
+    /// Foreign functions are defined only with a signature, code resides elsewhere.
+    ForeignFn(FnSig<'ast>),
 }
 
 
+/**
+ * Visibility of a specific item.
+ */
+#[derive(Clone, Debug)]
+struct Visibility {
+    /// Kind of visibility
+    pub kind: VisibilityKind,
+    /// Location of visibility notation.
+    pub span: Span,
+}
+
+
+/**
+ * Different kinds of outside visibility for items.
+ */
+#[derive(Clone, Copy, Debug)]
+pub enum VisibilityKind {
+    /// Public items are accessable from anywhere.
+    Public,
+    /// Private items are default when not specifying any visibility.
+    Private,
+}
+
+
+/**
+ * Function signature defines the attributes
+ * of a given function e.g. input/ output types.
+ */
+#[derive(Debug)]
+pub struct FnSig<'ast> {
+    /// Input arguments to function.
+    pub inputs: &'ast [Ty<'ast>],
+    /// Return type of function.
+    pub output: &'ast Ty<'ast>,
+}
+
+
+/**
+ * Blocks contains a vector of statements.
+ * Statements can be local variable, expressions and items.
+ * Mostly statements ends with a semicolon.
+ */
 #[derive(Clone, Debug)]
 pub struct Stmt<'ast> {
+    /// Kind of statement.
     pub kind: StmtKind<'ast>,
+    /// Location of statement.
     pub span: Span,
 }
 
@@ -39,16 +134,16 @@ pub struct Stmt<'ast> {
 #[derive(Clone, Copy, Debug)]
 pub enum StmtKind<'ast> {
     /// Let binding for local variable assignment e.g. `let a: i32 = 5;`.
-    Local(&'ast Local),
+    Local(&'ast Local<'ast>),
 
     /// Item definition.
-    Item(&'ast Item),
+    Item(&'ast Item<'ast>),
 
     /// Expression with a trailing semicolon.
-    Semi(&'ast Expr),
+    Semi(&'ast Expr<'ast>),
     
     /// An expression without a trailing semicolon.
-    Expr(&'ast Expr),
+    Expr(&'ast Expr<'ast>),
 }
 
 
@@ -60,7 +155,7 @@ pub struct Block<'ast> {
     /// Statements in the block.
     pub stmts: &'ast [&'ast Stmt<'ast>],
     /// The last expression, implicit returns.
-    pub expr: Option<&'ast Expr>,
+    pub expr: Option<&'ast Expr<'ast>>,
     /// The location of this block.
     pub span: Span,
 }
@@ -92,9 +187,9 @@ pub struct Local<'ast> {
 #[derive(Clone, Debug)]
 pub struct Expr<'ast> {
     /// The expression identifier.
-    pub ast_id: AstId,
+    pub node_id: NodeId,
     /// Kind of expression.
-    pub kind: ExprKind,
+    pub kind: ExprKind<'ast>,
     /// Location of expression.
     pub span: Span,
 }
@@ -118,37 +213,39 @@ enum ExprKind<'ast> {
     Call(&'ast Expr<'ast>, &'ast [&'ast Expr<'ast>]),
     
     /// Expression for continue statements e.g. `continue;`.
-    Continue(),
+    Continue,
     
     /// Expression for identifiers e.g. `foo`, `my_function`, `__PATH__`.
-    Ident(),
+    Ident(&'ast Ident),
     
     /// Expression for if statements e.g. `if a > 5 { a = 6; } else { a = 4; }`.
-    If(),
+    If(&'ast Expr<'ast>, &'ast Block<'ast>, &'ast Expr<'ast>),
     
     /// Expression for literals e.g. `32`, `true`.
-    Lit(),
+    Lit(&'ast Lit),
         
     /// Parenthesized expression e.g. `(5 + 3)`.
-    Paren(),
+    Paren(&'ast Expr<'ast>),
 
     /// Reference expression e.g. &342, &mut false.
-    Reference(),
+    Reference(&'ast Expr<'ast>),
     
     /// Expression for return statements e.g. `return true;`, `return;`.
-    Return(),
+    Return(&'ast Expr<'ast>),
     
     /// Expression for unary operations e.g. `-a`, `!is_err()`.
-    Unary(),
+    Unary(UnOp, &'ast Expr<'ast>),
     
     /// Expression for while statements e.g. `while true { do_something(); }`.
-    While(), 
+    While(&'ast Expr<'ast>, &'ast Block<'ast>),
 }
 
 
 
+#[derive(Clone, Debug)]
 pub struct Ident {
-
+    pub symbol: Symbol,
+    pub span: Span,
 }
 
 
@@ -169,12 +266,12 @@ pub struct Ty<'ast> {
  * Type reference struct defines the type as a reference.
  * e.g. `&mut i32` defines a mutable i32 type reference.
  */
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct TypeRef<'ast>{
     /// Mutable reference flag.
     pub mutable: bool,
-    /// Type element 
-    pub elem: Ty<'ast>,
+    /// Type element.
+    pub elem: &'ast Ty<'ast>,
     /// Location of type reference declaration.
     pub span: Span,
 }
@@ -183,12 +280,14 @@ pub struct TypeRef<'ast>{
 /**
  * The different kinds of types supported.
  */
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum TyKind<'ast> {
-    /// Different kinds of integer types e.g. `i32`.
+    /// Different kinds of signed integer types e.g. `i32`, `i8`.
     Int(IntTy),
-    ///
-    Float(FloatTy),
+    /// Different kinds of unsigned integer types e.g. `u32`, `u8`.
+    UInt(UIntTy),
+    /// Floating point types e.g. `f32` or `f64`.
+    Float(LitFloatTy),
     /// Boolean type defined by `bool`.
     Bool,
     /// Type reference is defined by `&` and another type.
@@ -243,6 +342,69 @@ pub enum UIntTy {
 
 
 /**
+ * Different integer types, either implicity
+ * signed and unsigned integers or unsuffixed integers.
+ * Unsuffixed will infere to correct int type.
+ */
+#[derive(Clone, Copy, Debug)]
+pub enum LitIntTy {
+    /// Signed integer type e.g. `42_i32`.
+    Signed(IntTy),
+    /// Unsigned integer type e.g. `42_u32`
+    Unsigned(UIntTy),
+    /// Unsuffixed integer type e.g. 
+    Unsuffixed,
+}
+
+
+#[derive(Clone, Copy, Debug)]
+pub enum LitFloatTy {
+    /// Suffixed float e.g. `32.55_f32`.
+    Suffixed(FloatTy),
+    /// Unsuffixed float e.g. `32.55`.
+    Unsuffixed,
+}
+
+
+#[derive(Clone, Debug)]
+pub struct Lit {
+    /// Kind of literal.
+    pub kind: LitKind,
+    /// Location of literal.
+    pub span: Span,
+}
+
+
+/**
+ * Different kinds of literals.
+ */
+#[derive(Clone, Debug)]
+pub enum LitKind {
+    /// String literal e.g. `"foo"` or `r#"foo"#`.
+    Str(Symbol, StrKind),
+    /// Byte literal e.g. `b'f'`.
+    Byte(u8),
+    /// Char literal e.g. `'a'`.
+    Char(char),
+    /// Int literal e.g. `52`
+    Int(u128, LitIntTy),
+    /// Boolean literals e.g. `false`.
+    Bool(bool),
+    
+}
+
+
+#[derive(Clone, Copy, Debug)]
+pub enum StrKind {
+    /// Normal string kind e.g. `"hello world"`.
+    Normal,
+    /// Raw string can contain symbol `"` and is defined as
+    /// `r##"Hello world "# number one?""##` <==> `Hello world "# number one?"`.
+    Raw(u16),
+}
+
+
+/**
  * Different kinds of floating point numbers.
  * There exists both 32-bit and 64-bit floating point numbers.
  * Note: f64 may also be called double in other languages.
@@ -257,16 +419,50 @@ pub enum FloatTy {
 
 
 /**
- * An AST Node is the base object for every node in the tree.
+ * Binary  operators e.g. `+`, `&&`, `!` etc.
  */
-#[derive(Clone, Copy, Debug)]
-pub enum Node<'ast> {
-    /// Item node defines e.g. functions, structs etc.
-    Item(&'ast Item<'ast>),
-    /// Statements are usually 
-    Stmt(&'ast Stmt<'ast>),
-    Expr(&'ast Expr<'ast>),
-    Block(&'ast Block<'ast>),
-    Local(&'ast Local<'ast>),
-    Ty(&'ast Ty<'ast>),
+#[derive(Debug, Copy, Clone)]
+pub enum BinOp {
+    /// The `+` operator (addition)
+    Add(Span),
+    /// The `-` binary operator (subtraction)
+    Sub(Span),
+    /// The `*` operator (multiplication)
+    Mul(Span),
+    /// The `/` operator (division)
+    Div(Span),
+    /// The `**` operator (power)
+    Pow(Span),
+    /// The `%` operator (modulus)
+    Mod(Span),
+    /// The `&&` operator (logical and)
+    And(Span),
+    /// The `||` operator (logical or)
+    Or(Span),
+    /// The `=` operator (equality)
+    Eq(Span),
+    /// The `!=` operator (not equal to)
+    Ne(Span),
+    /// The `<` operator (less than)
+    Lt(Span),
+    /// The `<=` operator (less than or equal to)
+    Le(Span),
+    /// The `>` operator (greater than)
+    Gt(Span),
+    /// The `>=` operator (greater than or equal to)
+    Ge(Span),
+}
+
+
+/**
+ * Unary operators e.g. `-`, `!`, `*` etc.
+ */
+#[derive(Debug, Copy, Clone)]
+pub enum UnOp {
+    /// The `-` unary operator (negation)
+    Neg(Span),
+    /// The `!` operator (logical inversion)
+    Not(Span),
+    /// The `*` operator (dereferencing)
+    Deref(Span),
 }

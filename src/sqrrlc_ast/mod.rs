@@ -5,9 +5,9 @@
 
 
 mod ast;
-pub mod ast_id;
+pub mod symbol;
 pub mod span;
 pub mod op;
-    
+
+
 pub use ast::*;
-pub use ast_id::*;

@@ -9,23 +9,31 @@ pub mod tokens;
 
 
 use std::iter::Iterator;
+use crate::sqrrlc_lexer::tokens::*;
+use crate::sqrrlc_lexer::cursor::*;
 
 
-pub fn tokenize(input: &str) -> impl Iterator<Item = Token> {
-    std::iter::from_fn(move || => {
+/**
+ * The tokenize method defines an iterator used to iterate
+ * through tokens that are lexed based on the provided input string.
+ */
+pub fn tokenize(input: &str) -> impl Iterator<Item = Token> + '_ {
+    let mut cursor = Cursor::new(input);
+    std::iter::from_fn(move || {
         if input.is_empty() {
             return None;
         }
-        let token = next_token();
-    });
+        let token = next_token(&mut cursor);
+        input = &input[token.len..];
+        Some(token)
+    })
 }
 
 
 
-
-
 pub fn next_token(cursor: &mut Cursor) -> Token {
-    
+    println!("{}", cursor.eat());
+    Token::new(Token::Unknown, 0)
 }
 
 

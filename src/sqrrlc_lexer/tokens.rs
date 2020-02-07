@@ -7,9 +7,9 @@
 /**
  * Tokens doesn't contain any data, only the token kind and length.
  */
-struct Token {
-    kind: TokenKind,
-    len: usize,
+pub struct Token {
+    pub kind: TokenKind,
+    pub len: usize,
 }
 
 
@@ -17,7 +17,7 @@ impl Token {
     /**
      * Creates a new token with specific kind and length.
      */
-    pub fn new(Kind: TokenKind, len: usize) -> Token {
+    pub fn new(kind: TokenKind, len: usize) -> Token {
         Token { kind, len }
     }
 }
@@ -26,7 +26,8 @@ impl Token {
 /**
  * Different kinds of common lexeme tokens.
  */
-enum TokenKind {
+#[derive(Clone, Copy, Debug)]
+pub enum TokenKind {
     /// Single Line comment e.g. `// comment` or `/// doc-comment`
     LineComment,
     /// Block comments e.g. `/* comment /* recursive */ */` or `/** doc-comment */`
@@ -103,7 +104,8 @@ enum TokenKind {
 /**
  * Different kinds of keyword lexem tokens.
  */
-enum KeywordKind {
+#[derive(Clone, Copy, Debug)]
+pub enum KeywordKind {
     /// Function keyword.
     Fn,
     /// While loop keyword.
@@ -121,20 +123,27 @@ enum KeywordKind {
 }
 
 
-enum LiteralKind {
+/**
+ * Different kinds of literal tokens.
+ */
+#[derive(Clone, Copy, Debug)]
+pub enum LiteralKind {
     /// Integer literal e.g. `12u8`, `0xFF`.
     Int { base: Radix },
-    /// String literal e.g. `"hello world!"`
+    /// Floating-point literal e.g. `32.52`, `0xb1111.11101`.
+    Float { base: Radix },
+    /// String literal e.g. `"hello world!"`.
     Str,
-
-    
+    /// Char literal e.g. `'a'`, `'\n'` etc.
+    Char,
 }
 
 
 /**
- * Different number  base used by literals
+ * Different kinds of radix supported for number literals.
  */
-enum Radix {
+#[derive(Clone, Copy, Debug)]
+pub enum Radix {
     /// Literals with binary base prefixed with `0b`.
     Binary,
     /// Literals with octal base prefixed with `0o`.
