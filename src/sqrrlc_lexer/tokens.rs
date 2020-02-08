@@ -31,14 +31,12 @@ pub enum TokenKind {
     /// Single Line comment e.g. `// comment` or `/// doc-comment`
     LineComment,
     /// Block comments e.g. `/* comment /* recursive */ */` or `/** doc-comment */`
-    BlockComment,
+    BlockComment { terminated: bool },
     /// Whitespace any kind of whitespace characters e.g. `\n`, `\t` etc.
     Whitespace,
-    /// Keyword can be e.g. `while`, `let` etc. See `KeywordKind` for more details.
-    Keyword { kind: KeywordKind },
     /// Identifier e.g. `hello_word`, `MyStruct`, `x` etc.
     Ident,
-    /// Identifiers starting with `r#` used for allowing keywords in identifiers.
+    /// Raw identifiers e.g. `r#while`.
     RawIdent,
     /// Literal tokens e.g. `10`, `"hello world!"`
     Literal { kind: LiteralKind },
@@ -102,40 +100,22 @@ pub enum TokenKind {
 
 
 /**
- * Different kinds of keyword lexem tokens.
- */
-#[derive(Clone, Copy, Debug)]
-pub enum KeywordKind {
-    /// Function keyword.
-    Fn,
-    /// While loop keyword.
-    While,
-    /// If statement keyword.
-    If,
-    /// Else statement keyword.
-    Else,
-    /// Let statement keyword.
-    Let,
-    /// Mutability keyword.
-    Mut,
-    /// Extern keyword for FFI.
-    Extern,
-}
-
-
-/**
  * Different kinds of literal tokens.
  */
 #[derive(Clone, Copy, Debug)]
 pub enum LiteralKind {
     /// Integer literal e.g. `12u8`, `0xFF`.
-    Int { base: Radix },
+    Int { radix: Radix },
     /// Floating-point literal e.g. `32.52`, `0xb1111.11101`.
-    Float { base: Radix },
-    /// String literal e.g. `"hello world!"`.
-    Str,
+    Float { radix: Radix },
     /// Char literal e.g. `'a'`, `'\n'` etc.
-    Char,
+    Char { terminated: bool },
+    /// Byte literal e.g. `b'4'` etc.
+    Byte { terminated: bool },
+    /// String literal e.g. `"hello world!"`.
+    Str { terminated: bool},
+    /// Raw string literals e.g. `r##"you are "#one""##` => `you are "#one"`
+    RawStr { num_hashes: usize, started: bool, terminated: bool },
 }
 
 

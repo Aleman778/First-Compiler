@@ -66,12 +66,4 @@ impl Span {
             len: (hi.0 - lo.0) as u16,
         }
     }
-
-
-    /**
-     * Creates a new span with base position and length.
-     */
-    pub fn new(base: u32, len: u16) -> Self {
-        Span { base, len }
-    }
 }

@@ -80,7 +80,7 @@ pub enum ItemKind<'ast> {
  * Visibility of a specific item.
  */
 #[derive(Clone, Debug)]
-struct Visibility {
+pub struct Visibility {
     /// Kind of visibility
     pub kind: VisibilityKind,
     /// Location of visibility notation.
@@ -196,7 +196,7 @@ pub struct Expr<'ast> {
 
 
 #[derive(Clone, Copy, Debug)]
-enum ExprKind<'ast> {
+pub enum ExprKind<'ast> {
        /// Expression for mutation for variable e.g. `a = calc()`.
     Assign(&'ast Expr<'ast>, &'ast Expr<'ast>),
     

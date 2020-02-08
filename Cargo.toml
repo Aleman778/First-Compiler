@@ -11,6 +11,7 @@ publish = false
 nom = "5"
 nom_locate = "1"
 termcolor = "1.0.5"
+unicode-xid = "0.2.0"
 unicode-width = "0.1.5"
 simple_logger = "1.4.0"
 clap = "2.33.0"
