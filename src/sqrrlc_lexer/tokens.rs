@@ -39,7 +39,7 @@ pub enum TokenKind {
     /// Raw identifiers e.g. `r#while`.
     RawIdent,
     /// Literal tokens e.g. `10`, `"hello world!"`
-    Literal { kind: LiteralKind },
+    Literal { kind: LitKind },
     /// Semicolon token `;`.
     Semi,
     /// Comma token `,`.
@@ -103,11 +103,11 @@ pub enum TokenKind {
  * Different kinds of literal tokens.
  */
 #[derive(Clone, Copy, Debug)]
-pub enum LiteralKind {
+pub enum LitKind {
     /// Integer literal e.g. `12u8`, `0xFF`.
-    Int { radix: Radix },
+    Int { radix: Radix, empty: bool },
     /// Floating-point literal e.g. `32.52`, `0xb1111.11101`.
-    Float { radix: Radix },
+    Float { radix: Radix, empty: bool },
     /// Char literal e.g. `'a'`, `'\n'` etc.
     Char { terminated: bool },
     /// Byte literal e.g. `b'4'` etc.

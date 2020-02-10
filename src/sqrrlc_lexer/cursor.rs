@@ -38,18 +38,18 @@ impl<'a> Cursor<'a> {
 
 
     /**
-     * Eats the current character and returns it.
+     * Consumes the current character and returns it.
      * Returns EOF_CHAR if there are no more characters.
      */
     pub fn eat(&mut self) -> char {
         self.len += 1;
         self.prev = self.chars.next().unwrap_or(EOF_CHAR);
-        prev
+        self.prev
     }
 
 
     /**
-     * Eats charaters until the predicate is false.
+     * Consumes charaters until the predicate is false.
      * The number of eaten characters is returned.
      */
     pub fn eat_while<P>(&mut self, mut predicate: P) -> usize
@@ -58,7 +58,7 @@ impl<'a> Cursor<'a> {
     {
         let mut eaten: usize = 0;
         while predicate(self.peek()) && self.is_hungry() {
-            eaten += 1;
+        eaten += 1;
             self.consume();
         }
         
@@ -103,7 +103,7 @@ impl<'a> Cursor<'a> {
     /**
      * Returns true there more characters to eat, false otherwise.
      */
-    pub fn is_hungry(&self) -> bool {
-        self.len < self.base_len
+    pub fn is_eof(&self) -> bool {
+        
     }
 }
