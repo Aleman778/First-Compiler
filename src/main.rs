@@ -19,11 +19,11 @@ extern crate nom;
 
 fn main() {
     // driver::main();
-    let input = "fn main() {return 1        \t \t +    a;}";
+    let input = "fn main() {return 1   \n     \t \t +    a;}";
     
     let mut ptr: usize = 0;
     let mut stream = sqrrlc_lexer::tokenize(input);
-    while let Some(token) = stream.next_token() {
+    while let Some(token) = stream.next() {
         println!("token_kind: {:?},\nlenth: {}", token.kind, token.len);
         println!("str: {}\n", &input[ptr..(ptr + token.len)]);
         ptr += token.len;

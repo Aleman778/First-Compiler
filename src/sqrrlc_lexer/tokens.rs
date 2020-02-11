@@ -38,8 +38,8 @@ pub enum TokenKind {
     Ident,
     /// Raw identifiers e.g. `r#while`.
     RawIdent,
-    /// Literal tokens e.g. `10`, `"hello world!"`
-    Literal { kind: LitKind },
+    /// Literal tokens e.g. `10_u8`, `"hello world!"`
+    Literal { kind: LitKind, suffix_start: usize },
     /// Semicolon token `;`.
     Semi,
     /// Comma token `,`.
@@ -107,15 +107,19 @@ pub enum LitKind {
     /// Integer literal e.g. `12u8`, `0xFF`.
     Int { radix: Radix, empty: bool },
     /// Floating-point literal e.g. `32.52`, `0xb1111.11101`.
-    Float { radix: Radix, empty: bool },
+    Float { radix: Radix, empty_exponent: bool },
     /// Char literal e.g. `'a'`, `'\n'` etc.
     Char { terminated: bool },
-    /// Byte literal e.g. `b'4'` etc.
+    /// Byte literal e.g. `b'4'.
     Byte { terminated: bool },
-    /// String literal e.g. `"hello world!"`.
-    Str { terminated: bool},
+    /// Byte string e.g. `b"Hello world!"`.
+    ByteStr { terminated: bool },
+    /// String literal e.g. `"Hello world!"`.
+    Str { terminated: bool },
     /// Raw string literals e.g. `r##"you are "#one""##` => `you are "#one"`
     RawStr { num_hashes: usize, started: bool, terminated: bool },
+    /// Raw byte string literals e.g. `br##"you are "#one""##`.
+    RawByteStr { num_hashes: usize, started: bool, terminated: bool }
 }
 
 

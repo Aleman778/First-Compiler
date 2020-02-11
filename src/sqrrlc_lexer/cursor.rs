@@ -5,21 +5,20 @@
 
 
 use std::str::Chars;
-use std::iter::Peekable;
 
 
 pub const EOF_CHAR: char = '\0';
 
 
 /**
- * Cursor struct includes the source code with
- * an incrementing cursor for helping the lexer.
+ * The cursor helps the lexical analysis by
+ * providing simple consuming and peeking of characters.
  */
 pub struct Cursor<'a> {
-    chars: Peekable<Chars<'a>>,
-    prev: char,
-    base_len: usize,
-    len: usize,
+    initial_len: usize,
+    chars: Chars<'a>,
+    #[cfg(debug_assertions)]
+    pub prev: char,
 }
 
 
@@ -29,10 +28,10 @@ impl<'a> Cursor<'a> {
      */
     pub fn new(input: &'a str) -> Self {
         Cursor {
-            chars: input.chars().peekable(),
+            initial_len: input.len(),
+            chars: input.chars(),
+            #[cfg(debug_assertions)]
             prev: EOF_CHAR,
-            base_len: input.len(),
-            len: 0,
         }
     }
 
@@ -41,10 +40,13 @@ impl<'a> Cursor<'a> {
      * Consumes the current character and returns it.
      * Returns EOF_CHAR if there are no more characters.
      */
-    pub fn eat(&mut self) -> char {
-        self.len += 1;
-        self.prev = self.chars.next().unwrap_or(EOF_CHAR);
-        self.prev
+    pub fn eat(&mut self) -> Option<char> {
+        let c = self.chars.next()?;
+        #[cfg(debug_assertions)]
+        {
+            self.prev = c;
+        }
+        return Some(c);
     }
 
 
@@ -57,53 +59,48 @@ impl<'a> Cursor<'a> {
         P: FnMut(char) -> bool
     {
         let mut eaten: usize = 0;
-        while predicate(self.peek()) && self.is_hungry() {
-        eaten += 1;
-            self.consume();
+        while predicate(self.first()) && !self.is_eof() {
+            eaten += 1;
+            self.eat();
         }
-        
         eaten
     }
 
 
     /**
-     * Peek at the next character without consuming it.
+     * Peek at the first character without consuming it.
      */
-    pub fn peek(&mut self) -> char {
-        *self.chars.peek().unwrap_or(&EOF_CHAR)
+    pub fn first(&mut self) -> char {
+        self.chars().nth(0).unwrap_or(EOF_CHAR)
     }
 
 
     /**
-     * Consume the next character, returns true
-     * if successful, false otherwise.
+     * Peek at the second character without consuming it.
      */
-    pub fn consume(&mut self) -> bool {
-        if self.is_hungry() {
-            self.len += 1;
-            self.prev = self.chars.next().unwrap_or(EOF_CHAR);
-            true
-        } else {
-            false
-        }
-    }
-    
+    pub fn second(&mut self) -> char {
+        self.chars().nth(1).unwrap_or(EOF_CHAR)
+    }    
+
 
     /**
-     * Resets the counters and returns the number of characters eaten.
+     * Returns the number of characters consumed.
      */
-    pub fn next(&mut self) -> usize {
-        let eaten = self.len;
-        self.base_len = self.base_len - self.len;
-        self.len = 0;
-        eaten
+    pub fn len_consumed(&self) -> usize {
+        self.initial_len - self.chars.as_str().len()
     }
 
+    /**
+     * Returns a `Chars` iterator over remaining characters.
+     */
+    pub fn chars(&self) -> Chars<'a> {
+        self.chars.clone()
+    }
     
     /**
      * Returns true there more characters to eat, false otherwise.
      */
     pub fn is_eof(&self) -> bool {
-        
+        self.chars.as_str().is_empty()
     }
 }

@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+`#![allow(dead_code)]
 
 /***************************************************************************
  * Expressions AST sub module defines all the different expressions in

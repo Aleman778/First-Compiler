@@ -1,72 +1,144 @@
 
 /***************************************************************************
- * The lexer stage of the compiler converts input source code and 
+ * The lexer stage of the compiler converts input source code and
  * converts it into tokens.
  ***************************************************************************/
-
 
 mod cursor;
 pub mod tokens;
 
-
-use std::iter::Iterator;
-use crate::sqrrlc_lexer::tokens::*;
 use crate::sqrrlc_lexer::cursor::*;
+use crate::sqrrlc_lexer::tokens::*;
+use std::iter::Iterator;
 
-use TokenKind::*;
 use LitKind::*;
-
+use TokenKind::*;
 
 /**
  * Tokenize the input string.
  */
-pub fn tokenize(mut input: &str) -> impl Iterator<Item = Token> + '_ {
-    std::iter::from_fn(move || {
-        if input.is_empty() {
-            return None
+pub fn tokenize(input: &str) -> TokenStream {
+    TokenStream::new(input)
+}
+
+
+/**
+ * The token stream implements an iterator over a stream of tokens
+ * that are lexed by the provided tokenizer.
+ */
+pub struct TokenStream<'a> {
+    input: &'a str,
+}
+
+
+impl<'a> TokenStream<'a> {
+    /**
+     * Creates a new token stream.
+     */
+    pub fn new(input: &'a str) -> TokenStream {
+        TokenStream { input }
+    }
+}
+
+
+impl<'a> Iterator for TokenStream<'a> {
+    /**
+     * The item type to iterate over is the Token struct.
+     */
+    type Item = Token;
+
+    /**
+     * Parses the next token, returns None if it has reached the end of file.
+     */
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.input.is_empty() {
+            return None;
         }
-        let token = advance_token(&mut Cursor::new(input));
-        input = &input[token.len..0];
+        let token = advance_token(&mut Cursor::new(&self.input));
+        self.input = &self.input[token.len..];
         Some(token)
-    })
+    }
 }
 
 
 /**
  * Parses the next token from input string.
+ * Panics if cursor has no more characters to consume.
  */
-fn advance_token(cursor: &mut Cursor) -> Token {
-    let first_char = cursor.eat();
-    let token_kind = match first_char {
-        // Matching against beginning slash.
-        '/' => match cursor.peek() {
-            '/' => line_comment(cursor),
-            '*' => block_comment(cursor),
-            _ => TokenKind::Slash,
+fn advance_token(cur: &mut Cursor) -> Token {
+    let token_kind = match cur.eat().unwrap() {
+        // Matching against beginning slash
+        '/' => match cur.first() {
+            '/' => line_comment(cur),
+            '*' => block_comment(cur),
+            _ => Slash,
         },
-        
-        // Match against whitespaces.
-        c if is_whitespace(c) => whitespace(cursor),
+
+        // Match against whitespaces
+        c if is_whitespace(c) => whitespace(cur),
+
+        // Matching against byte literals
+        'b' => match (cur.first(), cur.second()) {
+            ('\'', _) => {
+                cur.eat();
+                let terminated = eat_character(cur);
+                let kind = Byte { terminated };
+                let suffix_start = cur.len_consumed();
+                eat_literal_suffix(cur);
+                Literal { kind, suffix_start }
+            }
+            ('"', _) => {
+                cur.eat();
+                let terminated = eat_string(cur);
+                let kind = ByteStr { terminated };
+                let suffix_start = cur.len_consumed();
+                eat_literal_suffix(cur);
+                Literal { kind, suffix_start }
+            }
+            ('r', '"') | ('r', '#') => {
+                cur.eat();
+                let (num_hashes, started, terminated) = eat_raw_string(cur);
+                let kind = RawByteStr {
+                    num_hashes,
+                    started,
+                    terminated,
+                };
+                let suffix_start = cur.len_consumed();
+                eat_literal_suffix(cur);
+                Literal { kind, suffix_start }
+            }
+            _ => identifier(cur),
+        },
+
+        // Matching against raw literals
+        'r' => match (cur.first(), cur.second()) {
+            ('#', c) if is_ident_start(c) => raw_identifier(cur),
+            ('#', _) | ('"', _) => {
+                let (num_hashes, started, terminated) = eat_raw_string(cur);
+                let kind = RawStr {
+                    num_hashes,
+                    started,
+                    terminated,
+                };
+                let suffix_start = cur.len_consumed();
+                eat_literal_suffix(cur);
+                Literal { kind, suffix_start }
+            }
+            _ => identifier(cur),
+        },
+
+        // Matching against identifiers and keywords
+        c if is_ident_start(c) => identifier(cur),
 
         // Matching against number literals
-        '0'..='9' => Literal { kind: number_literal(cursor) },
+        c @ '0'..='9' => {
+            let kind = number(cur, c);
+            let suffix_start = cur.len_consumed();
+            eat_literal_suffix(cur);
+            Literal { kind, suffix_start }
+        }
 
-        'b' => if cursor.peek() == '\'' {
-            Literal { kind: byte_literal(cursor) },
-        },
-
-        // Matching against strings
-        '"' => Literal { kind: string_literal(cursor) },
-
-        // Matching against raw identifiers
-        'r' => if cursor.peek() == '#' {
-            raw_identifier(cursor);
-        },
-
-        // Matching against identifiers and keywords.
-        c if is_ident_start(c) => identifier(cursor),
-
-        // Matching against single character tokens.
+        // Matching against single character tokens
         ';' => Semi,
         '.' => Dot,
         '(' => OpenParen,
@@ -90,59 +162,86 @@ fn advance_token(cursor: &mut Cursor) -> Token {
         '&' => And,
         '|' => Or,
         '*' => Star,
-        '/' => Slash,
         '^' => Caret,
         '%' => Percent,
-        
-        // No matched characters, unknown token type.
+
+        // Natching agains character literal
+        '\'' => {
+            let terminated = eat_character(cur);
+            let kind = Char { terminated };
+            let suffix_start = cur.len_consumed();
+            eat_literal_suffix(cur);
+            Literal { kind, suffix_start }
+        }
+
+        // Matching against string literal
+        '"' => {
+            let terminated = eat_string(cur);
+            let kind = Str { terminated };
+            let suffix_start = cur.len_consumed();
+            eat_literal_suffix(cur);
+            Literal { kind, suffix_start }
+        }
+
+        // No matched characters, unknown token type
         _ => Unknown,
     };
-    Token::new(token_kind, cursor.num_eaten())
+    Token::new(token_kind, cur.len_consumed())
 }
 
 
 /**
  * Parses line comment token.
  */
-fn line_comment(cursor: &mut Cursor) -> TokenKind {
-    cursor.consume();
-    cursor.eat_while(|c| c != '\n');
+fn line_comment(cur: &mut Cursor) -> TokenKind {
+    debug_assert!(cur.prev == '/');
+    cur.eat();
+    debug_assert!(cur.prev == '/');
+    cur.eat_while(|c| c != '\n');
     LineComment
 }
 
 
 /**
  * Parses block comment token. e.g.
- * /* ... */ or nested /* ... /* ... */ */ 
+ * /* ... */ or nested /* ... /* ... */ */
  */
-fn block_comment(cursor: &mut Cursor) -> TokenKind {
-    cursor.consume();
+fn block_comment(cur: &mut Cursor) -> TokenKind {
+    debug_assert!(cur.prev == '/');
+    cur.eat();
+    debug_assert!(cur.prev == '/');
     let mut depth: usize = 1;
-    while let Some(c) = cursor.eat() {
+    while let Some(c) = cur.eat() {
         match c {
-            '/' => if cursor.peek() == '*' {
-                cursor.consume();
-                depth += 1;
-            },
-            '*' => if cursor.peek() == '/' {
-                cursor.consume();
-                depth -= 1;
-                if depth == 0 {
-                    break;
+            '/' => {
+                if cur.first() == '*' {
+                    cur.eat();
+                    depth += 1;
+                }
+            }
+            '*' => {
+                if cur.first() == '/' {
+                    cur.eat();
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
                 }
             }
             _ => (),
         }
     }
-    BlockComment { terminated: depth == 0 }
+    BlockComment {
+        terminated: depth == 0,
+    }
 }
 
 
 /**
  * Parses whitespace token.
  */
-fn whitespace(cursor: &mut Cursor) -> TokenKind {
-    cursor.eat_while(|c| is_whitespace(c));
+fn whitespace(cur: &mut Cursor) -> TokenKind {
+    cur.eat_while(|c| is_whitespace(c));
     Whitespace
 }
 
@@ -150,92 +249,108 @@ fn whitespace(cursor: &mut Cursor) -> TokenKind {
 /**
  * Parsers numberical literal token.
  */
-fn number_literal(cursor: &mut Cursor) -> LitKind {
-    let radix = Radix::Decimal;
-    let first_char = cursor.prev;
+fn number(cur: &mut Cursor, first_char: char) -> LitKind {
+    debug_assert!(cur.prev.is_digit(10));
+    let mut radix = Radix::Decimal;
     if first_char == '0' {
-        let has_digits = match cursor.peek() {
+        let has_digits = match cur.first() {
             // Binary prefix
             'b' => {
                 radix = Radix::Binary;
-                cursor.consume();
-                eat_decimal_digits(cursor)
+                cur.eat();
+                eat_decimal_digits(cur)
             }
             // Octal prefix
             'o' => {
                 radix = Radix::Octal;
-                cursor.consume();
-                eat_decimal_digits(cursor)
+                cur.eat();
+                eat_decimal_digits(cur)
             }
             // Hexadecimal prefix
             'x' => {
                 radix = Radix::Hexadecimal;
-                cursor.consume();
-                eat_decimal_digits(cursor)
+                cur.eat();
+                eat_decimal_digits(cur)
             }
             // No radix prefix
             '0'..='9' | '_' | '.' | 'e' | 'E' => {
-                eat_decimal_digits(cursor);
+                eat_decimal_digits(cur);
                 true
             }
             // Integer number 0
-            _ => return Int { radix, empty: false }
+            _ => {
+                return Int {
+                    radix,
+                    empty: false,
+                }
+            }
         };
 
+        // There are no digits after the prefix.
         if !has_digits {
-            return Int { radix, empty: true }
+            return Int { radix, empty: true };
         }
     } else {
-        eat_decimal_digits(cursor);
+        eat_decimal_digits(cur);
     }
 
-    // Floating point numbers
-    match cursor.peek() {
-
+    // Optional floating point numbers
+    match cur.first() {
+        // Floating point number with decimal place,
+        // Note: it could be range pattern or method call, e.g. `0..10` or `0.test()`
+        '.' => {
+            if cur.second() != '.' && !is_ident_start(cur.second()) {
+                cur.eat();
+                eat_decimal_digits(cur);
+                let empty_exponent = if cur.first() == 'e' || cur.first() == 'E' {
+                    !eat_float_exponent(cur)
+                } else {
+                    false
+                };
+                Float {
+                    radix,
+                    empty_exponent,
+                }
+            } else {
+                Int {
+                    radix,
+                    empty: false,
+                }
+            }
+        }
+        'e' | 'E' => {
+            let empty_exponent = !eat_float_exponent(cur);
+            Float {
+                radix,
+                empty_exponent,
+            }
+        }
+        _ => Int {
+            radix,
+            empty: false,
+        },
     }
-}
-
-
-fn character_literal(cursor &mut Cursor) -> {
-
-}
-
-
-fn byte_literal(cursor: &mut Cursor) -> {
-
-}
-
-
-fn string_literal(cursor: &mut Cursor) -> {
-
-}
-
-
-fn raw_string_literal(cursor: &mut Cursor) -> {
-
 }
 
 
 /**
  * Parses indentifier or keyword.
  */
-fn identifier(cursor: &mut Cursor) -> TokenKind {
-    cursor.eat_while(|c| is_ident_continue(c));
+fn identifier(cur: &mut Cursor) -> TokenKind {
+    debug_assert!(is_ident_start(cur.prev));
+    cur.eat_while(is_ident_continue);
     Ident
 }
 
 
 /**
- * Prases raw identifiers
+ * Parses raw identifiers.
  */
-fn raw_identifier(cursor: &mut Cursor) -> TokenKind {
-    cursor.consume();
-    let c = cursor.peek();
-    if is_ident_start(c) {
-        cursor.identifier()
-    } else {
-        Unknown
-    }
+fn raw_identifier(cur: &mut Cursor) -> TokenKind {
+    debug_assert!(cur.prev == 'r' || cur.first() == '#' || is_ident_start(cur.second()));
+    cur.eat();
+    cur.eat_while(is_ident_continue);
+    RawIdent
 }
 
 
@@ -243,18 +358,18 @@ fn raw_identifier(cursor: &mut Cursor) -> TokenKind {
  * Consumes characters while the next character is
  * either a decimal digit or an underscore character.
  */
-fn eat_decimal_digits(cursor: &mut Cursor) -> bool {
+fn eat_decimal_digits(cur: &mut Cursor) -> bool {
     let mut has_digits = false;
     loop {
-        match cursor.peek() {
+        match cur.first() {
             '_' => {
-                cursor.consume();
+                cur.eat();
             }
             '0'..='9' => {
                 has_digits = true;
-                cursor.consume();
+                cur.eat();
             }
-            _ => break
+            _ => break,
         }
     }
     has_digits
@@ -262,25 +377,168 @@ fn eat_decimal_digits(cursor: &mut Cursor) -> bool {
 
 
 /**
- * Consumes characters while the next character is 
+ * Consumes characters while the next character is
  * either a hexadecimal digit or an underscore character.
  */
-fn eat_hexdecimal_digits(cursor: &mut Cursor) -> bool {
+fn eat_hexadecimal_digits(cur: &mut Cursor) -> bool {
     let mut has_digits = false;
     loop {
-        match cursor.peek() {
+        match cur.first() {
             '_' => {
-                cursor.consume();
+                cur.eat();
             }
-            'a'..='f' |
-            'A'..='F' |
-            '0'..='9' => {
+            'a'..='f' | 'A'..='F' | '0'..='9' => {
                 has_digits = true;
-                cursor.consume();
+                cur.eat();
             }
+            _ => break,
         }
     }
     has_digits
+}
+
+
+/**
+ * Eats float exponent characters e.g. e+5 or E-4 etc.
+ * Returns true if exponent has digits, false otherwise.
+ */
+fn eat_float_exponent(cur: &mut Cursor) -> bool {
+    debug_assert!(cur.prev == 'e' || cur.prev == 'E');
+    cur.eat();
+    if cur.first() == '+' || cur.first() == '-' {
+        cur.eat();
+    }
+    eat_decimal_digits(cur)
+}
+
+
+/**
+ * Eats a suffix which is just an identifier.
+ */
+fn eat_literal_suffix(cur: &mut Cursor) {
+    if is_ident_start(cur.first()) {
+        cur.eat_while(is_ident_continue);
+    }
+}
+
+
+/**
+ * Eats a character literal, returns true if it was terminated,
+ * i.e. ended with `'` character.
+ */
+fn eat_character(cur: &mut Cursor) -> bool {
+    debug_assert!(cur.prev == '\'');
+    match cur.first() {
+        // Defines an escape character
+        '\\' => {
+            eat_escape_character(cur);
+        }
+        // Illegal characters.
+        '\n' | '\t' | '\r' | '\'' => (),
+        // Match any other character.
+        _ => {
+            cur.eat();
+        }
+    }
+    if cur.first() == '\'' {
+        cur.eat();
+        true
+    } else {
+        false
+    }
+}
+
+
+/**
+ * Eats a string literal, returns true if it was terminated,
+ * i.e. ended with `"` character.
+ */
+fn eat_string(cur: &mut Cursor) -> bool {
+    debug_assert!(cur.prev == '"');
+    while let Some(c) = cur.eat() {
+        match c {
+            // String is terminated.
+            '"' => {
+                return true;
+            }
+            '\\' => eat_escape_character(cur),
+            // Eat the ecaped token.
+            _ => (),
+        }
+    }
+    false
+}
+
+
+/**
+ * Eats a raw string literal, returns tuple containing the following:
+ * - number of hashes used
+ * - has the string started
+ * - has the string terminated
+ */
+fn eat_raw_string(cur: &mut Cursor) -> (usize, bool, bool) {
+    debug_assert!(cur.prev == 'r');
+    let num_hashes = cur.eat_while(|c| c == '#');
+    let mut started = false;
+    let mut terminated = false;
+    if cur.first() == '"' {
+        cur.eat();
+        started = true;
+    }
+    while let Some(c) = cur.eat() {
+        match c {
+            // String is terminated.
+            '"' => {
+                let found = cur.eat_while(|c| c == '#');
+                if found == num_hashes {
+                    terminated = true;
+                    break;
+                }
+            }
+            _ => (),
+        }
+    }
+    (num_hashes, started, terminated)
+}
+
+
+/**
+ * Consumes next character if is an escape character.
+ * Returns true if consumed, false otherwise.
+ */
+fn eat_escape_character(cur: &mut Cursor) {
+    debug_assert!(cur.prev == '\\');
+    match cur.first() {
+        // ASCII escape characters.
+        'x' => {
+            cur.eat();
+            if cur.first().is_digit(7) {
+                cur.eat();
+            }
+            if cur.second().is_digit(15) {
+                cur.eat();
+            }
+        }
+        'n' | 't' | 'r' | '\\' | '0' => {
+            cur.eat();
+        }
+        // Unicode escape character.
+        'u' => {
+            cur.eat();
+            if cur.second() == '{' {
+                cur.eat();
+                eat_hexadecimal_digits(cur);
+                if cur.first() == '}' {
+                    cur.eat();
+                }
+            }
+        }
+        // Quote escape characters.
+        '\'' | '\"' => {
+            cur.eat();
+        }
+        _ => (),
+    }
 }
 
 
@@ -296,14 +554,11 @@ fn is_whitespace(c: char) -> bool {
         | '\u{000C}' // form feed
         | '\u{000D}' // \r
         | '\u{0020}' // space
-
         // NEXT LINE from latin1
         | '\u{0085}'
-
         // Bidi markers
         | '\u{200E}' // LEFT-TO-RIGHT MARK
         | '\u{200F}' // RIGHT-TO-LEFT MARK
-
         // Dedicated whitespace characters from Unicode
         | '\u{2028}' // LINE SEPARATOR
         | '\u{2029}' // PARAGRAPH SEPARATOR
@@ -320,7 +575,6 @@ fn is_ident_start(c: char) -> bool {
     ('a' <= c && c <= 'z')
         || ('A' <= c && c <= 'Z')
         || c == '_'
-        || (c > '\x7f' && unicode_xid::UnicodeXID::is_xid_start(c))
 }
 
 
@@ -332,5 +586,4 @@ fn is_ident_continue(c: char) -> bool {
         || ('A' <= c && c <= 'Z')
         || ('0' <= c && c <= '9')
         || c == '_'
-        || (c > '\x7f' && unicode_xid::UnicodeXID::is_xid_continue(c))
 }
