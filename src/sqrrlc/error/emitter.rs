@@ -670,13 +670,13 @@ impl Emitter {
     fn get_multispan_max_len(&self, span: &MultiSpan) -> usize {
         let mut max_len = 0;
         for span in &span.primary_spans {
-            let linum = self.sm.lookup_linum(&span);
-            max_len = max_len.max(linum.to_string().len());
+            let line = self.sm.lookup_line(span.hi()).map(|lf| lf.1).unwrap_or(0);
+            max_len = max_len.max(line.to_string().len());
         }
         
         for span_label in &span.span_labels {
-            let linum = self.sm.lookup_linum(&span_label.0);
-            max_len = max_len.max(linum.to_string().len());
+            let line = self.sm.lookup_line(span_label.0.hi()).map(|lf| lf.1).unwrap_or(0);
+            max_len = max_len.max(line.to_string().len());
         }
         max_len
     }

@@ -68,7 +68,7 @@ impl SourceMap {
         };
         let filename = Filename::Real(path.to_path_buf());
         let source = fs::read_to_string(load_path)?;
-        let src_file = self.insert_source_file(self, filename, source);
+        let src_file = self.insert_source_file(filename, source);
         Ok(src_file)
     }
 
@@ -84,7 +84,10 @@ impl SourceMap {
         }
         let file_idx = files.len();
         let start_pos = self.get_next_pos();
-        let src_file = Rc::new(SourceFile::new(file_idx, filename.clone(), source, ));
+        let src_file = Rc::new(SourceFile::new(file_idx,
+                                               filename.clone(),
+                                               source,
+                                               BytePos::new(start_pos)));
         mapper.insert(filename, file_idx);
         files.push(Rc::clone(&src_file));
         src_file
@@ -96,8 +99,8 @@ impl SourceMap {
      * If the filename is not available then None is returned instead.
      */
     pub fn get_file(&self, file_idx: usize) -> Option<Rc<SourceFile>> {
-        debug_assert!(file_idx < self.files.len());
         let files = self.files.lock().unwrap();
+        debug_assert!(file_idx < files.len());
         match files.get(file_idx) {
             Some(src_file) => Some(Rc::clone(src_file)),
             None => None,
@@ -123,9 +126,10 @@ impl SourceMap {
      */
     pub fn lookup_file_idx(&self, pos: BytePos) -> usize {
         self.files
-            .borrow()
+            .lock()
+            .unwrap()
             .binary_search_by_key(&pos, |file| file.start_pos)
-            .unwrap_or(|p| p - 1);
+            .unwrap_or_else(|p| p - 1)
     }
     
     
@@ -147,17 +151,17 @@ impl SourceMap {
     pub fn lookup_char_pos(&self, pos: BytePos) -> Location {
         match self.lookup_line(pos) {
             Ok((file, line)) => {
-                let column = pos - line;
+                let col = pos.index() - line;
                 Location {
                     file,
                     line,
-                    column,
+                    col,
                 }
             }
             Err(file) => Location {
                 file,
                 line: 0,
-                column: pos.index(),
+                col: pos.index(),
             }
         }
     }
@@ -176,7 +180,7 @@ impl SourceMap {
      * Get the next available start position.
      */
     fn get_next_pos(&self) -> usize {
-        match self.files.borrow().last() {
+        match self.files.lock().unwrap().last() {
             Some(last) => last.end_pos.index() + 1,
             None => 0,
         }
@@ -216,23 +220,22 @@ impl SourceFile {
         source: String,
         start_pos: BytePos,
     ) -> Self {
-
-        let end_pos = start_pos + (source.len() as u32);
-        let mut curr_pos = start_pos.0;
+        let end_pos = BytePos::new(start_pos.index() + source.len());
+        let mut curr_pos = start_pos.index();
         let mut lines = vec![start_pos];
         let mut remaining = source.as_str();
         loop {
             match remaining.find("\n") {
                 Some(pos) => {
-                    curr_pos += (pos as u32) + 1;
-                    lines.push(curr_pos);
+                    curr_pos += pos+ 1;
+                    lines.push(BytePos::new(curr_pos));
                     remaining = remaining.split_at(pos + 1).1;
                 },
                 None => break,
             }
         }
-        if lines.last() != Some(&(source.len() as u32)) {
-            lines.push(start_pos.0 + source.len() as u32);
+        if lines.last() != Some(&BytePos::new(source.len())) {
+            lines.push(BytePos::new(start_pos.index() + source.len()));
         }
         SourceFile {
             idx,
@@ -250,7 +253,7 @@ impl SourceFile {
      */
     pub fn get_line(&self, line: u32) -> String {
         let (left, right) = self.get_line_bounds(line);
-        let mut string = self.source[(left as usize)..(right as usize)].to_string();
+        let mut string = self.source[left.index()..right.index()].to_string();
         let line_len = string.trim_end().len();
         string.truncate(line_len);
         return string;
@@ -260,7 +263,7 @@ impl SourceFile {
     /**
      * Returns the left and right position of the line in the source code.
      */
-    pub fn get_line_bounds(&self, line: u32) -> (u32, u32) {
+    pub fn get_line_bounds(&self, line: u32) -> (BytePos, BytePos) {
         let line = line as usize;
         (self.lines[line - 1], self.lines[line])
     }

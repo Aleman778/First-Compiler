@@ -81,7 +81,7 @@ impl Diagnostic {
     /**
      * Set the primary span of this diagnostic.
      */
-    pub fn primary_span(&mut self, span: SpanData) {
+    pub fn primary_span(&mut self, span: Span) {
         if !span.is_empty() {
             self.span.primary_spans.push(span);
         }
@@ -91,7 +91,7 @@ impl Diagnostic {
     /**
      * Create a new span label for the given 
      */
-    pub fn span_label(&mut self, span: SpanData, label: &str) -> &mut Self {
+    pub fn span_label(&mut self, span: Span, label: &str) -> &mut Self {
         if !span.is_empty() {
             self.span.span_labels.push((span, label.to_owned()));
         }

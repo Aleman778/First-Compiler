@@ -48,14 +48,14 @@ impl FileWithAnnotatedLines {
         for span_label in &msp.span_labels() {
             let lo = sm.lookup_char_pos(span_label.span.lo());
             let mut hi = sm.lookup_char_pos(span_label.span.hi());
-            if lo.line == hi.line && lo.column == hi.column {
-                hi.0 += 1;
+            if lo.line == hi.line && lo.col == hi.col {
+                hi.col += 1;
             }
 
             if lo.line == hi.line {
                 let ann = Annotation {
-                    start_col: lo.column,
-                    end_col: hi.column,
+                    start_col: lo.col,
+                    end_col: hi.col,
                     is_primary: span_label.is_primary,
                     label: span_label.label.clone(),
                     annotation_type: AnnotationType::SingleLine,
@@ -66,8 +66,8 @@ impl FileWithAnnotatedLines {
                     depth: 1,
                     line_start: lo.line as usize,
                     line_end: hi.line as usize,
-                    start_col: lo.column,
-                    end_col: hi.column,
+                    start_col: lo.col,
+                    end_col: hi.col,
                     is_primary: span_label.is_primary,
                     label: span_label.label.clone(),
                     overlaps_exactly: false,

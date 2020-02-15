@@ -28,7 +28,8 @@ impl BytePos {
     /**
      * Creates a new byte position from usize number.
      */
-    fn new(n: usize) {
+    #[inline]
+    pub fn new(n: usize) -> Self {
         BytePos(n as u32)
     }
     
@@ -36,36 +37,9 @@ impl BytePos {
     /**
      * Get the index number of this byte position.
      */
-    fn index(&self) -> usize {
+    #[inline]
+    pub fn index(&self) -> usize {
         self.0 as usize
-    }
-}
-
-
-/**
- * Span data holds the low and high byte position in a given program source.
- * Whenever possible use Span instead as this data structure currently takes 8 bytes.
- */
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Ord, PartialOrd)]
-pub struct SpanData {
-    /// The low byte position.
-    pub lo: BytePos,
-    /// The high byte position.
-    pub hi: BytePos,
-}
-
-
-impl SpanData {
-    /**
-     * Convert span data into regular span with specific lo byte position.
-     */
-    pub fn with_lo(&self, lo: BytePos) -> Span {
-        Span::new(lo, self.hi)
-    }
-
-
-    pub fn with_hi(&self, hi: BytePos) -> Span {
-        Span::new(self.lo, hi)
     }
 }
 
@@ -110,8 +84,11 @@ impl Span {
     }
 
 
+    /**
+     * Get the high byte position of this span.
+     */
     pub fn hi(self) -> BytePos {
-        BytePos(self.base + (self.len as u32));
+        BytePos(self.base + (self.len as u32))
     }
 }
 

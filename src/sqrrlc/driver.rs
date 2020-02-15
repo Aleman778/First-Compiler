@@ -114,7 +114,7 @@ pub fn run_compiler(config: Config) {
                 }
             }
         }
-        Input::Code{name, input} => sess.source_map().add_from_source(name, input, 0, 0),
+        Input::Code{name, input} => sess.source_map().insert_source_file(name, input),
         Input::Empty => { eprintln!("error: no input specified"); return; }
     };
     // let span = ParseSpan::new_extra(&file.source, file.id);
@@ -143,6 +143,7 @@ pub fn parse_stdlib_basic(_source_map: &SourceMap) -> Vec<Item> {
     // println!("{:#?}", ast);
     // ast.items
     // debug::debug_functions().items
+    vec![]
 }
     
 
