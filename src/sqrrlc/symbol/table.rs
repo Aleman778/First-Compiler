@@ -9,8 +9,8 @@ use std::fmt;
 use std::collections::HashMap;
 use crate::sqrrlc::symbol::*;
 use crate::sqrrlc_ast::{
-    expr::ExprIdent,
     span::Span,
+    Ident,
 };
 
 
@@ -43,7 +43,7 @@ pub struct Scope {
     symbols: HashMap<String, Symbol>,
     
     /// The identifier used by this scope e.g. function name.
-    ident: ExprIdent,
+    ident: Ident,
 
     /// The span location of this scope.
     span: Span,
@@ -83,7 +83,7 @@ impl SymbolTable {
     /**
      * Push a symbol with the identifier to the current scope.
      */
-    pub fn push_symbol(&mut self, ident: &ExprIdent, symbol: Symbol){
+    pub fn push_symbol(&mut self, ident: &Ident, symbol: Symbol){
         self.scopes[self.curr_ptr].push_symbol(ident, symbol);
     }
 
@@ -108,7 +108,7 @@ impl SymbolTable {
     /**
      * Find a symbol from the given identifier.
      */
-    pub fn find_symbol(&mut self, ident: &ExprIdent) -> Option<&Symbol> {
+    pub fn find_symbol(&mut self, ident: &Ident) -> Option<&Symbol> {
         let mut ptr = self.curr_ptr;
         loop {
             let scope = &self.scopes[ptr];
@@ -126,7 +126,7 @@ impl SymbolTable {
     /**
      * Find a variable symbol with the given identifier.
      */
-    pub fn find_var_symbol(&mut self, ident: &ExprIdent) -> Option<&VarSymbol> {
+    pub fn find_var_symbol(&mut self, ident: &Ident) -> Option<&VarSymbol> {
         match self.find_symbol(ident) {
             Some(symbol) => match symbol {
                 Symbol::Var(var) => Some(&var),
@@ -144,7 +144,7 @@ impl SymbolTable {
      * Note: parser can support functions inside other functions.
      * this will have to change to support that.
      */
-    pub fn find_fn_symbol(&self, ident: &ExprIdent) -> Option<&FnSymbol> {
+    pub fn find_fn_symbol(&self, ident: &Ident) -> Option<&FnSymbol> {
         match self.scopes[0].find_symbol(ident) {
             Some(sym) => match sym {
                 Symbol::Fn(func) => Some(&func),
@@ -168,7 +168,7 @@ impl SymbolTable {
     /**
      * Returns the identifier of the current scope.
      */
-    pub fn current_id(&self) -> &ExprIdent {
+    pub fn current_id(&self) -> &Ident {
         &self.scopes[self.curr_ptr].ident
     }
 
@@ -191,7 +191,7 @@ impl Scope {
      * Creates a new empty symbol table, without an identifier.
      */
     pub fn new(span: Span) -> Self {
-        Scope::with_ident(span, ExprIdent {
+        Scope::with_ident(span, Ident {
             to_string: "".to_string(),
             span,
         })
@@ -201,7 +201,7 @@ impl Scope {
     /**
      * Creates a new empty symbol table with spcific identifier.
      */
-    pub fn with_ident(span: Span, ident: ExprIdent) -> Self {
+    pub fn with_ident(span: Span, ident: Ident) -> Self {
         Scope {
             symbols: HashMap::new(),
             ident: ident,
@@ -214,7 +214,7 @@ impl Scope {
     /**
      * Push a new symbol entry to this table.
      */
-    pub fn push_symbol(&mut self, ident: &ExprIdent, sym: Symbol) {
+    pub fn push_symbol(&mut self, ident: &Ident, sym: Symbol) {
         self.symbols.insert(ident.to_string.clone(), sym);
     }
 
@@ -222,7 +222,7 @@ impl Scope {
     /**
      * Find a symbol from the given identifier.
      */
-    pub fn find_symbol(&self, ident: &ExprIdent) -> Option<&Symbol> {
+    pub fn find_symbol(&self, ident: &Ident) -> Option<&Symbol> {
         self.symbols.get(&ident.to_string)
     }
 }

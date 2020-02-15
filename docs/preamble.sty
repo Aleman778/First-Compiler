@@ -1,0 +1,42 @@
+\ProvidesPackage{preamble}
+
+%% Load packages
+\usepackage{fullpage}
+\usepackage{amsmath,amsthm,amsfonts,amssymb,amscd}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage[utf8]{inputenc}
+%% \usepackage[parfill]{parskip}
+
+%% Change link colors
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  linkbordercolor={0 0 1}
+}
+
+%% Set images file path
+\graphicspath{{./images/}}
+
+%% Change the design of the title page.
+\renewcommand*{\maketitle}{
+  \begin{titlepage}
+    \centering
+    \vspace*{\fill}
+    
+    {\huge \title \par}
+    \vspace{0.5cm}
+
+    {\Large \courseName, \textbf\courseCode \par}
+    \vspace{0.5cm}
+
+    {\Large \authorName \\ \authorEmail \par}
+
+    {\Large \par}
+    \vspace{0.5cm}
+
+    {\Large \today \par}
+
+    \vfill
+  \end{titlepage}
+}

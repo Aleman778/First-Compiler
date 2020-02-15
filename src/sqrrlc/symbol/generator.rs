@@ -7,36 +7,24 @@ use crate::sqrrlc::{
     symbol::table::{SymbolTable, Scope},
     symbol::*,
 };
-use crate::sqrrlc_ast::{
-    expr::Expr,
-    stmt::*,
-    base::*,
-};
+use crate::sqrrlc_ast::*;
 
 
 /**
  * Geneerates a symbol table from the given file AST.
  */
-pub fn gen_sym_table(file: &File) -> SymbolTable {
-    let mut table = SymbolTable::new(file.span);
-    file.gen_sym_table(&mut table);
+pub fn gen_sym_table(ast: &Node) -> SymbolTable {
+    let mut table = SymbolTable::new(ast.span);
+    ast.gen_sym_table(&mut table);
     table.reset_ptr();
     table
 }
 
 
 /**
- * Generate symbol table trait.
- */
-trait GenSymbolTable {
-    fn gen_sym_table(&self, table: &mut SymbolTable);
-}
-
-
-/**
  * Generate symbol table for a file AST node.
  */
-impl GenSymbolTable for File {
+impl GenSymbolTable for  {
     fn gen_sym_table(&self, table: &mut SymbolTable) {
         for item in &self.items {
             item.gen_sym_table(table);

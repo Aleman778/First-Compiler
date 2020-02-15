@@ -10,7 +10,7 @@ use crate::sqrrlc::error::{
     Level,
     snippet::{Style, StyledString},
 };
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc::span::*;
 
 
 /**
@@ -81,7 +81,7 @@ impl Diagnostic {
     /**
      * Set the primary span of this diagnostic.
      */
-    pub fn primary_span(&mut self, span: Span) {
+    pub fn primary_span(&mut self, span: SpanData) {
         if !span.is_empty() {
             self.span.primary_spans.push(span);
         }
@@ -91,7 +91,7 @@ impl Diagnostic {
     /**
      * Create a new span label for the given 
      */
-    pub fn span_label(&mut self, span: Span, label: &str) -> &mut Self {
+    pub fn span_label(&mut self, span: SpanData, label: &str) -> &mut Self {
         if !span.is_empty() {
             self.span.span_labels.push((span, label.to_owned()));
         }
@@ -176,84 +176,4 @@ impl fmt::Display for Level {
             Level::Cancelled => f.write_str("cancelled"),
         }
     }
-}
-
-
-/**
- * Multi span struct is a data structure that holds mutliple spans
- * used for error dignostics.
- */
-#[derive(Debug)]
-pub struct MultiSpan {
-    /// The primary span defines where the error is located, highlighted with `^^^`.
-    pub primary_spans: Vec<Span>,
-
-    /// Span lables are secondary but some can provide labels to primary spans.
-    pub span_labels: Vec<(Span, String)>,
-}
-
-
-/**
- * Implementation of multispan.
- */
-impl MultiSpan {
-    /**
-     * Creates a new empty multispan object.
-     */
-    pub fn new() -> Self {
-        MultiSpan {
-            primary_spans: vec![],
-            span_labels: vec![],
-        }
-    }
-
-
-    /**
-     * Returns the primary span.
-     */
-    pub fn primary_span(&self) -> Option<Span> {
-        self.primary_spans.first().cloned()
-    }
-    
-    
-    /**
-     * Returns list of span labels.
-     */
-    pub fn span_labels(&self) -> Vec<SpanLabel> {
-        let is_primary = |span| self.primary_spans.contains(&span);
-        let mut span_labels = self.span_labels.iter().map(|&(span, ref label)|
-            SpanLabel {
-                span: span,
-                is_primary: is_primary(span),
-                label: Some(label.clone()),
-            }
-        ).collect::<Vec<_>>();
-
-        for &span in &self.primary_spans {
-            if !span_labels.iter().any(|sl| sl.span == span) {
-                span_labels.push(SpanLabel {
-                    span,
-                    is_primary: true,
-                    label: None,
-                });
-            }
-        }
-        span_labels
-    }
-}
-
-
-/**
- * Span label struct defines a span with an attacked label.
- */
-#[derive(Debug)]
-pub struct SpanLabel {
-    /// The span to include in the snippet.
-    pub span: Span,
-
-    /// Is this a primary span? Underline those with ^^^ versus ---.
-    pub is_primary: bool,
-
-    /// What label should be attached to this span (if any)?
-    pub label: Option<String>,
 }

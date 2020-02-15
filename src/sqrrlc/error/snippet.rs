@@ -9,10 +9,8 @@
 use std::rc::Rc;
 use std::cmp::{min, max};
 use crate::sqrrlc::source_map::*;
-use crate::sqrrlc::error::{
-    Level,
-    diagnostic::*,
-};
+use crate::sqrrlc::error::Level;
+use crate::sqrrlc::span::MultiSpan;
 
 
 /**
@@ -41,45 +39,40 @@ impl FileWithAnnotatedLines {
      */
     pub fn collect_annotations(
         msp: &MultiSpan,
-        source_map: &SourceMap
+        sm: &SourceMap
     ) -> Vec<FileWithAnnotatedLines> {
         
         let mut output = vec![];
         let mut multiline_annotations = vec![];
 
         for span_label in &msp.span_labels() {
-            let start = span_label.span.start;
-            let mut end = span_label.span.end;
-            let file;
-            match source_map.get_file(span_label.span.loc) {
-                Some(rc_file) => file = rc_file,
-                None => continue,
-            };
-            if start.column == end.column && start.line == end.line {
-                end.column += 1;
+            let lo = sm.lookup_char_pos(span_label.span.lo());
+            let mut hi = sm.lookup_char_pos(span_label.span.hi());
+            if lo.line == hi.line && lo.column == hi.column {
+                hi.0 += 1;
             }
 
-            if start.line == end.line {
+            if lo.line == hi.line {
                 let ann = Annotation {
-                    start_col: start.column,
-                    end_col: end.column,
+                    start_col: lo.column,
+                    end_col: hi.column,
                     is_primary: span_label.is_primary,
                     label: span_label.label.clone(),
                     annotation_type: AnnotationType::SingleLine,
                 };
-                add_annotation_to_file(&mut output, file, start.line as usize, ann);
+                add_annotation_to_file(&mut output, lo.file, lo.line as usize, ann);
             } else {
                 let ann = MultilineAnnotation {
                     depth: 1,
-                    line_start: start.line as usize,
-                    line_end: end.line as usize,
-                    start_col: start.column,
-                    end_col: end.column,
+                    line_start: lo.line as usize,
+                    line_end: hi.line as usize,
+                    start_col: lo.column,
+                    end_col: hi.column,
                     is_primary: span_label.is_primary,
                     label: span_label.label.clone(),
                     overlaps_exactly: false,
                 };
-                multiline_annotations.push((file, ann));
+                multiline_annotations.push((lo.file, ann));
             }
         }
 

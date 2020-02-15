@@ -8,7 +8,7 @@
 use std::sync::Mutex;
 use termcolor::{Color, ColorSpec};
 use crate::sqrrlc::error::{emitter::Emitter, diagnostic::*};
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc::span::Span;
 
 
 pub struct Handler(Mutex<HandlerInner>);

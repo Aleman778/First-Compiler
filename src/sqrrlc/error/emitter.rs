@@ -1,10 +1,8 @@
+//! Emitter is responsible for creating a textual representation of
+//! one or multipel error diagnostics.
+
 #![allow(dead_code)]
 #![allow(unused_variables)]
-
-/***************************************************************************
- * The `emitter` module is used to convert diagnostic to string
- * Note: this code is based on the rust compiler (but simplified).
- ***************************************************************************/
 
 
 extern crate unicode_width;
@@ -26,6 +24,7 @@ use crate::sqrrlc::error::{
     snippet::*,
 };
 use crate::sqrrlc::source_map::*;
+use crate::sqrrlc::span::*;
 
 
 const ANONYMIZED_LINENUM: &str = "LL";
@@ -183,11 +182,14 @@ impl Emitter {
         let annotated_files = FileWithAnnotatedLines::collect_annotations(msp, &self.sm);
         let (primary_file, primary_span) = if let Some(span) = msp.primary_span() {
             (
-                if let Some(file) = self.sm.get_file(span.loc) {
-                    file
-                } else {
-                    return;
-                },
+                {
+                    let file_idx = self.sm.lookup_file_idx(BytePos(span.base));
+                    if let Some(file) = self.sm.get_file(file_idx) {
+                        file
+                    } else {
+                        return;
+                    }
+                },   
                 span
             )
         } else {
@@ -669,12 +671,12 @@ impl Emitter {
     fn get_multispan_max_len(&self, span: &MultiSpan) -> usize {
         let mut max_len = 0;
         for span in &span.primary_spans {
-            let linum = self.sm.lookup_linum(&span) + span.end.line;
+            let linum = self.sm.lookup_linum(&span);
             max_len = max_len.max(linum.to_string().len());
         }
         
         for span_label in &span.span_labels {
-            let linum = self.sm.lookup_linum(&span_label.0) + span_label.0.end.line;
+            let linum = self.sm.lookup_linum(&span_label.0);
             max_len = max_len.max(linum.to_string().len());
         }
         max_len

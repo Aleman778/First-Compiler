@@ -6,9 +6,7 @@
 
 
 use std::fmt;
-use crate::sqrrlc_ast::{
-    ty::Ty,
-};
+use crate::sqrrlc_ast::Ty;
 
 
 /**

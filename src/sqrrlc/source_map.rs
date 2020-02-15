@@ -1,8 +1,8 @@
-
-/***************************************************************************
- * The `source_map` module holds the source code of the program that
- * is being compiled, 
- ***************************************************************************/
+//! Source Map maps primarly maps filenames to source files
+//! for ease of access. The source map also provides tools for
+//! converting global byte positions to local files and local position.
+//! This is useful for error diagnostics since spans are always represented
+//! using a global byte position and requires this conversion.
 
 
 use std::{fmt, io, fs};
@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::Mutex;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc::span::*;
 
 
 /**
@@ -33,7 +33,7 @@ pub enum Filename {
 pub struct SourceMap {
     /// The list of loaded files
     files: Mutex<Vec<Rc<SourceFile>>>,
-    /// The file mapper, maps filenames to file ids.
+    /// The file mapper, maps filenames to file indices.
     mapper: Mutex<HashMap<Filename, usize>>,
     /// The current working directory.
     working_dir: PathBuf,
@@ -66,54 +66,39 @@ impl SourceMap {
         } else {
             path.to_path_buf()
         };
-        let mut mapper = self.mapper.lock().unwrap();
-        let mut files = self.files.lock().unwrap();
-        if let Some(file_id) = mapper.get(&Filename::Real(path.to_path_buf())) {
-            if let Some(src_file) = files.get(*file_id) {
-                return Ok(Rc::clone(src_file))
-            }
-        }
-        let source = fs::read_to_string(load_path)?;
         let filename = Filename::Real(path.to_path_buf());
-        let file_id = files.len();
-        let src_file = Rc::new(SourceFile::new(file_id, filename.clone(), source, 0, 0));
-        
-        mapper.insert(filename, file_id);
-        files.push(Rc::clone(&src_file));
+        let source = fs::read_to_string(load_path)?;
+        let src_file = self.insert_source_file(self, filename, source);
         Ok(src_file)
     }
 
 
     /**
-     * Adds source code without using any files.
+     * Insert new source file with the given filename and source string.
      */
-    pub fn add_from_source(
-        &self,
-        filename: Filename,
-        source: String,
-        line: u32,
-        col: u32
-    ) -> Rc<SourceFile> {
+    pub fn insert_source_file(&self, filename: Filename, source: String) -> Rc<SourceFile> {
         let mut mapper = self.mapper.lock().unwrap();
         let mut files = self.files.lock().unwrap();
-        if let Some(src_file) = mapper.get(&filename).map(|id| files.get(*id).unwrap()) {
+        if let Some(src_file) = mapper.get(&filename).map(|idx| files.get(*idx).unwrap()) {
             return Rc::clone(src_file)
         }
-        let file_id = files.len();
-        let src_file = Rc::new(SourceFile::new(file_id, filename.clone(), source, line, col));
-        mapper.insert(filename, file_id);
+        let file_idx = files.len();
+        let start_pos = self.get_next_pos();
+        let src_file = Rc::new(SourceFile::new(file_idx, filename.clone(), source, ));
+        mapper.insert(filename, file_idx);
         files.push(Rc::clone(&src_file));
         src_file
     }
-
+    
 
     /**
-     * Returns the source file with given file id.
+     * Returns the source file with given file idx.
      * If the filename is not available then None is returned instead.
      */
-    pub fn get_file(&self, file_id: usize) -> Option<Rc<SourceFile>> {
+    pub fn get_file(&self, file_idx: usize) -> Option<Rc<SourceFile>> {
+        debug_assert!(file_idx < self.files.len());
         let files = self.files.lock().unwrap();
-        match files.get(file_id) {
+        match files.get(file_idx) {
             Some(src_file) => Some(Rc::clone(src_file)),
             None => None,
         }
@@ -121,27 +106,59 @@ impl SourceMap {
 
 
     /**
-     * Returns the file id of the given filename.
+     * Returns the file idx of the given filename.
      * If the filename is unmapped then None is returned instead.
      */
-    pub fn get_file_id(&self, filename: Filename) -> Option<usize> {
+    pub fn get_file_idx(&self, filename: Filename) -> Option<usize> {
         let mapper = self.mapper.lock().unwrap();
         match mapper.get(&filename) {
-            Some(file_id) => Some(*file_id),
+            Some(file_idx) => Some(*file_idx),
             None => None,
         }
     }
+
+
+    /**
+     * Get source file by binary searching using span base position.
+     */
+    pub fn lookup_file_idx(&self, pos: BytePos) -> usize {
+        self.files
+            .borrow()
+            .binary_search_by_key(&pos, |file| file.start_pos)
+            .unwrap_or(|p| p - 1);
+    }
+    
     
     
     /**
-     * Returns the line number from looked up file based on the provided span.
-     * If the file is not loaded then assume it starts at line 0.
+     * Looks up the line of source file containing the given position.
      */
-    pub fn lookup_linum(&self, span: &Span) -> u32 {
-        let file = self.get_file(span.loc);
-        return match file {
-            Some(file) => (&file).start_line,
-            None => 0u32,
+    pub fn lookup_line(&self, pos: BytePos) -> Result<(Rc<SourceFile>, usize), Rc<SourceFile>> {
+        let file_idx = self.lookup_file_idx(pos);
+        return match self.get_file(file_idx) {
+            Some(file) => match file.lines.binary_search(&pos) {
+                Ok(line) => Ok((file, line)),
+                Err(line) => Err(file),
+            }
+            None => panic!("byte position is out of range"),
+        }
+    }
+
+    pub fn lookup_char_pos(&self, pos: BytePos) -> Location {
+        match self.lookup_line(pos) {
+            Ok((file, line)) => {
+                let column = pos - line;
+                Location {
+                    file,
+                    line,
+                    column,
+                }
+            }
+            Err(file) => Location {
+                file,
+                line: 0,
+                column: pos.index(),
+            }
         }
     }
     
@@ -153,6 +170,17 @@ impl SourceMap {
     fn abs_path(&self, path: &Path) -> PathBuf {
         self.working_dir.join(path)
     }
+    
+
+    /**
+     * Get the next available start position.
+     */
+    fn get_next_pos(&self) -> usize {
+        match self.files.borrow().last() {
+            Some(last) => last.end_pos.index() + 1,
+            None => 0,
+        }
+    }
 }
 
 
@@ -160,26 +188,18 @@ impl SourceMap {
  * A single source file stored in the `SourceMap`.
  */
 pub struct SourceFile {
-    /// The file id given in the source map.
-    pub id: usize,
-    
+    /// The file idx given in the source map.
+    pub idx: usize,
     /// The filename of this source file.
     pub name: Filename,
-
     /// The actual loaded source file.
     pub source: String,
-
-    /// The starting line.
-    pub start_line: u32,
-
     /// The starting position.
-    pub start_pos: u32,
-
+    pub start_pos: BytePos,
     /// The end position.
-    pub end_pos: u32,
-
+    pub end_pos: BytePos,
     /// The list of positions where each line starts.
-    pub lines: Vec<u32>,
+    pub lines: Vec<BytePos>,
 }
 
 
@@ -191,15 +211,14 @@ impl SourceFile {
      * Creates a new source file.
      */
     pub fn new(
-        id: usize,
+        idx: usize,
         name: Filename,
         source: String,
-        start_line: u32,
-        start_pos: u32,
+        start_pos: BytePos,
     ) -> Self {
 
         let end_pos = start_pos + (source.len() as u32);
-        let mut curr_pos = 0;
+        let mut curr_pos = start_pos.0;
         let mut lines = vec![start_pos];
         let mut remaining = source.as_str();
         loop {
@@ -213,13 +232,12 @@ impl SourceFile {
             }
         }
         if lines.last() != Some(&(source.len() as u32)) {
-            lines.push(source.len() as u32);
+            lines.push(start_pos.0 + source.len() as u32);
         }
         SourceFile {
-            id,
+            idx,
             name,
             source,
-            start_line,
             start_pos,
             end_pos,
             lines

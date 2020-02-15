@@ -6,7 +6,6 @@
 
 mod ast;
 pub mod symbol;
-pub mod span;
 pub mod op;
 
 

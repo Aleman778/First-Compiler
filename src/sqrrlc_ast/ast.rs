@@ -2,7 +2,7 @@
 //! The root of the tree is 
 
 
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc::span::Span;
 use crate::sqrrlc_ast::symbol::Symbol;
 
 
@@ -22,6 +22,7 @@ pub struct NodeId(pub u32);
 pub struct Node<'ast> {
     pub parent: NodeId,
     pub kind: NodeKind<'ast>,
+    pub span: Span,
 }
 
 

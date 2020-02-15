@@ -12,7 +12,7 @@ use crate::sqrrlc::{
     error::{diagnostic::*, emitter::Emitter, Handler},
     source_map::SourceMap,
 };
-use crate::sqrrlc_ast::span::Span;
+use crate::sqrrlc::span::Span;
 
 
 /**

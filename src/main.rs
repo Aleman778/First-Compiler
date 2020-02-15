@@ -9,6 +9,7 @@
 
 use sqrrlc::sqrrlc_ast;
 use sqrrlc::sqrrlc_lexer;
+use sqrrlc::sqrrlc_parser;
 
 #[macro_use]
 extern crate clap;
@@ -19,10 +20,12 @@ extern crate nom;
 
 fn main() {
     // driver::main();
-    let input = "fn main() {return 1   \n     \t \t +    a;}";
+    let input = "1 + 2";
     
     let mut ptr: usize = 0;
     let mut stream = sqrrlc_lexer::tokenize(input);
+    // let mut parser = Parser { ts: stream };
+    // println!("{:#?}", parser.parse_expr());
     while let Some(token) = stream.next() {
         println!("token_kind: {:?},\nlenth: {}", token.kind, token.len);
         println!("str: {}\n", &input[ptr..(ptr + token.len)]);

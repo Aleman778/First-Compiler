@@ -1,10 +1,7 @@
-
-/***************************************************************************
- * Styled Buffer is used to create diagnostic messages and code snippets.
- * This makes it possible to easilty put characters where ever in the text.
- * There is also possible to assign a style to each character.
- * Note: this code is based on the rust compiler (but somewhat simplified).
- ***************************************************************************/
+//! Styled Buffer is used to create diagnostic messages and code snippets.
+//! This makes it possible to easilty put characters where ever in the text.
+//! There is also possible to assign a style to each character.
+//! Note: this code is based on the rust compiler (but somewhat simplified).
 
 
 use crate::sqrrlc::error::{

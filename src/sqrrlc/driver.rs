@@ -14,12 +14,12 @@ use crate::sqrrlc::{
     error::{emitter::Emitter, Handler},
     utils::ColorConfig,
     source_map::{SourceMap, Filename},
-    symbol::generator::gen_sym_table,
+    // symbol::generator::gen_sym_table,
 };
-use crate::sqrrlc_ast::base::{File, Item};
-use crate::sqrrlc_parser::{Parser, ParseSpan};
-use crate::sqrrlc_interp::env::RuntimeEnv;
-use crate::sqrrlc_typeck::{TypeChecker, TyCtxt};
+use crate::sqrrlc_ast::*;
+use crate::sqrrlc_parser::Parser;
+// use crate::sqrrlc_interp::env::RuntimeEnv;
+// use crate::sqrrlc_typeck::{TypeChecker, TyCtxt};
 
 
 /**
@@ -116,16 +116,16 @@ pub fn run_compiler(config: Config) {
         Input::Code{name, input} => sess.source_map().add_from_source(name, input, 0, 0),
         Input::Empty => { eprintln!("error: no input specified"); return; }
     };
-    let span = ParseSpan::new_extra(&file.source, file.id);
-    let mut ast = File::parse(span).unwrap().1;
-    ast.extend(parse_stdlib_basic(sess.source_map()));
-    let mut sym_table = gen_sym_table(&ast);
-    let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);
-    ast.check_type(&mut ty_ctxt);
-    if config.interpret {
-        let mut env = RuntimeEnv::new(&mut sess);
-        ast.eval(&mut env);
-    }
+    // let span = ParseSpan::new_extra(&file.source, file.id);
+    // let mut ast = File::parse(span).unwrap().1;
+    // ast.extend(parse_stdlib_basic(sess.source_map()));
+    // let mut sym_table = gen_sym_table(&ast);
+    // let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);
+    // ast.check_type(&mut ty_ctxt);
+    // if config.interpret {
+        // let mut env = RuntimeEnv::new(&mut sess);
+        // ast.eval(&mut env);
+    // }
 }
 
 
@@ -133,12 +133,12 @@ pub fn run_compiler(config: Config) {
  * Parses the FFI items in the stdlib basic.sq file.
  */
 pub fn parse_stdlib_basic(source_map: &SourceMap) -> Vec<Item> {
-    let directory = env::var("SQRRLC_LIBSTD_DIR").unwrap_or("src/libstd/".to_string());
-    let file = source_map.load_file(Path::new(&(directory + "basic.sq")))
-        .expect("could not find basic.sq in the std library directory");
-    let span = ParseSpan::new_extra(&file.source, file.id);
-    let ast = File::parse(span).unwrap().1;
-    ast.items
+    // let directory = env::var("SQRRLC_LIBSTD_DIR").unwrap_or("src/libstd/".to_string());
+    // let file = source_map.load_file(Path::new(&(directory + "basic.sq")))
+        // .expect("could not find basic.sq in the std library directory");
+    // let span = ParseSpan::new_extra(&file.source, file.id);
+    // let ast = File::parse(span).unwrap().1;
+    // ast.items
 }
     
 
