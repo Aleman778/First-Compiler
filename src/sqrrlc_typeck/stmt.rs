@@ -28,7 +28,15 @@ impl TypeChecker for Block {
         let mut ret_ty = Ty::new();
         for i in 0..self.stmts.len() {
             ret_ty = self.stmts[i].check_type(tcx);
-            if !ret_ty.is_none() {
+            let is_return = match self.stmts[i] {
+                Stmt::Semi(ref expr) => match expr {
+                    Expr::Return(_) => true,
+                    _ => false,
+                },
+                Stmt::Expr(_) => true,
+                _ => false,
+            };
+            if !ret_ty.is_none() && !is_return {
                 if i < self.stmts.len() - 1 {
                     mismatched_types_err!(tcx.sess, ret_ty.span, TyKind::None, &ret_ty);
                 }

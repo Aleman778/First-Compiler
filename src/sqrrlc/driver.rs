@@ -19,6 +19,7 @@ use crate::sqrrlc::{
 use crate::sqrrlc_ast::base::{File, Item};
 use crate::sqrrlc_parser::{Parser, ParseSpan};
 use crate::sqrrlc_interp::env::RuntimeEnv;
+use crate::sqrrlc_interp::debug;
 use crate::sqrrlc_typeck::{TypeChecker, TyCtxt};
 
 
@@ -132,13 +133,15 @@ pub fn run_compiler(config: Config) {
 /**
  * Parses the FFI items in the stdlib basic.sq file.
  */
-pub fn parse_stdlib_basic(source_map: &SourceMap) -> Vec<Item> {
-    let directory = env::var("SQRRLC_LIBSTD_DIR").unwrap_or("src/libstd/".to_string());
-    let file = source_map.load_file(Path::new(&(directory + "basic.sq")))
-        .expect("could not find basic.sq in the std library directory");
-    let span = ParseSpan::new_extra(&file.source, file.id);
-    let ast = File::parse(span).unwrap().1;
-    ast.items
+pub fn parse_stdlib_basic(_source_map: &SourceMap) -> Vec<Item> {
+    // let directory = env::var("SQRRLC_LIBSTD_DIR").unwrap_or("src/libstd/".to_string());
+    // let file = source_map.load_file(Path::new(&(directory + "basic.sq")))
+        // .expect("could not find basic.sq in the std library directory");
+    // let span = ParseSpan::new_extra(&file.source, file.id);
+    // let ast = File::parse(span).unwrap().1;
+    // println!("{:#?}", ast);
+    // ast.items
+    debug::debug_functions().items
 }
     
 
