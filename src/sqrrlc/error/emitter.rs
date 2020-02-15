@@ -12,7 +12,6 @@ use log::debug;
 use std::rc::Rc;
 use std::io;
 use std::io::Write;
-use std::ffi::OsStr;
 use std::cmp::{min, max, Reverse};
 use std::collections::HashMap;
 use termcolor::ColorSpec;
