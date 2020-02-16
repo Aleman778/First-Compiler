@@ -142,7 +142,7 @@ impl SourceMap {
         return match self.get_file(file_idx) {
             Some(file) => match file.lines.binary_search(&pos) {
                 Ok(line) => Ok((file, line)),
-                Err(line) => Err(file),
+                Err(_line) => Err(file),
             }
             None => panic!("byte position is out of range"),
         }

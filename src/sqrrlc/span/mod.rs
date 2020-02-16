@@ -11,6 +11,9 @@ use std::rc::Rc;
 use crate::sqrrlc::source_map::SourceFile;
 
 
+pub mod symbol;
+
+
 /**
  * Dummy span, points to position 0 and has length of 0.
  */

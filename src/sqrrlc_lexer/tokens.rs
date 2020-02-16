@@ -34,7 +34,7 @@ pub enum TokenKind {
     BlockComment { terminated: bool },
     /// Whitespace any kind of whitespace characters e.g. `\n`, `\t` etc.
     Whitespace,
-    /// Identifier e.g. `hello_word`, `MyStruct`, `x` etc.
+    /// Identifier or keywords e.g. `hello_word`, `MyStruct`, `x`, `let` etc.
     Ident,
     /// Raw identifiers e.g. `r#while`.
     RawIdent,

@@ -7,8 +7,8 @@
 mod cursor;
 pub mod tokens;
 
+pub use crate::sqrrlc_lexer::tokens::*;
 use crate::sqrrlc_lexer::cursor::*;
-use crate::sqrrlc_lexer::tokens::*;
 use std::iter::Iterator;
 
 use LitKind::*;

@@ -3,7 +3,7 @@
 
 
 use crate::sqrrlc::span::Span;
-use crate::sqrrlc_ast::symbol::Symbol;
+use crate::sqrrlc::span::symbol::Symbol;
 
 
 /**
@@ -198,7 +198,7 @@ pub struct Expr<'ast> {
 
 #[derive(Clone, Copy, Debug)]
 pub enum ExprKind<'ast> {
-       /// Expression for mutation for variable e.g. `a = calc()`.
+    /// Expression for mutation for variable e.g. `a = calc()`.
     Assign(&'ast Expr<'ast>, &'ast Expr<'ast>),
     
     /// Expression for binary opeations e.g. `5 + a`, `b && check()`.

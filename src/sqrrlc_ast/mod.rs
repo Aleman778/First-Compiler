@@ -5,7 +5,7 @@
 
 
 mod ast;
-pub mod symbol;
+pub mod ast_map;
 pub mod op;
 
 
