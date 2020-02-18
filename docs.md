@@ -1,16 +1,14 @@
 # Assignment 3 - Define EBNF grammar for the parser
-From the designed parser in assignment 2 define the formal
-grammar using Extended Backus–Naur Form (EBNF).
-I will also experiment with implementing a parser using this grammar and the library LALRPOP.
+
+From the designed parser in assignment 2 define the formal grammar using Extended Backus–Naur Form \(EBNF\). I will also experiment with implementing a parser using this grammar and the library LALRPOP.
 
 ## Extended Backus-Naur Form Grammar
-Note: that I use regular expressions to simplify the EBNF grammar definition,
-and I choose to denote the use of regex with a preceding r e.g. r[0-9].
-This is done so that [] - optional syntax is not confused with regex optionals.
-Note: this grammar is based on my parser implementation from assignment 2 but when using LALRPOP the syntax is different.
+
+Note: that I use regular expressions to simplify the EBNF grammar definition, and I choose to denote the use of regex with a preceding r e.g. r\[0-9\]. This is done so that \[\] - optional syntax is not confused with regex optionals. Note: this grammar is based on my parser implementation from assignment 2 but when using LALRPOP the syntax is different.
 
 ### Non-terminals
-```EBNF
+
+```text
 Program = {FnDecl};
 
 FnDecl = "fn" IDENT "(" [Argument {"," Argument}] ")" ["->" TYPE] Block;
@@ -45,7 +43,8 @@ Atom = Paren | Literal | FnCall | IDENT;
 ```
 
 ### Terminals
-```EBNF
+
+```text
 BINOP = "==" | "!=" | "<" | "<=" | ">" | ">=" | "&&" | "||" | "+" | "-" | "*" | "/" | "%";
 
 UNOP = "!" | "-";
@@ -64,3 +63,4 @@ DIGIT = r[0-9];
 
 MULTISPACE = r[ \r\n\t] => skip;
 ```
+

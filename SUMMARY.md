@@ -1,13 +1,13 @@
 # Table of contents
 
 * [README](README.md)
-* [Assignment 3 - Define EBNF grammar for the parser](docs/README.md)
+* [Assignment 3 - Define EBNF grammar for the parser](docs.md)
 
 ## Handbook
 
-* [Home](handbook/home.md)
+* [Basic Types](handbook/basic_types.md)
 
 ## Specification
 
-* [Home](specification/home.md)
+* [Lexical Analysis](specification/lexical_analysis.md)
 
