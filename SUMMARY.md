@@ -1,7 +1,6 @@
 # Table of contents
 
 * [Home](README.md)
-* [Assignment 3 - Define EBNF grammar for the parser](docs/README.md)
 
 ## Handbook
 
