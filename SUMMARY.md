@@ -1,7 +1,7 @@
 # Table of contents
 
-* [README](README.md)
-* [Assignment 3 - Define EBNF grammar for the parser](docs.md)
+* [Home](README.md)
+* [Assignment 3 - Define EBNF grammar for the parser](docs/README.md)
 
 ## Handbook
 

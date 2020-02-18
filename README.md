@@ -1,4 +1,4 @@
-# README
+# Home
 
 ![Squirrel](https://github.com/Aleman778/sqrrl-lang/blob/master/logo.png)
 
