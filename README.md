@@ -1,7 +1,5 @@
 # Home
 
-![Squirrel](https://github.com/Aleman778/sqrrl-lang/blob/master/logo.png)
-
 ## The Sqrrl Programming Language
 
 Let's make a compiler in Rust called Sqrrl. This is my project in the course Compiler construction and formal languages \(D7050E\) at Luleå University of Technology.
