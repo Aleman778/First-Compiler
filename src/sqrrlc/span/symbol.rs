@@ -12,39 +12,39 @@ pub mod kw {
     use super::Symbol;
 
     /// Empty strings are invalid symbols.
-    pub const INVALID: Symbol    = Symbol::new(0);
+    pub const Invalid: Symbol    = Symbol::new(0);
     /// Underscore refers to unused variable.
-    pub const UNDERSCORE: Symbol = Symbol::new(1);
+    pub const Underscore: Symbol = Symbol::new(1);
     /// Keyword for type casting.
-    pub const AS: Symbol         = Symbol::new(2);
+    pub const As: Symbol         = Symbol::new(2);
     /// Keyword for breaking out of loops.
-    pub const BREAK: Symbol      = Symbol::new(3);
+    pub const Break: Symbol      = Symbol::new(3);
     /// Keyword for continuing to next loop cycle.
-    pub const CONTINUE: Symbol   = Symbol::new(4);
+    pub const Continue: Symbol   = Symbol::new(4);
     /// Keyword for defining code on false if-condition.
-    pub const ELSE: Symbol       = Symbol::new(5);
+    pub const Else: Symbol       = Symbol::new(5);
     /// Keyword for declaring an enumerator.
-    pub const ENUM: Symbol       = Symbol::new(6);
+    pub const Enum: Symbol       = Symbol::new(6);
     /// Keyword defines the boolean value false.
-    pub const FALSE: Symbol      = Symbol::new(7);
+    pub const False: Symbol      = Symbol::new(7);
     /// Keyword for declaring functions.
-    pub const FN: Symbol         = Symbol::new(8);
+    pub const Fn: Symbol         = Symbol::new(8);
     /// Keyword for declaring for loops.
-    pub const FOR: Symbol        = Symbol::new(9);
+    pub const For: Symbol        = Symbol::new(9);
     /// Keyword for declaring if-statement.
-    pub const IF: Symbol         = Symbol::new(10);
+    pub const If: Symbol         = Symbol::new(10);
     /// Keyword for declaring a let binding.
-    pub const LET: Symbol        = Symbol::new(11);
+    pub const Let: Symbol        = Symbol::new(11);
     /// Keyword for annotating mutability for variable.
-    pub const MUT: Symbol        = Symbol::new(12);
+    pub const Mut: Symbol        = Symbol::new(12);
     /// Keyword for returing value from function.
-    pub const RETURN: Symbol     = Symbol::new(13);
+    pub const Return: Symbol     = Symbol::new(13);
     /// Keyword for declaring a data structure.
-    pub const STRUCT: Symbol     = Symbol::new(14);
+    pub const Struct: Symbol     = Symbol::new(14);
     /// Keyword defines the boolean value true.
-    pub const TRUE: Symbol       = Symbol::new(15);
+    pub const True: Symbol       = Symbol::new(15);
     /// Keyword declares a while loop.
-    pub const WHILE: Symbol      = Symbol::new(16);
+    pub const While: Symbol      = Symbol::new(16);
 }
 
 
@@ -55,37 +55,37 @@ pub mod sym {
     use super::Symbol;
 
     /// Boolean type symbol.
-    pub const BOOL: Symbol  = Symbol::new(17);
+    pub const bool: Symbol  = Symbol::new(17);
     /// 32-bit floating-point type symbol.
-    pub const F32: Symbol   = Symbol::new(18);
+    pub const f32: Symbol   = Symbol::new(18);
     /// 64-bit floating-point type symbol.
-    pub const F64: Symbol   = Symbol::new(19);
+    pub const f64: Symbol   = Symbol::new(19);
     /// 8-bit signed integer type symbol.
-    pub const I8: Symbol    = Symbol::new(20);
+    pub const i8: Symbol    = Symbol::new(20);
     /// 16-bit signed integer type symbol.
-    pub const I16: Symbol   = Symbol::new(21);
+    pub const i16: Symbol   = Symbol::new(21);
     /// 32-bit signed integer type symbol.
-    pub const I32: Symbol   = Symbol::new(22);
+    pub const i32: Symbol   = Symbol::new(22);
     /// 64-bit signed integer type symbol.
-    pub const I64: Symbol   = Symbol::new(23);
+    pub const i64: Symbol   = Symbol::new(23);
     /// 128-bit signed integer type symbol.
-    pub const I128: Symbol  = Symbol::new(24);
+    pub const i128: Symbol  = Symbol::new(24);
     /// 32- or 64-bit signed integer type symbol.
-    pub const ISIZE: Symbol = Symbol::new(25);
+    pub const isize: Symbol = Symbol::new(25);
     /// String type symbol.
-    pub const STR: Symbol   = Symbol::new(26);
+    pub const str: Symbol   = Symbol::new(26);
     /// 8-bit unsigned integer type symbol.
-    pub const U8: Symbol    = Symbol::new(27);
+    pub const u8: Symbol    = Symbol::new(27);
     /// 16-bit unsigned integer type symbol.
-    pub const U16: Symbol   = Symbol::new(28);
+    pub const u16: Symbol   = Symbol::new(28);
     /// 32-bit unsigned integer type symbol.
-    pub const U32: Symbol   = Symbol::new(29);
+    pub const u32: Symbol   = Symbol::new(29);
     /// 64-bit unsigned integer type symbol.
-    pub const U64: Symbol   = Symbol::new(30);
+    pub const u64: Symbol   = Symbol::new(30);
     /// 128-bit unsigned integer type symbol.
-    pub const U128: Symbol  = Symbol::new(31);
+    pub const u128: Symbol  = Symbol::new(31);
     /// 32- or 64-bit unsigned integer type symbol.
-    pub const USIZE: Symbol = Symbol::new(32);
+    pub const usize: Symbol = Symbol::new(32);
 }
 
 
@@ -111,7 +111,7 @@ impl Symbol {
  * Maps symbols to indices and vice versa.
  */
 #[derive(Default)]
-pub struct SymbolMapper {
+pub struct SymbolMap {
     /// All the symbol strings used to lookup by index.
     strings: Vec<&'static str>,
     /// Maps symbol names to indices, used to lookup by name.
@@ -119,7 +119,7 @@ pub struct SymbolMapper {
 }
 
 
-impl SymbolMapper {
+impl SymbolMap {
     pub fn new() -> Self {
         Self::prefill(&[
             // Compiler defined keywords
@@ -165,7 +165,7 @@ impl SymbolMapper {
      * Fills the symbols before initialization.
      */
     fn prefill(init: &[&'static str]) -> Self {
-        SymbolMapper {
+        SymbolMap {
             strings: init.into(),
             names: init.iter().copied().zip((0..).map(Symbol::new)).collect(),
         }
@@ -175,7 +175,7 @@ impl SymbolMapper {
     /**
      * Get the string corresponding to the given symbol.
      */
-    fn as_str(&self, sym: Symbol) -> &'static str {
+    pub fn as_str(&self, sym: Symbol) -> &'static str {
         self.strings[sym.index()]
     }
 
@@ -185,7 +185,7 @@ impl SymbolMapper {
      * If symbol does't already then new symbol is created,
      * otherwise previous stored symbol is loaded instead.
      */
-    fn as_symbol(&mut self, name: &'static str) -> Symbol {
+    pub fn as_symbol(&mut self, name: &'static str) -> Symbol {
         match self.names.get(name) {
             Some(sym) => *sym,
             None => {

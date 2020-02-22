@@ -1,8 +1,5 @@
-
-/***************************************************************************
- * Compiler session module defines a general session struct that is used
- * throughout the compilation to hold the current state of the compiler.
- ***************************************************************************/
+//! Compiler session module defines a general session struct that is used
+//! throughout the compilation to hold the current state of the compiler.
 
 
 use std::rc::Rc;
@@ -10,6 +7,7 @@ use std::path::PathBuf;
 use crate::sqrrlc::{
     utils::ColorConfig,
     error::{diagnostic::*, emitter::Emitter, Handler},
+    span::symbol::SymbolMap,
     source_map::SourceMap,
 };
 use crate::sqrrlc::span::Span;
@@ -19,12 +17,14 @@ use crate::sqrrlc::span::Span;
  * The session struct holds compilation data,
  */
 pub struct Session {
-    /// The handler is used to deal with error reporting.
+    /// Handler is used to deal with error reporting.
     pub handler: Handler,
-    /// The working directory of the compiler.
+    /// Working directory of the compiler.
     pub working_dir: PathBuf,
-    /// The mapping of source files in use.
+    /// Mapping of source files in use.
     pub source_map: Rc<SourceMap>,
+    /// Mapping strings to symbols and vice versa.
+    pub symbol_map: SymbolMap,
 }
 
 
@@ -49,6 +49,7 @@ impl Session {
                 ColorConfig::Always)),
             working_dir,
             source_map,
+            symbol_map: SymbolMap::new(), 
         }
     }
 

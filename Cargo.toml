@@ -7,8 +7,6 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nom = "5"
-nom_locate = "1"
 termcolor = "1.0.5"
 unicode-width = "0.1.5"
 simple_logger = "1.4.0"

@@ -4,21 +4,24 @@
  * converts it into tokens.
  ***************************************************************************/
 
+
 mod cursor;
 pub mod tokens;
+
 
 pub use crate::sqrrlc_lexer::tokens::*;
 use crate::sqrrlc_lexer::cursor::*;
 use std::iter::Iterator;
-
 use LitKind::*;
 use TokenKind::*;
 
+
 /**
  * Tokenize the input string.
+ * The base position should match start_pos in FileSource.
  */
-pub fn tokenize(input: &str) -> TokenStream {
-    TokenStream::new(input)
+pub fn tokenize(input: &str, base_pos: usize) -> TokenStream {
+    TokenStream::new(input, base_pos)
 }
 
 
@@ -26,8 +29,10 @@ pub fn tokenize(input: &str) -> TokenStream {
  * The token stream implements an iterator over a stream of tokens
  * that are lexed by the provided tokenizer.
  */
+#[derive(Clone)]
 pub struct TokenStream<'a> {
     input: &'a str,
+    base_pos: usize,
 }
 
 
@@ -35,8 +40,8 @@ impl<'a> TokenStream<'a> {
     /**
      * Creates a new token stream.
      */
-    pub fn new(input: &'a str) -> TokenStream {
-        TokenStream { input }
+    pub fn new(input: &'a str, base_pos: usize) -> TokenStream {
+        TokenStream { input, base_pos }
     }
 }
 
@@ -54,7 +59,12 @@ impl<'a> Iterator for TokenStream<'a> {
         if self.input.is_empty() {
             return None;
         }
-        let token = advance_token(&mut Cursor::new(&self.input));
+        let cur = &mut Cursor::new(&self.input); 
+        if is_whitespace(cur.first()) {
+            let len_consumed = cur.eat_while(|c| is_whitespace(c));
+            self.input = &self.input[len_consumed..];
+        }
+        let token = advance_token(&mut Cursor::new(&self.input), self.base_pos);
         self.input = &self.input[token.len..];
         Some(token)
     }
@@ -65,7 +75,7 @@ impl<'a> Iterator for TokenStream<'a> {
  * Parses the next token from input string.
  * Panics if cursor has no more characters to consume.
  */
-fn advance_token(cur: &mut Cursor) -> Token {
+fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
     let token_kind = match cur.eat().unwrap() {
         // Matching against beginning slash
         '/' => match cur.first() {
@@ -73,9 +83,6 @@ fn advance_token(cur: &mut Cursor) -> Token {
             '*' => block_comment(cur),
             _ => Slash,
         },
-
-        // Match against whitespaces
-        c if is_whitespace(c) => whitespace(cur),
 
         // Matching against byte literals
         'b' => match (cur.first(), cur.second()) {
@@ -186,7 +193,7 @@ fn advance_token(cur: &mut Cursor) -> Token {
         // No matched characters, unknown token type
         _ => Unknown,
     };
-    Token::new(token_kind, cur.len_consumed())
+    Token::new(token_kind, base_pos, cur.len_consumed())
 }
 
 
@@ -234,15 +241,6 @@ fn block_comment(cur: &mut Cursor) -> TokenKind {
     BlockComment {
         terminated: depth == 0,
     }
-}
-
-
-/**
- * Parses whitespace token.
- */
-fn whitespace(cur: &mut Cursor) -> TokenKind {
-    cur.eat_while(|c| is_whitespace(c));
-    Whitespace
 }
 
 

@@ -4,11 +4,16 @@
  ***************************************************************************/
 
 
+use crate::sqrrlc::span::Span;
+
+
+
 /**
  * Tokens doesn't contain any data, only the token kind and length.
  */
 pub struct Token {
     pub kind: TokenKind,
+    pub base: usize,
     pub len: usize,
 }
 
@@ -17,8 +22,13 @@ impl Token {
     /**
      * Creates a new token with specific kind and length.
      */
-    pub fn new(kind: TokenKind, len: usize) -> Token {
-        Token { kind, len }
+    pub fn new(kind: TokenKind, base: usize, len: usize) -> Token {
+        Token { kind, base, len }
+    }
+
+
+    pub fn to_span(&self) -> Span {
+        Span::new(self.base, self.len)
     }
 }
 
@@ -32,8 +42,6 @@ pub enum TokenKind {
     LineComment,
     /// Block comments e.g. `/* comment /* recursive */ */` or `/** doc-comment */`
     BlockComment { terminated: bool },
-    /// Whitespace any kind of whitespace characters e.g. `\n`, `\t` etc.
-    Whitespace,
     /// Identifier or keywords e.g. `hello_word`, `MyStruct`, `x`, `let` etc.
     Ident,
     /// Raw identifiers e.g. `r#while`.

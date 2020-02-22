@@ -6,7 +6,7 @@
 
 
 use std::fmt;
-use crate::sqrrlc_ast::{BinOp, UnOp};
+use crate::sqrrlc_ast::ast::{BinOp, UnOp};
 
 
 /**

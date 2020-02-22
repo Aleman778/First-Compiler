@@ -61,9 +61,19 @@ pub struct Span {
 
 impl Span {
     /**
+     * Creates a new span from base position and length.
+     */
+    pub fn new(base: usize, len: usize) -> Self {
+        Span {
+            base: base as u32,
+            len: len as u16,
+        }
+    }
+    
+    /**
      * Creates a new span from low and high byte positions.
      */
-    pub fn new(lo: BytePos, hi: BytePos) -> Self {
+    pub fn from_range(lo: BytePos, hi: BytePos) -> Self {
         Span {
             base: lo.0,
             len: (hi.0 - lo.0) as u16,

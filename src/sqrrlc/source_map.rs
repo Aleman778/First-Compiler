@@ -249,6 +249,16 @@ impl SourceFile {
 
 
     /**
+     * Get the source string for the given span 
+     */
+    pub fn get_source(&self, span: Span) -> String {
+        let start = self.start_pos.index() - span.base as usize;
+        let end = start + span.len as usize;
+        self.source[start..end].to_string()
+    }
+
+
+    /**
      * Returns a the slice containing the source code of a specific line number.
      */
     pub fn get_line(&self, line: u32) -> String {

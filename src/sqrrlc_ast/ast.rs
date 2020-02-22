@@ -20,8 +20,11 @@ pub struct NodeId(pub u32);
  */
 #[derive(Clone, Debug)]
 pub struct Node<'ast> {
+    /// Id of the parent node.
     pub parent: NodeId,
+    /// Specific kind of node.
     pub kind: NodeKind<'ast>,
+    /// Location of this node.
     pub span: Span,
 }
 
@@ -353,7 +356,7 @@ pub enum LitIntTy {
     Signed(IntTy),
     /// Unsigned integer type e.g. `42_u32`
     Unsigned(UIntTy),
-    /// Unsuffixed integer type e.g. 
+    /// Unsuffixed integer type e.g. `42`
     Unsuffixed,
 }
 

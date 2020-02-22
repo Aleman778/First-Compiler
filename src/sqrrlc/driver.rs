@@ -11,12 +11,13 @@ use std::rc::Rc;
 use std::env;
 use crate::sqrrlc::{
     session::Session,
+    span::symbol::SymbolMap,
     error::{emitter::Emitter, Handler},
     utils::ColorConfig,
     source_map::{SourceMap, Filename},
     // symbol::generator::gen_sym_table,
 };
-use crate::sqrrlc_ast::*;
+use crate::sqrrlc_ast::ast::*;
 use crate::sqrrlc_parser::Parser;
 // use crate::sqrrlc_interp::debug;
 // use crate::sqrrlc_interp::env::RuntimeEnv;
@@ -60,19 +61,19 @@ impl Default for Input {
 #[derive(Default)]
 pub struct Config {
     /// The input is the target that will be compiled.
-    input: Input,
+    pub input: Input,
     /// Input directory is the location of the.
-    input_dir: Option<PathBuf>,
+    pub input_dir: Option<PathBuf>,
     /// The output file.
-    output_file: Option<PathBuf>,
+    pub output_file: Option<PathBuf>,
     /// The output directory.
-    output_dir: Option<PathBuf>,
+    pub output_dir: Option<PathBuf>,
     /// Run the interpreter on the input.
-    interpret: bool,
+    pub interpret: bool,
     /// Disable colored text in errors.
-    nocolor: bool,
+    pub nocolor: bool,
     /// Runs the compiler in testing mode.
-    compiletest: bool,
+    pub compiletest: bool,
 }
 
 
@@ -98,6 +99,7 @@ pub fn run_compiler(config: Config) {
         handler: Handler::new(emitter),
         working_dir: input_dir,
         source_map,
+        symbol_map: SymbolMap::new(),
     };
     let file = match config.input {
         Input::File(file) => {

@@ -1,11 +1,8 @@
-
-/***************************************************************************
- * The abstract syntax tree is stored inside a hash map structure
- * for conineance, you can iterate over items lookup by id etc.
- ***************************************************************************/
+//! The abstract syntax tree is stored inside a hash map structure
+//! for conineance, you can iterate over items lookup by id etc.
 
 
-pub use crate::sqrrlc_ast::Node;
+pub use crate::sqrrlc_ast::ast::Node;
 
 
 /**
