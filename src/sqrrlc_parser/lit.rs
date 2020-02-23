@@ -72,7 +72,6 @@ impl<'a> Parser<'a> {
             value = match value.checked_mul(radix as u128) {
                 Some(x) => x,
                 None => {
-                    
                     span_err!(self.sess, lit_span, "integer literal is too large");
                     return None;
                 }
@@ -101,14 +100,14 @@ impl<'a> Parser<'a> {
         suffix: usize
     ) -> Option<Lit> {
         if empty_exponent {
-            span_err!(self.span, token.to_span(), "expected at least one digit in exponent");
+            span_err!(self.sess, token.to_span(), "expected at least one digit in exponent");
             return None;
         }
         let suffix_span = Span::new(token.base + suffix, token.len - suffix);
         let lit_span = Span::new(token.base, suffix);
-        let ty = if !suffix.span.is_empty() {
+        let ty = if !suffix_span.is_empty() {
             let suffix = self.file.get_source(suffix_span);
-            let symbol = self.sess.symbol.as_symbol(&suffix);
+            let symbol = self.sess.symbol_map.as_symbol(&suffix);
             match symbol {
                 sym::f32 => LitFloatTy::Suffixed(FloatTy::F32),
                 sym::f64 => LitFloatTy::Suffixed(FloatTy::F64),
@@ -120,8 +119,7 @@ impl<'a> Parser<'a> {
         } else {
             LitFloatTy::Unsuffixed
         };
-        let input = self.file.get_source(lit_span);
-        let (radix_offset, radix_value) = match radix {
+        match radix {
             Radix::Binary => {
                 span_err!(self.sess, token.to_span(), "binary float literal is not supported");
                 return None;
@@ -132,32 +130,63 @@ impl<'a> Parser<'a> {
             }
             Radix::Octal => {
                 span_err!(self.sess, token.to_span(), "octal float literal is not supported");
+                return None;
             }
             _ => ()
         };
-        let point = input.find(".").unwrap();
-        let value: f64 = 0.0;
-        for (i, c) in input.bytes().enumerate() {
-            if c == b'_' {
-                continue;
+        let input = self.file.get_source(lit_span);
+        let (integral, input) = eat_digits(input.as_bytes());
+        match input.first() {
+            None => {
+                span_err!(self.sess, token.to_span(), "expected `e`, `E` or `.`, found nothing");
+                return None;
             }
-            let x: u128 = match (c as char).to_digit(radix_value) {
-                Some(x) => x as u128,
-                None => {
-                    let span = Span::new(token.base + radix_offset + i, 1);
-                    span_err!(self.sess, span, "invalid digit for a base {} integer literal", radix_value);
-                    continue;
+            Some(b'e') | Some(b'E') => {
+
+                
+                
+            }
+            Some(b'.') => {
+                let (fraction, input) = eat_digits(&input[1..]);
+                if integral.is_empty() && fraction.is_empty() {
+                    span_err!(self.sess, token.to_span(), "expected at least one digit before or after decimal point");
+                    return None;
                 }
-            };
-            value *= 10.0;
-            value += 
+                match input.first() {
+
+                }
+                
+            }
+            Some(c) => {
+                span_err!(self.sess, token.to_span(), "expected `e`, `E` or `.`, found `{}`", c);
+                return None;
+            }
         }
-        println!("{}", value);
-        Some(Lit {kind: LitKind::Float(value, ty), span: token.to_span(), })
+        println!("{:?}", integral);
+        // println!("{}", value);
+        // Some(Lit {kind: LitKind::Float(value, ty), span: token.to_span(), })
+        None
     }
 }
 
 
-fn eat_digits(input: &[u8]) -> (&[u8], &[u8]) {
+/**
+ * Eats digits and tuple containing a vector of eaten digits and the
+ * input byte slice after consumption of digits.
+ */
+fn eat_digits(s: &[u8]) -> (Vec<u8>, &[u8]) {
+    let mut i = 0;
+    let mut digits = Vec::new();
+    while i < s.len() && ((b'0' <= s[i] && s[i] <= b'9') || s[i] == b'_') {
+        if s[i] != b'_' {
+            digits.push(s[i]);
+        }
+        i += 1;
+    }
+    (digits, &s[i..])
+}
+
+
+fn parse_exponent(s: &[u8]) -> (Vec<u8>, &[u8]) {
     
 }
