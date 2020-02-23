@@ -83,7 +83,10 @@ impl SourceMap {
             return Rc::clone(src_file)
         }
         let file_idx = files.len();
-        let start_pos = self.get_next_pos();
+        let start_pos = match files.last() {
+            Some(last) => last.end_pos.index() + 1,
+            None => 0,
+        };
         let src_file = Rc::new(SourceFile::new(file_idx,
                                                filename.clone(),
                                                source,
@@ -174,17 +177,6 @@ impl SourceMap {
     fn abs_path(&self, path: &Path) -> PathBuf {
         self.working_dir.join(path)
     }
-    
-
-    /**
-     * Get the next available start position.
-     */
-    fn get_next_pos(&self) -> usize {
-        match self.files.lock().unwrap().last() {
-            Some(last) => last.end_pos.index() + 1,
-            None => 0,
-        }
-    }
 }
 
 
@@ -251,10 +243,10 @@ impl SourceFile {
     /**
      * Get the source string for the given span 
      */
-    pub fn get_source(&self, span: Span) -> String {
-        let start = self.start_pos.index() - span.base as usize;
+    pub fn get_source<'a>(&'a self, span: Span) -> &'a str {
+        let start = (span.base as usize) - self.start_pos.index();
         let end = start + span.len as usize;
-        self.source[start..end].to_string()
+        &self.source[start..end]
     }
 
 
@@ -275,7 +267,7 @@ impl SourceFile {
      */
     pub fn get_line_bounds(&self, line: u32) -> (BytePos, BytePos) {
         let line = line as usize;
-        (self.lines[line - 1], self.lines[line])
+        (self.lines[line.saturating_sub(1)], self.lines[line])
     }
 }
 

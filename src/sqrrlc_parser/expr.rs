@@ -13,10 +13,16 @@ impl<'a> Parser<'a> {
      * Parses an expression using the next tokens in the
      * token stream.
      */
-    pub fn parse_expr(&mut self) -> Option<ast::Expr<'a>> {
-        let token = self.next_token()?;
+    pub fn parse_expr(&mut self) -> Option<ast::Expr> {
+        let token = self.tokens.next()?;
         match token.kind {
-            Literal { kind, suffix_start } => self.parse_literal(token, kind, suffix_start),
+            Literal { kind, suffix_start } => self.parse_literal(&token, kind, suffix_start),
+            Unknown => {
+                let span = Span::new(token.base, token.len);
+                span_err!(self.sess, span, "unknown start of a token `{}`", self.file.get_source(span));
+                None
+            }
+            _ => None
         }
     }
 
@@ -24,7 +30,7 @@ impl<'a> Parser<'a> {
     /**
      * Parses a literal expression using the current token 
      */
-    pub fn parse_literal(&mut self, token: Token, kind: LitKind, suffix: usize) -> Option<ast::Expr<'a>> {
+    pub fn parse_literal(&mut self, token: &Token, kind: LitKind, suffix: usize) -> Option<ast::Expr> {
         let literal = match kind {
             LitKind::Int { radix, empty } => self.parse_int(token, radix, empty, suffix),
             // Float   { radix, empty } => self.parse_float(radix, empty_exponent, suffix),
@@ -43,7 +49,7 @@ impl<'a> Parser<'a> {
             
             Some(ast::Expr {
                 node_id: ast::NodeId(0),
-                kind: ast::ExprKind::Lit(&lit),
+                kind: ast::ExprKind::Lit(Box::new(lit)),
                 span: Span::new(token.base, token.len),
             })
         } else {

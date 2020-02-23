@@ -19,33 +19,33 @@ pub struct NodeId(pub u32);
  * Every node has a parent node except for the root.
  */
 #[derive(Clone, Debug)]
-pub struct Node<'ast> {
+pub struct Node {
     /// Id of the parent node.
     pub parent: NodeId,
     /// Specific kind of node.
-    pub kind: NodeKind<'ast>,
+    pub kind: NodeKind,
     /// Location of this node.
     pub span: Span,
 }
 
 
 /**
- * An AST Node is the base object for every node in the tree.
+ * An AST Node is base object for every node in the tree.
  */
-#[derive(Clone, Copy, Debug)]
-pub enum NodeKind<'ast> {
+#[derive(Clone, Debug)]
+pub enum NodeKind {
     /// Item node defines e.g. functions, structs etc.
-    Item(&'ast Item<'ast>),
+    Item(Box<Item>),
     /// Statements is base type of AST but most statements are expressions.
-    Stmt(&'ast Stmt<'ast>),
+    Stmt(Box<Stmt>),
     /// Almost everything is expressions, except local variables and items.
-    Expr(&'ast Expr<'ast>),
+    Expr(Box<Expr>),
     /// Block contains list of statements.
-    Block(&'ast Block<'ast>),
+    Block(Box<Block>),
     /// Local variable declaration.
-    Local(&'ast Local<'ast>),
+    Local(Box<Local>),
     /// Type declaration.
-    Ty(&'ast Ty<'ast>),
+    Ty(Box<Ty>),
 }
 
 
@@ -53,14 +53,14 @@ pub enum NodeKind<'ast> {
  * Items are usually everything defined in global scope.
  * However you can have nested items e.g. `fn test() { fn test2() { ... } ... }`
  */
-#[derive(Debug)]
-pub struct Item<'ast> {
+#[derive(Clone, Debug)]
+pub struct Item {
     /// Identifier of this item.
     pub ident: Ident,
     /// The nodes identifier.
     pub node_id: NodeId,
     /// Kind of item.
-    pub kind: ItemKind<'ast>,
+    pub kind: ItemKind,
     /// The visibility of the item.
     pub vis: Visibility,
     /// Location of item.
@@ -71,12 +71,12 @@ pub struct Item<'ast> {
 /**
  * Different kinds of items available.
  */
-#[derive(Debug)]
-pub enum ItemKind<'ast> {
+#[derive(Clone, Debug)]
+pub enum ItemKind {
     /// Function are defined by a signature and the block code.
-    Fn(FnSig<'ast>, &'ast Block<'ast>),
+    Fn(FnSig, Box<Block>),
     /// Foreign functions are defined only with a signature, code resides elsewhere.
-    ForeignFn(FnSig<'ast>),
+    ForeignFn(FnSig),
 }
 
 
@@ -95,12 +95,12 @@ pub struct Visibility {
 /**
  * Different kinds of outside visibility for items.
  */
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum VisibilityKind {
-    /// Public items are accessable from anywhere.
-    Public,
-    /// Private items are default when not specifying any visibility.
-    Private,
+    /// Items are accessable from anywhere (default).
+    Visible,
+    /// Hidden items are not accessible outside its scope.
+    Hidden,
 }
 
 
@@ -108,12 +108,12 @@ pub enum VisibilityKind {
  * Function signature defines the attributes
  * of a given function e.g. input/ output types.
  */
-#[derive(Debug)]
-pub struct FnSig<'ast> {
+#[derive(Clone, Debug)]
+pub struct FnSig {
     /// Input arguments to function.
-    pub inputs: &'ast [Ty<'ast>],
+    pub inputs: Vec<Box<Ty>>,
     /// Return type of function.
-    pub output: &'ast Ty<'ast>,
+    pub output: Box<Ty>,
 }
 
 
@@ -123,9 +123,9 @@ pub struct FnSig<'ast> {
  * Mostly statements ends with a semicolon.
  */
 #[derive(Clone, Debug)]
-pub struct Stmt<'ast> {
+pub struct Stmt {
     /// Kind of statement.
-    pub kind: StmtKind<'ast>,
+    pub kind: StmtKind,
     /// Location of statement.
     pub span: Span,
 }
@@ -135,19 +135,19 @@ pub struct Stmt<'ast> {
  * Statement can be a let binding, expression with
  * or without ending semicolon token.
  */
-#[derive(Clone, Copy, Debug)]
-pub enum StmtKind<'ast> {
+#[derive(Clone, Debug)]
+pub enum StmtKind {
     /// Let binding for local variable assignment e.g. `let a: i32 = 5;`.
-    Local(&'ast Local<'ast>),
+    Local(Box<Local>),
 
     /// Item definition.
-    Item(&'ast Item<'ast>),
+    Item(Box<Item>),
 
     /// Expression with a trailing semicolon.
-    Semi(&'ast Expr<'ast>),
+    Semi(Box<Expr>),
     
     /// An expression without a trailing semicolon.
-    Expr(&'ast Expr<'ast>),
+    Expr(Box<Expr>),
 }
 
 
@@ -155,11 +155,11 @@ pub enum StmtKind<'ast> {
  * Block contains a vector of statements.
  */
 #[derive(Clone, Debug)]
-pub struct Block<'ast> {
+pub struct Block {
     /// Statements in the block.
-    pub stmts: &'ast [&'ast Stmt<'ast>],
+    pub stmts: Vec<Box<Stmt>>,
     /// The last expression, implicit returns.
-    pub expr: Option<&'ast Expr<'ast>>,
+    pub expr: Option<Box<Expr>>,
     /// The location of this block.
     pub span: Span,
 }
@@ -170,15 +170,15 @@ pub struct Block<'ast> {
  * the variable e.g. `let mut a: i32 = 53;`
  */
 #[derive(Clone, Debug)]
-pub struct Local<'ast> {
+pub struct Local {
     /// Is the local variable mutable?
     pub mutable: bool,
     /// Local variable identifier.
     pub ident: Ident,
     /// Type annotation, if any was provided.
-    pub ty: Option<Ty<'ast>>,
+    pub ty: Option<Box<Ty>>,
     /// Initialization expression of local variable.
-    pub init: Option<&'ast Expr<'ast>>,
+    pub init: Option<Box<Expr>>,
     /// Location of local variable declaration.
     pub span: Span,
 }
@@ -189,59 +189,59 @@ pub struct Local<'ast> {
  * those are items and local variables.
  */
 #[derive(Clone, Debug)]
-pub struct Expr<'ast> {
+pub struct Expr {
     /// The expression identifier.
     pub node_id: NodeId,
     /// Kind of expression.
-    pub kind: ExprKind<'ast>,
+    pub kind: ExprKind,
     /// Location of expression.
     pub span: Span,
 }
 
 
-#[derive(Clone, Copy, Debug)]
-pub enum ExprKind<'ast> {
+#[derive(Clone, Debug)]
+pub enum ExprKind {
     /// Expression for mutation for variable e.g. `a = calc()`.
-    Assign(&'ast Expr<'ast>, &'ast Expr<'ast>),
+    Assign(Box<Expr>, Box<Expr>),
     
     /// Expression for binary opeations e.g. `5 + a`, `b && check()`.
-    Binary(BinOp, &'ast Expr<'ast>, &'ast Expr<'ast>),
+    Binary(BinOp, Box<Expr>, Box<Expr>),
 
     /// Expression for block statements e.g. `{ ... }`.
-    Block(&'ast Block<'ast>),
+    Block(Box<Block>),
     
     /// Expression for break statements i.e. `break;`.
     Break,
     
     /// Expression for function calls e.g. `foo(bar)`.
-    Call(&'ast Expr<'ast>, &'ast [&'ast Expr<'ast>]),
+    Call(Box<Expr>, Vec<Box<Expr>>),
     
     /// Expression for continue statements e.g. `continue;`.
     Continue,
     
     /// Expression for identifiers e.g. `foo`, `my_function`, `__PATH__`.
-    Ident(&'ast Ident),
+    Ident(Box<Ident>),
     
     /// Expression for if statements e.g. `if a > 5 { a = 6; } else { a = 4; }`.
-    If(&'ast Expr<'ast>, &'ast Block<'ast>, &'ast Expr<'ast>),
+    If(Box<Expr>, Box<Block>, Box<Expr>),
     
     /// Expression for literals e.g. `32`, `true`.
-    Lit(&'ast Lit),
+    Lit(Box<Lit>),
         
     /// Parenthesized expression e.g. `(5 + 3)`.
-    Paren(&'ast Expr<'ast>),
+    Paren(Box<Expr>),
 
     /// Reference expression e.g. &342, &mut false.
-    Reference(&'ast Expr<'ast>),
+    Reference(Box<Expr>),
     
     /// Expression for return statements e.g. `return true;`, `return;`.
-    Return(&'ast Expr<'ast>),
+    Return(Box<Expr>),
     
     /// Expression for unary operations e.g. `-a`, `!is_err()`.
-    Unary(UnOp, &'ast Expr<'ast>),
+    Unary(UnOp, Box<Expr>),
     
     /// Expression for while statements e.g. `while true { do_something(); }`.
-    While(&'ast Expr<'ast>, &'ast Block<'ast>),
+    While(Box<Expr>, Box<Block>),
 }
 
 
@@ -258,9 +258,9 @@ pub struct Ident {
  * Can be an integer, boolean or reference.
  */
 #[derive(Clone, Debug)]
-pub struct Ty<'ast> {
+pub struct Ty {
     /// Kind of type annotation.
-    pub kind: TyKind<'ast>,
+    pub kind: TyKind,
     /// Location of type declaration.
     pub span: Span,
 }
@@ -271,11 +271,11 @@ pub struct Ty<'ast> {
  * e.g. `&mut i32` defines a mutable i32 type reference.
  */
 #[derive(Clone, Debug)]
-pub struct TypeRef<'ast>{
+pub struct TypeRef {
     /// Mutable reference flag.
     pub mutable: bool,
     /// Type element.
-    pub elem: &'ast Ty<'ast>,
+    pub elem: Box<Ty>,
     /// Location of type reference declaration.
     pub span: Span,
 }
@@ -285,7 +285,7 @@ pub struct TypeRef<'ast>{
  * The different kinds of types supported.
  */
 #[derive(Clone, Debug)]
-pub enum TyKind<'ast> {
+pub enum TyKind {
     /// Different kinds of signed integer types e.g. `i32`, `i8`.
     Int(IntTy),
     /// Different kinds of unsigned integer types e.g. `u32`, `u8`.
@@ -295,7 +295,7 @@ pub enum TyKind<'ast> {
     /// Boolean type defined by `bool`.
     Bool,
     /// Type reference is defined by `&` and another type.
-    Ref(TypeRef<'ast>),
+    Ref(TypeRef),
     /// Infer means that no specific type was given and should infer to something.
     Infer,
     /// This type has no type, used for functions that does not return anything.
@@ -388,13 +388,16 @@ pub enum LitKind {
     Str(Symbol, StrKind),
     /// Byte literal e.g. `b'f'`.
     Byte(u8),
+    /// Byte  string literal e.g. `b"test"`, `br#"test"#`, 
+    ByteStr(Vec<u8>, StrKind),
     /// Char literal e.g. `'a'`.
     Char(char),
-    /// Int literal e.g. `52`
+    /// Int literal e.g. `52`.
     Int(u128, LitIntTy),
+    /// Float literal e.g. `125.99`.
+    Float(f64, LitFloatTy),
     /// Boolean literals e.g. `false`.
     Bool(bool),
-    
 }
 
 

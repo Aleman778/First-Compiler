@@ -11,12 +11,12 @@ pub use crate::sqrrlc_ast::ast::Node;
 pub struct NodeId(pub u32);
 
 
-pub struct AstMap<'ast> {
-    pub mapping: Vec<Node<'ast>>,
+pub struct AstMap {
+    pub mapping: Vec<Node>,
 }
 
 
-impl<'ast> AstMap<'ast> {
+impl AstMap {
     pub fn new() -> Self {
         AstMap {
             mapping: Vec::new(),

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 /**
  * Module containing all the keywords supported.
  */
+ #[allow(non_upper_case_globals)]
 pub mod kw {
     use super::Symbol;
 
@@ -31,61 +32,64 @@ pub mod kw {
     pub const Fn: Symbol         = Symbol::new(8);
     /// Keyword for declaring for loops.
     pub const For: Symbol        = Symbol::new(9);
+    /// Keyword for hiding items (private visibility).
+    pub const Hide: Symbol       = Symbol::new(10);
     /// Keyword for declaring if-statement.
-    pub const If: Symbol         = Symbol::new(10);
+    pub const If: Symbol         = Symbol::new(11);
     /// Keyword for declaring a let binding.
-    pub const Let: Symbol        = Symbol::new(11);
+    pub const Let: Symbol        = Symbol::new(12);
     /// Keyword for annotating mutability for variable.
-    pub const Mut: Symbol        = Symbol::new(12);
+    pub const Mut: Symbol        = Symbol::new(13);
     /// Keyword for returing value from function.
-    pub const Return: Symbol     = Symbol::new(13);
+    pub const Return: Symbol     = Symbol::new(14);
     /// Keyword for declaring a data structure.
-    pub const Struct: Symbol     = Symbol::new(14);
+    pub const Struct: Symbol     = Symbol::new(15);
     /// Keyword defines the boolean value true.
-    pub const True: Symbol       = Symbol::new(15);
+    pub const True: Symbol       = Symbol::new(16);
     /// Keyword declares a while loop.
-    pub const While: Symbol      = Symbol::new(16);
+    pub const While: Symbol      = Symbol::new(17);
 }
 
 
 /**
  * Module containig all the symbols predefined by the compiler.
  */
+#[allow(non_upper_case_globals)]
 pub mod sym {
     use super::Symbol;
 
     /// Boolean type symbol.
-    pub const bool: Symbol  = Symbol::new(17);
+    pub const bool: Symbol  = Symbol::new(18);
     /// 32-bit floating-point type symbol.
-    pub const f32: Symbol   = Symbol::new(18);
+    pub const f32: Symbol   = Symbol::new(19);
     /// 64-bit floating-point type symbol.
-    pub const f64: Symbol   = Symbol::new(19);
+    pub const f64: Symbol   = Symbol::new(20);
     /// 8-bit signed integer type symbol.
-    pub const i8: Symbol    = Symbol::new(20);
+    pub const i8: Symbol    = Symbol::new(21);
     /// 16-bit signed integer type symbol.
-    pub const i16: Symbol   = Symbol::new(21);
+    pub const i16: Symbol   = Symbol::new(22);
     /// 32-bit signed integer type symbol.
-    pub const i32: Symbol   = Symbol::new(22);
+    pub const i32: Symbol   = Symbol::new(23);
     /// 64-bit signed integer type symbol.
-    pub const i64: Symbol   = Symbol::new(23);
+    pub const i64: Symbol   = Symbol::new(24);
     /// 128-bit signed integer type symbol.
-    pub const i128: Symbol  = Symbol::new(24);
+    pub const i128: Symbol  = Symbol::new(25);
     /// 32- or 64-bit signed integer type symbol.
-    pub const isize: Symbol = Symbol::new(25);
+    pub const isize: Symbol = Symbol::new(26);
     /// String type symbol.
-    pub const str: Symbol   = Symbol::new(26);
+    pub const str: Symbol   = Symbol::new(27);
     /// 8-bit unsigned integer type symbol.
-    pub const u8: Symbol    = Symbol::new(27);
+    pub const u8: Symbol    = Symbol::new(28);
     /// 16-bit unsigned integer type symbol.
-    pub const u16: Symbol   = Symbol::new(28);
+    pub const u16: Symbol   = Symbol::new(29);
     /// 32-bit unsigned integer type symbol.
-    pub const u32: Symbol   = Symbol::new(29);
+    pub const u32: Symbol   = Symbol::new(30);
     /// 64-bit unsigned integer type symbol.
-    pub const u64: Symbol   = Symbol::new(30);
+    pub const u64: Symbol   = Symbol::new(31);
     /// 128-bit unsigned integer type symbol.
-    pub const u128: Symbol  = Symbol::new(31);
+    pub const u128: Symbol  = Symbol::new(32);
     /// 32- or 64-bit unsigned integer type symbol.
-    pub const usize: Symbol = Symbol::new(32);
+    pub const usize: Symbol = Symbol::new(33);
 }
 
 
@@ -111,15 +115,15 @@ impl Symbol {
  * Maps symbols to indices and vice versa.
  */
 #[derive(Default)]
-pub struct SymbolMap {
+pub struct SymbolMap<'a> {
     /// All the symbol strings used to lookup by index.
-    strings: Vec<&'static str>,
+    strings: Vec<&'a str>,
     /// Maps symbol names to indices, used to lookup by name.
-    names: HashMap<&'static str, Symbol>,
+    names: HashMap<&'a str, Symbol>,
 }
 
 
-impl SymbolMap {
+impl<'a> SymbolMap<'a> {
     pub fn new() -> Self {
         Self::prefill(&[
             // Compiler defined keywords
@@ -129,9 +133,11 @@ impl SymbolMap {
             "break",
             "continue",
             "else",
+            "enum",
             "false",
             "fn",
             "for",
+            "hide",
             "if",
             "let",
             "mut",
@@ -164,7 +170,7 @@ impl SymbolMap {
     /**
      * Fills the symbols before initialization.
      */
-    fn prefill(init: &[&'static str]) -> Self {
+    fn prefill(init: &'a [&str]) -> Self {
         SymbolMap {
             strings: init.into(),
             names: init.iter().copied().zip((0..).map(Symbol::new)).collect(),
@@ -175,7 +181,7 @@ impl SymbolMap {
     /**
      * Get the string corresponding to the given symbol.
      */
-    pub fn as_str(&self, sym: Symbol) -> &'static str {
+    pub fn as_str(&self, sym: Symbol) -> &'a str {
         self.strings[sym.index()]
     }
 
@@ -185,7 +191,8 @@ impl SymbolMap {
      * If symbol does't already then new symbol is created,
      * otherwise previous stored symbol is loaded instead.
      */
-    pub fn as_symbol(&mut self, name: &'static str) -> Symbol {
+    #[inline]
+    pub fn as_symbol(&mut self, name: &'a str) -> Symbol {
         match self.names.get(name) {
             Some(sym) => *sym,
             None => {

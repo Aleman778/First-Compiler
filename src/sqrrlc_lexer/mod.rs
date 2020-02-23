@@ -268,7 +268,7 @@ fn number(cur: &mut Cursor, first_char: char) -> LitKind {
             'x' => {
                 radix = Radix::Hexadecimal;
                 cur.eat();
-                eat_decimal_digits(cur)
+                eat_hexadecimal_digits(cur)
             }
             // No radix prefix
             '0'..='9' | '_' | '.' | 'e' | 'E' => {

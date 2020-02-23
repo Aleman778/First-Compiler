@@ -17,6 +17,7 @@ use crate::sqrrlc::{
     source_map::{SourceMap, Filename},
     // symbol::generator::gen_sym_table,
 };
+use crate::sqrrlc_lexer::tokenize;
 use crate::sqrrlc_ast::ast::*;
 use crate::sqrrlc_parser::Parser;
 // use crate::sqrrlc_interp::debug;
@@ -119,6 +120,9 @@ pub fn run_compiler(config: Config) {
         Input::Code{name, input} => sess.source_map().insert_source_file(name, input),
         Input::Empty => { eprintln!("error: no input specified"); return; }
     };
+    let mut tokens = tokenize(&file.source, file.start_pos.index());
+    let mut parser = Parser::new(&mut sess, &file, tokens);
+    parser.parse_expr();
     // let span = ParseSpan::new_extra(&file.source, file.id);
     // let mut ast = File::parse(span).unwrap().1;
     // ast.extend(parse_stdlib_basic(sess.source_map()));

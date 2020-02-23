@@ -16,7 +16,7 @@ use crate::sqrrlc::span::Span;
 /**
  * The session struct holds compilation data,
  */
-pub struct Session {
+pub struct Session<'a> {
     /// Handler is used to deal with error reporting.
     pub handler: Handler,
     /// Working directory of the compiler.
@@ -24,11 +24,11 @@ pub struct Session {
     /// Mapping of source files in use.
     pub source_map: Rc<SourceMap>,
     /// Mapping strings to symbols and vice versa.
-    pub symbol_map: SymbolMap,
+    pub symbol_map: SymbolMap<'a>,
 }
 
 
-impl Session {
+impl<'a> Session<'a> {
     /**
      * Creats a new empty session without specified working directory.
      */
@@ -65,7 +65,7 @@ impl Session {
     /**
      * Emits a warning diagnostic with a given message.
      */
-    pub fn warn<'a>(&self, message: &'a str) {
+    pub fn warn(&self, message: &'a str) {
         let diagnostic = self.handler.struct_warn(message);
         self.emit(&diagnostic);
     }
@@ -83,7 +83,7 @@ impl Session {
     /**
      * Creates a new warning diagnostic with a given message.
      */
-    pub fn struct_warn<'a>(&self, message: &'a str) -> Diagnostic {
+    pub fn struct_warn(&self, message: &'a str) -> Diagnostic {
         self.handler.struct_warn(message)
     }
 
@@ -99,7 +99,7 @@ impl Session {
     /**
      * Emits a error diagnostic with a given message.
      */
-    pub fn err<'a>(&self, message: &'a str) {
+    pub fn err(&self, message: &'a str) {
         let diagnostic = self.handler.struct_err(message);
         self.emit(&diagnostic);
     }
@@ -117,7 +117,7 @@ impl Session {
     /**
      * Creates a new error diagnostic with a given message.
      */
-    pub fn struct_err<'a>(&self, message: &'a str) -> Diagnostic {
+    pub fn struct_err(&self, message: &'a str) -> Diagnostic {
         self.handler.struct_err(message)
     }
 
@@ -133,7 +133,7 @@ impl Session {
     /**
      * Emits a fatal diagnostic with a given message.
      */
-    pub fn fatal<'a>(&self, message: &'a str) {
+    pub fn fatal(&self, message: &'a str) {
         let diagnostic = self.handler.struct_fatal(message);
         self.emit(&diagnostic);
     }
@@ -151,7 +151,7 @@ impl Session {
     /**
      * Creates a new warning diagnostic with a given message.
      */
-    pub fn struct_fatal<'a>(&self, message: &'a str) -> Diagnostic {
+    pub fn struct_fatal(&self, message: &'a str) -> Diagnostic {
         self.handler.struct_fatal(message)
     }
     
@@ -159,7 +159,7 @@ impl Session {
     /**
      * Creates a new warning diagnostic with a given message and span information.
      */
-    pub fn struct_span_fatal<'a>(&self, span: Span, message: &str) -> Diagnostic {
+    pub fn struct_span_fatal(&self, span: Span, message: &str) -> Diagnostic {
         self.handler.struct_span_fatal(span, message)
     }
 
