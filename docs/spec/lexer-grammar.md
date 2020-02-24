@@ -128,34 +128,42 @@ float suffix = f32 | f64;
 
 #### Character Literals
 ```EBNF
-character literal = "'", ( escape character | r[^\n\t\r'] ), "'"
+character literal = "'", ( escape character | valid character ), "'";
+valid character = r[^\n\t\r"];
 
-escape character = ASCII escape | unicode escape | quote escape 
+escape character = ASCII escape | unicode escape | quote escape;
 
-ASCII escape   = ( "\x", oct digit, [hex digit ) | "\n" | "\t" | "\t" | "\\" | "\0"
+ASCII escape   = ( "\x", oct digit, [hex digit ) | "\n" | "\t" | "\t" | "\\" | "\0";
 unicode escape = "\u{", { hex_digit } "}";
-quite escape   = 
+quote escape   = "\'" | '\"';
 ```
 Note: `r[^\n\t\r']` matches anything except newline, tabs, carrige
 return or `'` character.
 
 #### Byte Literals
 ```EBNF
-byte literal = "b'" ( escape character | r[^\n\t\r'] ), "'"
+byte literal = "b'", ( escape character | valid character ), "'";
 ```
-Note: 
 
 #### String Literals
 ```EBNF
-string literal = '"', ( escape character
+string literal = '"', { escape character | valid character }, '"';
 ```
 
-### Byte String Literals
-
+#### Byte String Literals
+```EBNF
+byte string literal = 'b"', { escape character | valid character }, '"';
+```
 
 #### Raw String Literals
+```EBNF
+raw string literal = "r", { "#" }, '"', { escape character | valid character }, '"', { "#" };
+```
 
-### Raw Byte String Literals
+#### Raw Byte String Literals
+```EBNF
+raw byte string literal = "rb", { "#" }, '"', { escape character | valid character }, '"', { "#" };
+```
 
 ### Identifiers
 In the lexing phase keywords are considered as identifiers since they
@@ -168,14 +176,9 @@ convert the identifier.
 identifier = identifier start, { identifier continue };
 raw identifier = "r#", identifier;
 
-identifier start = r[a-z] | r[A-Z] | "_" | unicode identifier start;
-identifier continue = r[0-9] | r[a-z] | r[A-Z] | "_" | unicode identifier continue;
+identifier start = r[a-z] | r[A-Z] | "_";
+identifier continue = r[0-9] | r[a-z] | r[A-Z] | "_";
 ```
-Note: `unicode identifier start` and `unicode identifier continue` are
-elided from this document. These allows for matching identifiers
-containing characters from other languages. See
-[unicode-xid](https://github.com/unicode-rs/unicode-xid) repository
-for more details and implementation.
 
 ### Symbols
 Basic symbols only contains a single character.

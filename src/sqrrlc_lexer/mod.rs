@@ -401,7 +401,7 @@ fn eat_hexadecimal_digits(cur: &mut Cursor) -> bool {
  * Returns true if exponent has digits, false otherwise.
  */
 fn eat_float_exponent(cur: &mut Cursor) -> bool {
-    debug_assert!(cur.prev == 'e' || cur.prev == 'E');
+    debug_assert!(cur.first() == 'e' || cur.first() == 'E');
     cur.eat();
     if cur.first() == '+' || cur.first() == '-' {
         cur.eat();

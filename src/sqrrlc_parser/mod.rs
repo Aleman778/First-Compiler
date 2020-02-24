@@ -6,11 +6,9 @@ pub mod expr;
 pub mod lit;
 
 
-use std::rc::Rc;
 use std::iter::Peekable;
 use crate::sqrrlc::session::Session;
 use crate::sqrrlc::source_map::SourceFile;
-use crate::sqrrlc::span::*;
 use crate::sqrrlc_lexer::*;
 use crate::sqrrlc_ast::ast_map::AstMap;
 
