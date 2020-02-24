@@ -19,7 +19,7 @@ fn main() {
     let config = driver::Config {
         input: driver::Input::Code {
             name: Filename::Custom("test".to_string()),
-            input: r#"128.001"#.to_string(),
+            input: r#"'老'"#.to_string(),
         },
         ..Default::default()
     };

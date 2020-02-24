@@ -32,9 +32,9 @@ impl<'a> Parser<'a> {
      */
     pub fn parse_literal(&mut self, token: &Token, kind: LitKind, suffix: usize) -> Option<ast::Expr> {
         let literal = match kind {
-            LitKind::Int { radix, empty } => self.parse_int(token, radix, empty, suffix),
-            LitKind::Float  { radix, empty_exponent } => self.parse_float(token, radix, empty_exponent, suffix),
-            // Char    { terminated }   => self.parse_character(terminated, suffix),
+            LitKind::Int   { radix, empty } => self.parse_int(token, radix, empty, suffix),
+            LitKind::Float { radix, empty_exponent } => self.parse_float(token, radix, empty_exponent, suffix),
+            LitKind::Char  { terminated }   => self.parse_character(token, terminated, suffix),
             // Byte    { terminated }   => self.parse_byte(terminated, suffix),
             // ByteStr { terminated }   => self.parse_byte_string(terminated, suffix),
             // Str     { terminated }   => self.parse_string(terminated, suffix),

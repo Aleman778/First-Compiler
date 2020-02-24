@@ -85,7 +85,7 @@ impl<'a> Parser<'a> {
             };
         }
         println!("{}", value);
-        Some(Lit { kind: LitKind::Int(value, ty), span: token.to_span(), })
+        Some(Lit { kind: LitKind::Int(value, ty), span: token.to_span() })
     }
 
 
@@ -220,9 +220,38 @@ impl<'a> Parser<'a> {
             }
         }
         println!("{:?}", value);
-        // println!("{}", value);
-        // Some(Lit {kind: LitKind::Float(value, ty), span: token.to_span(), })
-        None
+        Some(Lit { kind: LitKind::Float(value, ty), span: token.to_span() })
     }
 
+
+    pub fn parse_character(
+        &mut self,
+        token: &Token,
+        terminated: bool,
+        suffix: usize
+    ) -> Option<Lit> {
+        let span = token.to_span();
+        let mut chars = self.file.get_source(span).chars();
+        assert!(chars.next() == Some('\''));
+        let value = chars.next()? as char;
+        match chars.next() {
+            Some(c) => {
+                if c != '\'' {
+                    span_err!(self.sess, span, "character literal may only contain one codepoint");
+                    return None;
+                }
+            }
+            None => {
+                return None;
+            }
+        }
+        if let Some(c) = chars.last() {
+            if c != '\'' {
+                span_err!(self.sess, Span::new(token.base + token.len, 1), "unterminated character literal");
+                return None;
+            }
+        }
+        println!("{}", value);
+        Some(Lit { kind: LitKind::Char(value), span })
+    }
 }
