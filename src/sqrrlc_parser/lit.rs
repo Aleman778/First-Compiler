@@ -9,7 +9,7 @@ use crate::sqrrlc_ast::ast::*;
 
 impl<'a> Parser<'a> {
     /**
-     * Parses integer literal token and returns the literal ast node.
+     * Parses integer literal token.
      */
     pub fn parse_int(
         &mut self, 
@@ -90,7 +90,7 @@ impl<'a> Parser<'a> {
 
 
     /**
-     * Parses floating-point literal and returns literal ast node.
+     * Parses floating-point literal token.
      */
     pub fn parse_float(
         &mut self,
@@ -224,16 +224,24 @@ impl<'a> Parser<'a> {
     }
 
 
+    /**
+     * Parses a character literal token.
+     */
     pub fn parse_character(
         &mut self,
         token: &Token,
         terminated: bool,
         suffix: usize
     ) -> Option<Lit> {
+        if !terminated {
+            span_err!(self.sess, Span::new(token.base + token.len, 1), "unterminated character literal");
+            return None;
+        }
         let span = token.to_span();
         let mut chars = self.file.get_source(span).chars();
         assert!(chars.next() == Some('\''));
-        let value = chars.next()? as char;
+
+        let value: char = chars.next()?;
         match chars.next() {
             Some(c) => {
                 if c != '\'' {
@@ -245,13 +253,43 @@ impl<'a> Parser<'a> {
                 return None;
             }
         }
-        if let Some(c) = chars.last() {
-            if c != '\'' {
-                span_err!(self.sess, Span::new(token.base + token.len, 1), "unterminated character literal");
+        Some(Lit { kind: LitKind::Char(value), span })
+    }
+
+
+    /**
+     * Parses a byte literal token.
+     */
+    pub fn parse_byte(
+        &mut self,
+        token: &Token,
+        terminated: bool,
+        suffix: usize
+    ) -> Option<Lit> {
+        if !terminated {
+            span_err!(self.sess, Span::new(token.base + token.len, 1), "unterminated byte literal");
+            return None;
+        }
+        let span = token.to_span();
+        let mut chars = self.file.get_source(span).chars();
+        assert!(chars.next() == Some('b'));
+        assert!(chars.next() == Some('\''));
+
+        let value: u8 = chars.next()? as u8;
+        match chars.next() {
+            Some(c) => {
+                if c != '\'' {
+                    span_err!(self.sess, span, "byte literal may only contain one codepoint");
+                    return None;
+                }
+            }
+            None => {
                 return None;
             }
         }
-        println!("{}", value);
-        Some(Lit { kind: LitKind::Char(value), span })
+        Some(Lit { kind: LitKind::Byte(value), span })
     }
+
+
+    
 }

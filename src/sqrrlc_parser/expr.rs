@@ -35,7 +35,7 @@ impl<'a> Parser<'a> {
             LitKind::Int   { radix, empty } => self.parse_int(token, radix, empty, suffix),
             LitKind::Float { radix, empty_exponent } => self.parse_float(token, radix, empty_exponent, suffix),
             LitKind::Char  { terminated }   => self.parse_character(token, terminated, suffix),
-            // Byte    { terminated }   => self.parse_byte(terminated, suffix),
+            LitKind::Byte  { terminated }   => self.parse_byte(token, terminated, suffix),
             // ByteStr { terminated }   => self.parse_byte_string(terminated, suffix),
             // Str     { terminated }   => self.parse_string(terminated, suffix),
             // RawStr { num_hashes, started, terminated } =>
@@ -44,6 +44,7 @@ impl<'a> Parser<'a> {
             // self.parse_raw_byte_string(num_hashesh, started, terminated, suffix)
             _ => None
         };
+        println!("{:#?}", literal);
 
         if let Some(lit) = literal {
             

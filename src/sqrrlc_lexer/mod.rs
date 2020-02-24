@@ -88,7 +88,7 @@ fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
         'b' => match (cur.first(), cur.second()) {
             ('\'', _) => {
                 cur.eat();
-                let terminated = eat_single_quoted_string(cur);
+                let terminated = eat_character(cur);
                 let kind = Byte { terminated };
                 let suffix_start = cur.len_consumed();
                 eat_literal_suffix(cur);
@@ -96,7 +96,7 @@ fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
             }
             ('"', _) => {
                 cur.eat();
-                let terminated = eat_double_quoted_string(cur);
+                let terminated = eat_string(cur);
                 let kind = ByteStr { terminated };
                 let suffix_start = cur.len_consumed();
                 eat_literal_suffix(cur);
@@ -149,7 +149,7 @@ fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
         ';' => Semi,
         '.' => Dot,
         '(' => OpenParen,
-        ')' => CloseParen,
+
         '{' => OpenBrace,
         '}' => CloseBrace,
         '[' => OpenBrace,
@@ -174,7 +174,7 @@ fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
 
         // Natching agains character literal
         '\'' => {
-            let terminated = eat_single_quoted_string(cur);
+            let terminated = eat_character(cur);
             let kind = Char { terminated };
             let suffix_start = cur.len_consumed();
             eat_literal_suffix(cur);
@@ -183,7 +183,7 @@ fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
 
         // Matching against string literal
         '"' => {
-            let terminated = eat_double_quoted_string(cur);
+            let terminated = eat_string(cur);
             let kind = Str { terminated };
             let suffix_start = cur.len_consumed();
             eat_literal_suffix(cur);
@@ -424,7 +424,7 @@ fn eat_literal_suffix(cur: &mut Cursor) {
  * Eats a single quoted string literal, returns true if it 
  * was terminated, i.e. ended with `'` character.
  */
-fn eat_single_quoted_string(cur: &mut Cursor) -> bool {
+fn eat_character(cur: &mut Cursor) -> bool {
     debug_assert!(cur.prev == '\'');
     while let Some(c) = cur.eat() {
         match c {
@@ -432,6 +432,8 @@ fn eat_single_quoted_string(cur: &mut Cursor) -> bool {
             '\'' => return true,
             // Defines an escape character.
             '\\' => eat_escape_character(cur),
+            // Illegal characters.
+            '\n' | '\t' | '\r' => return false,
             // Match any other character.
             _ => (),
         }
@@ -444,7 +446,7 @@ fn eat_single_quoted_string(cur: &mut Cursor) -> bool {
  * Eats a double quoted string literal, returns true if it 
  * was terminated, i.e. ended with `"` character.
  */
-fn eat_double_quoted_string(cur: &mut Cursor) -> bool {
+fn eat_string(cur: &mut Cursor) -> bool {
     debug_assert!(cur.prev == '"');
     while let Some(c) = cur.eat() {
         match c {

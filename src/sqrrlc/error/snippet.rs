@@ -104,7 +104,7 @@ impl FileWithAnnotatedLines {
                 for line in ann.line_start + 1..middle {
                     add_annotation_to_file(&mut output, Rc::clone(&file), line, ann.as_line());
                 }
-                let line_end = ann.line_end - 1;
+                let line_end = ann.line_end.saturating_sub(1);
                 if middle < line_end {
                     add_annotation_to_file(&mut output, Rc::clone(&file), line_end, ann.as_line());
                 }

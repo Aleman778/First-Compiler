@@ -128,8 +128,7 @@ float suffix = f32 | f64;
 
 #### Character Literals
 ```EBNF
-character literal = "'", ( escape character | valid character ), "'";
-valid character = r[^\n\t\r"];
+character literal = "'", ( escape character | r[^\n\t\r'] ), "'";
 
 escape character = ASCII escape | unicode escape | quote escape;
 
@@ -138,31 +137,33 @@ unicode escape = "\u{", { hex_digit } "}";
 quote escape   = "\'" | '\"';
 ```
 Note: `r[^\n\t\r']` matches anything except newline, tabs, carrige
-return or `'` character.
+return or single quote `'` character.
 
 #### Byte Literals
 ```EBNF
-byte literal = "b'", ( escape character | valid character ), "'";
+byte literal = "b" character literal;
 ```
 
 #### String Literals
 ```EBNF
-string literal = '"', { escape character | valid character }, '"';
+string literal = '"', { escape character | r[^"] }, '"';
 ```
+Note: `r[^"]` matches anything except the double quote `"` character.
 
 #### Byte String Literals
 ```EBNF
-byte string literal = 'b"', { escape character | valid character }, '"';
+byte string literal = "b", string literal;
 ```
 
 #### Raw String Literals
 ```EBNF
-raw string literal = "r", { "#" }, '"', { escape character | valid character }, '"', { "#" };
+raw string literal = "r", { "#" }, { r[^"] }, '"', { "#" };
 ```
+Note: `r[^"]` matches anything except the double quote `"` character.
 
 #### Raw Byte String Literals
 ```EBNF
-raw byte string literal = "rb", { "#" }, '"', { escape character | valid character }, '"', { "#" };
+raw byte string literal = "b", raw string literal;
 ```
 
 ### Identifiers
