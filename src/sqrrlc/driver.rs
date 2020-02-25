@@ -17,9 +17,8 @@ use crate::sqrrlc::{
     source_map::{SourceMap, Filename},
     // symbol::generator::gen_sym_table,
 };
-use crate::sqrrlc_lexer::tokenize;
 use crate::sqrrlc_ast::ast::*;
-use crate::sqrrlc_parser::Parser;
+use crate::sqrrlc_parser::parse_file;
 // use crate::sqrrlc_interp::debug;
 // use crate::sqrrlc_interp::env::RuntimeEnv;
 // use crate::sqrrlc_typeck::{TypeChecker, TyCtxt};
@@ -120,11 +119,7 @@ pub fn run_compiler(config: Config) {
         Input::Code{name, input} => sess.source_map().insert_source_file(name, input),
         Input::Empty => { eprintln!("error: no input specified"); return; }
     };
-    let mut tokens = tokenize(&file.source, file.start_pos.index());
-    let mut parser = Parser::new(&mut sess, &file, tokens);
-    parser.parse_expr();
-    // let span = ParseSpan::new_extra(&file.source, file.id);
-    // let mut ast = File::parse(span).unwrap().1;
+    let ast_map = parse_file(&mut sess, &file);
     // ast.extend(parse_stdlib_basic(sess.source_map()));
     // let mut sym_table = gen_sym_table(&ast);
     // let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);

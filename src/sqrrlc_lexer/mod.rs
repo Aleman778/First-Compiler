@@ -62,9 +62,11 @@ impl<'a> Iterator for TokenStream<'a> {
         let cur = &mut Cursor::new(&self.input); 
         if is_whitespace(cur.first()) {
             let len_consumed = cur.eat_while(|c| is_whitespace(c));
+            self.base_pos += len_consumed;
             self.input = &self.input[len_consumed..];
         }
         let token = advance_token(&mut Cursor::new(&self.input), self.base_pos);
+        self.base_pos += token.len;
         self.input = &self.input[token.len..];
         Some(token)
     }

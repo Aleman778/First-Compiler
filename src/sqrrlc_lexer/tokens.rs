@@ -11,6 +11,7 @@ use crate::sqrrlc::span::Span;
 /**
  * Tokens doesn't contain any data, only the token kind and length.
  */
+#[derive(Debug)]
 pub struct Token {
     pub kind: TokenKind,
     pub base: usize,
