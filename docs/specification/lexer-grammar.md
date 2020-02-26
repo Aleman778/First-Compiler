@@ -212,7 +212,7 @@ or         = "|";
 star       = "*";
 slash      = "/";
 caret      = "^";
-percen     = "%";
+percent    = "%";
 ```
 
 ### Unknown Token
