@@ -4,9 +4,7 @@
 
 ## Handbook
 
-* [Basic Types](handbook/basic_types.md)
+* [Getting Started](handbook/basic_types.md)
 
-## Specification
-
-* [Lexical Analysis](specification/lexical_analysis.md)
+## spec
 
