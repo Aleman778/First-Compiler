@@ -6,5 +6,5 @@
 
 * [Getting Started](handbook/getting_started.md)
 
-## spec
+## specification <a id="spec"></a>
 
