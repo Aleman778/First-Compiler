@@ -9,4 +9,6 @@
 ## specification
 
 * [Language Specification](specification/language-specification.md)
+* [Lexer Grammar](specification/lexer-grammar.md)
+* [Parser Grammar](specification/parser-grammar.md)
 
