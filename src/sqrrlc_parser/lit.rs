@@ -236,7 +236,10 @@ pub fn parse_character(
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated character literal");
         return None;
     }
-    let span = token.to_span();
+    if suffix != token.len {
+        invalid_suffix_err!(ctx, token, suffix, "character");
+    }
+    let span = Span::new(token.base, suffix);
     let mut chars = ctx.file.get_source(span).chars();
     assert!(chars.next() == Some('\''));
 
@@ -269,7 +272,10 @@ pub fn parse_byte(
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated byte literal");
         return None;
     }
-    let span = token.to_span();
+    if suffix != token.len {
+        invalid_suffix_err!(ctx, token, suffix, "byte");
+    }
+    let span = Span::new(token.base, suffix);
     let mut chars = ctx.file.get_source(span).chars();
     assert!(chars.next() == Some('b'));
     assert!(chars.next() == Some('\''));
@@ -303,22 +309,96 @@ pub fn parse_string(
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated string literal");
         return None;
     }
+    if suffix != token.len {
+        invalid_suffix_err!(ctx, token, suffix, "string");
+    }
+
     let span = token.to_span();
     let input = ctx.file.get_source(span);
     assert!(&input[0..1] == "\"");
 
-    let string = &input[1..input.len() - 1];
+    let string = &input[1..suffix - 1];
     let symbol = ctx.sess.symbol_map.as_symbol(string);
     Some(Lit { kind: LitKind::Str(symbol, StrKind::Normal), span })
 }
 
 
+/**
+ * Parses a byte string literal token.
+ */
+pub fn parse_byte_string(
+    ctx: &mut ParseCtxt,
+    token: &Token,
+    terminated: bool,
+    suffix: usize
+) -> Option<Lit> {
+    if !terminated {
+        span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated byte string literal");
+        return None;
+    }
+    if suffix != token.len {
+        invalid_suffix_err!(ctx, token, suffix, "byte string");
+    }
+
+    let span = Span::new(token.base, suffix);
+    let input = ctx.file.get_source(span);
+    assert!(&input[0..2] == "b\"");
+    let bytes = input[2..suffix - 1].as_bytes();
+    Some(Lit { kind: LitKind::ByteStr(bytes.to_vec(), StrKind::Normal), span })
+}
+
+
+/**
+ * Parses a raw string literal token.
+ */
 pub fn parse_raw_string(
     ctx: &mut ParseCtxt,
     token: &Token,
     num_hashes: usize,
     started: bool,
-    terminated: bool
+    terminated: bool,
+    suffix: usize
 ) -> Option<Lit> {
-    None
+    if !terminated {
+        span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated raw string literal");
+        return None;
+    }
+    if suffix != token.len {
+        invalid_suffix_err!(ctx, token, suffix, "raw string");
+    }
+    let span = Span::new(token.base, suffix);
+    let input = ctx.file.get_source(span);
+    assert!(&input[0..1] == "r");
+    assert!(&input[1..2 + num_hashes] == &"#".repeat(num_hashes));
+    assert!(&input[1 + num_hashes..2 + num_hashes] == "\"");
+    let string = &input[2 + num_hashes..suffix - num_hashes - 2];
+    let symbol = ctx.sess.symbol_map.as_symbol(string);
+    Some(Lit { kind: LitKind::Str(symbol, StrKind::Raw(num_hashes as u16)), span })
 }
+
+
+/**
+ * Parses a raw byte string token.
+ */
+pub fn parse_raw_byte_string(
+    ctx: &mut ParseCtxt,
+    token: &Token,
+    num_hashes: usize,
+    started: bool,
+    terminated: bool,
+    suffix: usize
+) -> Option<Lit> {
+    if !terminated {
+        span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated raw byte string literal");
+        return None;
+    }
+    if suffix != token.len {
+        invalid_suffix_err!(ctx, token, suffix, "raw byte string");
+    }
+    let span = Span::new(token.base, suffix);
+    let input = ctx.file.get_source(span);
+    let bytes = input[2 + num_hashes..suffix - num_hashes - 2].as_bytes();
+    Some(Lit { kind: LitKind::ByteStr(bytes.to_vec(), StrKind::Raw(num_hashes as u16)), span })
+}
+
+

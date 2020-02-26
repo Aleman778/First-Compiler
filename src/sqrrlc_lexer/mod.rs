@@ -1,8 +1,4 @@
-
-/***************************************************************************
- * The lexer stage of the compiler converts input source code and
- * converts it into tokens.
- ***************************************************************************/
+//! The lexer stage of the compiler converts input source code and converts it into tokens.
 
 
 mod cursor;

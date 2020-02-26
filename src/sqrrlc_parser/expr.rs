@@ -36,22 +36,33 @@ pub fn parse_literal(
     suffix: usize
 ) -> Option<ast::Expr> {
     let literal = match kind {
-        LitKind::Int   { radix, empty } => parse_int(ctx, token, radix, empty, suffix),
-        LitKind::Float { radix, empty_exponent } => parse_float(ctx, token, radix, empty_exponent, suffix),
-        LitKind::Char  { terminated }   => parse_character(ctx, token, terminated, suffix),
-        LitKind::Byte  { terminated }   => parse_byte(ctx, token, terminated, suffix),
-        LitKind::Str   { terminated }   => parse_string(ctx, token, terminated, suffix),
-        // ByteStr { terminated }   => parse_byte_string(ctx, terminated, suffix),
-        // RawStr { num_hashes, started, terminated } =>
-        // parse_raw_string(ctx, terminated, suffix),
-        // RawByteStr { num_hashes, started, terminated } =>
-        // parse_raw_byte_string(ctx, num_hashesh, started, terminated, suffix)
-        _ => None
+        LitKind::Int { radix, empty } => 
+            parse_int(ctx, token, radix, empty, suffix),
+
+        LitKind::Float { radix, empty_exponent } => 
+            parse_float(ctx, token, radix, empty_exponent, suffix),
+
+        LitKind::Char { terminated } => 
+            parse_character(ctx, token, terminated, suffix),
+
+        LitKind::Byte { terminated } => 
+            parse_byte(ctx, token, terminated, suffix),
+
+        LitKind::Str { terminated } => 
+            parse_string(ctx, token, terminated, suffix),
+
+        LitKind::ByteStr { terminated } => 
+            parse_byte_string(ctx, token, terminated, suffix),
+
+        LitKind::RawStr { num_hashes, started, terminated } =>
+            parse_raw_string(ctx, token, num_hashes, started, terminated, suffix),
+
+        LitKind::RawByteStr { num_hashes, started, terminated } =>
+            parse_raw_byte_string(ctx, token, num_hashes, started, terminated, suffix),
     };
     println!("{:#?}", literal);
-
+    
     if let Some(lit) = literal {
-        
         Some(ast::Expr {
             node_id: ast::NodeId(0),
             kind: ast::ExprKind::Lit(Box::new(lit)),
