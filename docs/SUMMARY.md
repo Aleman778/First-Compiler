@@ -6,5 +6,7 @@
 
 * [Getting Started](handbook/getting_started.md)
 
-## specification <a id="spec"></a>
+## specification
+
+* [Language Specification](specification/language-specification.md)
 
