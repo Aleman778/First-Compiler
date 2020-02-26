@@ -4,7 +4,7 @@
 
 ## Handbook
 
-* [Getting Started](handbook/basic_types.md)
+* [Getting Started](handbook/getting_started.md)
 
 ## spec
 
