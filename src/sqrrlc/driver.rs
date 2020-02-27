@@ -17,7 +17,7 @@ use crate::sqrrlc::{
     source_map::{SourceMap, Filename},
     // symbol::generator::gen_sym_table,
 };
-use crate::sqrrlc_ast::ast::*;
+use crate::sqrrlc_ast::*;
 use crate::sqrrlc_parser::parse_file;
 // use crate::sqrrlc_interp::debug;
 // use crate::sqrrlc_interp::env::RuntimeEnv;

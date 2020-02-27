@@ -4,7 +4,7 @@
 use crate::sqrrlc::span::{symbol::sym, Span};
 use crate::sqrrlc_parser::ParseCtxt;
 use crate::sqrrlc_lexer::tokens::{Token, Radix};
-use crate::sqrrlc_ast::ast::*;
+use crate::sqrrlc_ast::*;
 
 
 /**
@@ -402,3 +402,17 @@ pub fn parse_raw_byte_string(
 }
 
 
+#[cfg(test)]
+mod tests {
+    use unit_test::parser::*;
+    use create::sqrrlc::sqrrlc_ast::{LitKind, LitIntTy, UIntTy, IntTy};
+    use LitKind::*;
+    
+    #[test]
+    fn parse_int_decimal() {
+        assert_eq!(parse_lit!("42"), LitKind::Int(42, LitIntTy::Unsuffixed));
+        assert_eq!(parse_lit!("16u8"), LitKind::Int(16, LitIntTy::Unsigned(UIntTy::U8)));
+        assert_eq!(parse_lit!("54_2i64"), LitKind::Int(542, LitIntTy::Signed(IntTy::I64)));
+    }
+
+}

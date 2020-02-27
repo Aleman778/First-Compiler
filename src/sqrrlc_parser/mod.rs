@@ -26,10 +26,18 @@ pub fn parse_file<'a>(session: &'a mut Session<'a>, file: &'a SourceFile) -> Ast
         tokens: tokens.peekable(),
         ast_map: AstMap::new(),
     };
-    parse_expr(&mut ctx);
-    return ctx.ast_map;
+    do_parse(ctx)
 }
 
+
+/**
+ * Parses the usign the given parse context.
+ * The resulting ast map is returned.
+ */
+pub fn do_parse<'a>(mut ctx: ParseCtxt<'a>) -> AstMap {
+    parse_expr(&mut ctx);
+    ctx.ast_map
+}
 
 
 /**

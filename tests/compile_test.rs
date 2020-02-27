@@ -12,7 +12,7 @@ use std::ffi::OsStr;
 use std::{fs, env};
 
 
-generate_tests!("src/test/"; run_test);
+//generate_tests!("src/test/"; run_test);
 
 
 /**

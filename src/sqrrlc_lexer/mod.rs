@@ -147,7 +147,7 @@ fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
         ';' => Semi,
         '.' => Dot,
         '(' => OpenParen,
-
+        ')' => CloseParen,
         '{' => OpenBrace,
         '}' => CloseBrace,
         '[' => OpenBrace,

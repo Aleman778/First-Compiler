@@ -5,7 +5,7 @@ use crate::sqrrlc_lexer::tokens::*;
 use crate::sqrrlc_parser::ParseCtxt;
 use crate::sqrrlc_parser::lit::*;
 use crate::sqrrlc::span::Span;
-use crate::sqrrlc_ast::ast;
+use crate::sqrrlc_ast;
 use TokenKind::*;
 
 
