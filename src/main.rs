@@ -4,8 +4,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use sqrrlc::sqrrlc::driver;
-use sqrrlc::sqrrlc::source_map::Filename;
+use sqrrlc::core::driver;
+use sqrrlc::core::source_map::Filename;
 
 #[macro_use]
 extern crate clap;

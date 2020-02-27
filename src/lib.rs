@@ -4,9 +4,9 @@
  ***************************************************************************/
 
 #[macro_use]
-pub mod sqrrlc;
-pub mod sqrrlc_ast;
-pub mod sqrrlc_lexer;
-pub mod sqrrlc_parser;
-// pub mod sqrrlc_interp;
-// pub mod sqrrlc_typeck;
+pub mod core;
+pub mod ast;
+pub mod lexer;
+pub mod parser;
+// pub mod interp;
+// pub mod typeck;
