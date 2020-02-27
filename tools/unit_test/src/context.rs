@@ -2,10 +2,9 @@
 //! step in the compilation pipeline.
 
 
-use sqrrlc::sqrrlc::session::Session;
-use sqrrlc::sqrrlc::source_map::SourceFile;
-use sqrrlc::sqrrlc_lexer::tokenize;
-use sqrrlc::sqrrlc_parser::ParseCtxt;
+use sqrrlc::core::session::Session;
+use sqrrlc::lexer::tokenize;
+use sqrrlc::parser::ParseCtxt;
 
 
 #[macro_export]
