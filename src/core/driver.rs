@@ -119,7 +119,7 @@ pub fn run_compiler(config: Config) {
         Input::Code{name, input} => sess.source_map().insert_source_file(name, input),
         Input::Empty => { eprintln!("error: no input specified"); return; }
     };
-    let ast_map = parse_file(&mut sess, &file);
+    let _ast_map = parse_file(&mut sess, &file);
     // ast.extend(parse_stdlib_basic(sess.source_map()));
     // let mut sym_table = gen_sym_table(&ast);
     // let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);

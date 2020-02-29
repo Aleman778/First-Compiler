@@ -5,7 +5,7 @@
  ***************************************************************************/
 
 
-use compile_test::generate_tests;
+// use compile_test::generate_tests;
 use std::process::Command;
 use std::path::Path;
 use std::ffi::OsStr;

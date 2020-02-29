@@ -1,6 +1,7 @@
 //! Parser implementation for literals.
 
 
+use std::str::Chars;
 use crate::core::span::{symbol::sym, Span};
 use crate::parser::ParseCtxt;
 use crate::lexer::tokens::{Token, Radix};
@@ -21,6 +22,7 @@ pub fn parse_int(
         span_err!(ctx.sess, token.to_span(), "no valid digits found for number");
         return None;
     }
+
     let suffix_span = Span::new(token.base + suffix, token.len - suffix);
     let lit_span = Span::new(token.base, suffix);
     let ty = if !suffix_span.is_empty() {
@@ -47,6 +49,7 @@ pub fn parse_int(
     } else {
         LitIntTy::Unsuffixed
     };
+
     let input = ctx.file.get_source(lit_span);
     let (radix_offset, radix_value) = match radix {
         Radix::Binary      => (2, 2),
@@ -54,6 +57,7 @@ pub fn parse_int(
         Radix::Octal       => (2, 8),
         Radix::Decimal     => (0, 10),
     };
+
     let input = &input[radix_offset..];
     let mut value: u128 = 0;
     for (i, c) in input.bytes().enumerate() {
@@ -68,7 +72,7 @@ pub fn parse_int(
                 continue;
             }
         };
-        value = match value.checked_mul(radix as u128) {
+        value = match value.checked_mul(radix_value as u128) {
             Some(x) => x,
             None => {
                 span_err!(ctx.sess, lit_span, "integer literal is too large");
@@ -83,7 +87,7 @@ pub fn parse_int(
             }
         };
     }
-    println!("{}", value);
+
     Some(Lit { kind: LitKind::Int(value, ty), span: token.to_span() })
 }
 
@@ -144,6 +148,7 @@ pub fn parse_float(
         span_err!(ctx.sess, token.to_span(), "expected at least one digit in exponent");
         return None;
     }
+
     let suffix_span = Span::new(token.base + suffix, token.len - suffix);
     let lit_span = Span::new(token.base, suffix);
     let ty = if !suffix_span.is_empty() {
@@ -160,6 +165,7 @@ pub fn parse_float(
     } else {
         LitFloatTy::Unsuffixed
     };
+
     match radix {
         Radix::Binary => {
             span_err!(ctx.sess, token.to_span(), "binary float literal is not supported");
@@ -175,6 +181,7 @@ pub fn parse_float(
         }
         _ => ()
     };
+
     let input = ctx.file.get_source(lit_span);
     let (integral, input) = eat_digits(input.as_bytes());
     let mut value: f64 = parse_integral(&integral);
@@ -232,29 +239,30 @@ pub fn parse_character(
     terminated: bool,
     suffix: usize
 ) -> Option<Lit> {
+    println!("{:#?}", token);
     if !terminated {
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated character literal");
         return None;
     }
+
     if suffix != token.len {
         invalid_suffix_err!(ctx, token, suffix, "character");
     }
+
     let span = Span::new(token.base, suffix);
     let mut chars = ctx.file.get_source(span).chars();
     assert!(chars.next() == Some('\''));
-
-    let value: char = chars.next()?;
-    match chars.next() {
-        Some(c) => {
-            if c != '\'' {
-                span_err!(ctx.sess, span, "character literal may only contain one codepoint");
-                return None;
-            }
-        }
-        None => {
-            return None;
-        }
+    
+    let mut value: char = chars.next()?;
+    if value == '\\' {
+        value = parse_escape_character(ctx, token, &mut chars, false)?;
     }
+
+    if chars.next()? != '\'' {
+        span_err!(ctx.sess, span, "byte literal may only contain one codepoint");
+        return None;
+    }
+
     Some(Lit { kind: LitKind::Char(value), span })
 }
 
@@ -272,25 +280,24 @@ pub fn parse_byte(
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated byte literal");
         return None;
     }
+
     if suffix != token.len {
         invalid_suffix_err!(ctx, token, suffix, "byte");
     }
+
     let span = Span::new(token.base, suffix);
     let mut chars = ctx.file.get_source(span).chars();
     assert!(chars.next() == Some('b'));
     assert!(chars.next() == Some('\''));
 
-    let value: u8 = chars.next()? as u8;
-    match chars.next() {
-        Some(c) => {
-            if c != '\'' {
-                span_err!(ctx.sess, span, "byte literal may only contain one codepoint");
-                return None;
-            }
-        }
-        None => {
-            return None;
-        }
+    let mut value: u8 = chars.next()? as u8;
+    if value == b'\\' {
+        value = parse_escape_character(ctx, token, &mut chars, true)? as u8;
+    }
+
+    if chars.next()? != '\'' {
+        span_err!(ctx.sess, span, "byte literal may only contain one codepoint");
+        return None;
     }
     Some(Lit { kind: LitKind::Byte(value), span })
 }
@@ -309,6 +316,7 @@ pub fn parse_string(
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated string literal");
         return None;
     }
+
     if suffix != token.len {
         invalid_suffix_err!(ctx, token, suffix, "string");
     }
@@ -336,6 +344,7 @@ pub fn parse_byte_string(
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated byte string literal");
         return None;
     }
+
     if suffix != token.len {
         invalid_suffix_err!(ctx, token, suffix, "byte string");
     }
@@ -355,7 +364,7 @@ pub fn parse_raw_string(
     ctx: &mut ParseCtxt,
     token: &Token,
     num_hashes: usize,
-    started: bool,
+    _started: bool,
     terminated: bool,
     suffix: usize
 ) -> Option<Lit> {
@@ -363,9 +372,11 @@ pub fn parse_raw_string(
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated raw string literal");
         return None;
     }
+
     if suffix != token.len {
         invalid_suffix_err!(ctx, token, suffix, "raw string");
     }
+
     let span = Span::new(token.base, suffix);
     let input = ctx.file.get_source(span);
     assert!(&input[0..1] == "r");
@@ -384,7 +395,7 @@ pub fn parse_raw_byte_string(
     ctx: &mut ParseCtxt,
     token: &Token,
     num_hashes: usize,
-    started: bool,
+    _started: bool,
     terminated: bool,
     suffix: usize
 ) -> Option<Lit> {
@@ -392,9 +403,11 @@ pub fn parse_raw_byte_string(
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated raw byte string literal");
         return None;
     }
+
     if suffix != token.len {
         invalid_suffix_err!(ctx, token, suffix, "raw byte string");
     }
+
     let span = Span::new(token.base, suffix);
     let input = ctx.file.get_source(span);
     let bytes = input[2 + num_hashes..suffix - num_hashes - 2].as_bytes();
@@ -402,17 +415,209 @@ pub fn parse_raw_byte_string(
 }
 
 
+/**
+ * Parses an escape character from either char or byte literal token.
+ */
+fn parse_escape_character(
+    ctx: &mut ParseCtxt,
+    token: &Token,
+    chars: &mut Chars,
+    byte: bool,
+) -> Option<char> {
+    match chars.next()? {
+        // ASCII escape character
+        'x' => {
+            let value: u8 = match chars.next()?.to_digit(7) {
+                Some(x) => x as u8,
+                None => {
+                    span_err!(ctx.sess, 
+                              token.to_span(),
+                              "escape character out of range, expected [\0x00 - \0x7F]");
+                    return None;
+                }
+            }; 
+            let value = if let Some(c) = chars.next() {
+                match c.to_digit(16) {
+                    Some(x) => value * 16 + x as u8,
+                    None => {
+                        span_err!(ctx.sess, 
+                                  token.to_span(),
+                                  "escape character out of range, expected [\0x00 - \0x7F]");
+                        return None;
+                    }
+                }
+            } else {
+                value
+            };
+            Some(value as char)
+        },
+ 
+        'n'  => Some('\n'),
+        't'  => Some('\t'),
+        'r'  => Some('\r'),
+        '\\' => Some('\\'),
+        '0'  => Some('\0'),
+        
+        // Unicode escape character
+        'u'  => {
+            if byte {
+                span_err!(ctx.sess, 
+                          token.to_span(),
+                          "unicode escape characters cannot be used as bytes or in byte string");
+                return None;
+            }
+
+            assert!(chars.next() == Some('{'));
+            let mut value: u32 = 0;
+            let mut c = chars.next()?;
+            if !c.is_digit(16) {
+                span_err!(ctx.sess, 
+                          token.to_span(), 
+                          "empty unicode escape, expected at least one hex digit");
+                return None;
+            }
+
+            loop {
+                value = value * 16 + c. to_digit(16)?;
+                c = chars.next()?;
+                if !c.is_digit(16) {
+                    break;
+                }
+            }
+
+            if value > 0x10FFFF {
+                span_err!(ctx.sess,
+                          token.to_span(),
+                          "invalid unicode escape character, expected at most 10FFFF");
+                return None;
+            }
+            assert!(c == '}');
+            std::char::from_u32(value)
+        },
+
+        // Quote sscape characters.
+        '\'' => Some('\''),
+        '"'  => Some('"'),
+        _ => {
+            span_err!(ctx.sess, token.to_span(), "invalid escape character");
+            None
+        }
+    }
+}
+
+
+
 #[cfg(test)]
+/// Unit testing of the different literal parsers.
 mod tests {
-    use unit_test::parser::*;
-    use crate::ast::{LitKind, LitIntTy, UIntTy, IntTy};
-    use LitKind::*;
-    
-    #[test]
-    fn parse_int_decimal() {
-        assert_eq!(parse_lit!("42"), Int(42, LitIntTy::Unsuffixed));
-        assert_eq!(parse_lit!("16u8"), Int(16, LitIntTy::Unsigned(UIntTy::U8)));
-        assert_eq!(parse_lit!("54_2i64"), Int(542, LitIntTy::Signed(IntTy::I64)));
+    use crate::lexer::tokenize;
+    use crate::ast::*;
+    use crate::ast::map::AstMap;
+    use crate::core::session::Session;
+    use crate::core::source_map::Filename;
+    use crate::parser::expr::parse_expr;
+    use crate::parser::ParseCtxt;
+
+
+    macro_rules! test {
+        ($func:ident, $input:expr, $expected:expr) => {
+            #[test]
+            fn $func() {
+                let mut sess = Session::new();
+                let fname = Filename::Custom("test".to_string());
+                let file = sess.source_map().insert_source_file(fname, $input.to_string());
+                let tokens = tokenize(&file.source, file.start_pos.index());
+                let mut ctx = ParseCtxt {
+                    sess: &mut sess,
+                    file: &file,
+                    tokens: tokens.peekable(),
+                    ast_map: AstMap::new(),
+                };
+                let actual = if let Some(expr) = parse_expr(&mut ctx) {
+                    if let ExprKind::Lit(lit) = expr.kind {
+                        Some((*lit).kind)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+                assert_eq!(actual, $expected);
+            }
+        };
     }
 
+    // Testing decimal integer of different types
+    test!(parse_int_dec_usuffixed, "42", 
+          Some(LitKind::Int(42, LitIntTy::Unsuffixed)));
+
+    test!(parse_int_dec_unsigned, "16u8", 
+          Some(LitKind::Int(16, LitIntTy::Unsigned(UIntTy::U8))));
+
+    test!(parse_int_dec_signed, "534__34_24__i64", 
+          Some(LitKind::Int(5343424, LitIntTy::Signed(IntTy::I64))));
+
+    // Testing binary integers of different types
+    test!(parse_int_bin_unsuffixed, "0b101010111110", 
+          Some(LitKind::Int(2750, LitIntTy::Unsuffixed)));
+
+    test!(parse_int_bin_unsigned, "0b11__00u16", 
+          Some(LitKind::Int(12, LitIntTy::Unsigned(UIntTy::U16))));
+
+    test!(parse_int_bin_signed, "0b11110000isize", 
+          Some(LitKind::Int(240, LitIntTy::Signed(IntTy::ISize))));
+
+    // Testing octal integers of different types
+    test!(parse_int_oct_unsuffixed, "0o325", 
+          Some(LitKind::Int(213, LitIntTy::Unsuffixed)));
+
+    test!(parse_int_oct_unsigned, "0o123__456__u128", 
+          Some(LitKind::Int(42798, LitIntTy::Unsigned(UIntTy::U128))));
+
+    test!(parse_int_oct_signed, "0o534________i16", 
+          Some(LitKind::Int(348, LitIntTy::Signed(IntTy::I16))));
+
+    // Testing floating-point values of different types and notations
+    test!(parse_float_fraction, "129.521",
+          Some(LitKind::Float(129.521, LitFloatTy::Unsuffixed)));
+
+    test!(parse_float_exponent, "3___2e-4__f32",
+          Some(LitKind::Float(0.0032, LitFloatTy::Suffixed(FloatTy::F32))));
+
+    test!(parse_flaot_both, "420.50E+2_f64",
+          Some(LitKind::Float(42050.0, LitFloatTy::Suffixed(FloatTy::F64))));
+
+    test!(parse_float_empty_fraction, "112.",
+          Some(LitKind::Float(112.0, LitFloatTy::Unsuffixed)));
+    
+    // Testing characters
+    test!(parse_character, "'a'", 
+          Some(LitKind::Char('a')));
+
+    test!(parse_single_quote_character, r"'\''", 
+          Some(LitKind::Char('\'')));
+
+    test!(parse_newline_character, r"'\n'", 
+          Some(LitKind::Char('\n')));
+
+    test!(parse_ascii_escape_character, r"'\x37'", 
+          Some(LitKind::Char('7')));
+
+    test!(parse_unicode_escape_character, r"\u{534}", 
+          Some(LitKind::Char('\u{534}')));
+
+    // Testing bytes
+    test!(parse_character_byte, "b'a'", 
+          Some(LitKind::Byte(97u8)));
+
+    test!(parse_single_quote_character_byte, r"b'\''", 
+          Some(LitKind::Byte(39u8)));
+
+    test!(parse_newline_character_byte, r"b'\n'",
+          Some(LitKind::Byte(10u8)));
+
+    test!(parse_ascii_escape_character_byte, r"b'\x37'",
+          Some(LitKind::Byte(55u8)));
+
+    test!(parse_unicode_escape_character_byte, r"\u{534}", None);
 }

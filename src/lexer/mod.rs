@@ -424,19 +424,29 @@ fn eat_literal_suffix(cur: &mut Cursor) {
  */
 fn eat_character(cur: &mut Cursor) -> bool {
     debug_assert!(cur.prev == '\'');
-    while let Some(c) = cur.eat() {
-        match c {
-            // String is terminated.
-            '\'' => return true,
-            // Defines an escape character.
-            '\\' => eat_escape_character(cur),
-            // Illegal characters.
-            '\n' | '\t' | '\r' => return false,
-            // Match any other character.
-            _ => (),
+    match cur.first() {
+        // Defines an escape character.
+        '\\' => {
+            cur.eat();
+            eat_escape_character(cur);
+        }
+        // Illegal characters.
+        '\n' | '\t' | '\r' | EOF_CHAR => {
+            return false;
+        }
+        // Match any other character.
+        _ => {
+            cur.eat();
         }
     }
-    false
+
+    // String is terminated.
+    if cur.first() == '\'' {
+        cur.eat();
+        true
+    } else {
+        false
+    }
 }
 
 
@@ -515,7 +525,7 @@ fn eat_escape_character(cur: &mut Cursor) {
         // Unicode escape character.
         'u' => {
             cur.eat();
-            if cur.second() == '{' {
+            if cur.first() == '{' {
                 cur.eat();
                 eat_hexadecimal_digits(cur);
                 if cur.first() == '}' {
@@ -524,7 +534,7 @@ fn eat_escape_character(cur: &mut Cursor) {
             }
         }
         // Quote escape characters.
-        '\'' | '\"' => {
+        '\'' | '"' => {
             cur.eat();
         }
         _ => (),

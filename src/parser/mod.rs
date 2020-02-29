@@ -19,8 +19,8 @@ use crate::ast::map::AstMap;
  * compiler session and using the provided token stream.
  */
 pub fn parse_file<'a>(session: &'a mut Session<'a>, file: &'a SourceFile) -> AstMap {
-    let mut tokens = tokenize(&file.source, file.start_pos.index());
-    let mut ctx = ParseCtxt {
+    let tokens = tokenize(&file.source, file.start_pos.index());
+    let ctx = ParseCtxt {
         sess: session,
         file: file,
         tokens: tokens.peekable(),

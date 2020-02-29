@@ -19,7 +19,7 @@ fn main() {
     let config = driver::Config {
         input: driver::Input::Code {
             name: Filename::Custom("test".to_string()),
-            input: r###"    br#"abcd"#    "###.to_string(),
+            input: r###"    b'\u{534}'    "###.to_string(),
         },
         ..Default::default()
     };
