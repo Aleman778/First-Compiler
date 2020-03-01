@@ -10,7 +10,7 @@ use termcolor::{
     StandardStream, WriteColor, BufferWriter,
     Buffer, Ansi, ColorChoice, ColorSpec, Color
 };
-use crate::core::error::{
+use crate::error::{
     Level,
     snippet::Style,
 };

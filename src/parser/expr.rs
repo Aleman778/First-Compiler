@@ -4,7 +4,7 @@
 use crate::lexer::tokens::*;
 use crate::parser::ParseCtxt;
 use crate::parser::lit::*;
-use crate::core::span::Span;
+use crate::span::Span;
 use crate::ast;
 use TokenKind::*;
 

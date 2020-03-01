@@ -1,16 +1,24 @@
+//! The `error` module contains diagnostic tools that is used for
+//! error handling and creating rust-like error messages.
 
-/***************************************************************************
- * The `error` module contains diagnostic tools that is used for
- * error handling and creating rust-like error messages.
- ***************************************************************************/
+
+#[macro_use]
+pub mod macros;
+pub mod styled_buffer;
+pub mod diagnostic;
+pub mod emitter;
+pub mod snippet;
 
 
 use std::sync::Mutex;
 use termcolor::{Color, ColorSpec};
-use crate::core::error::{emitter::Emitter, diagnostic::*};
-use crate::core::span::Span;
+use crate::error::{emitter::Emitter, diagnostic::*};
+use crate::span::Span;
 
 
+/**
+ * Handler holds mutex lock to the actual handler
+ */
 pub struct Handler(Mutex<HandlerInner>);
 
 
@@ -174,11 +182,3 @@ impl Level {
     }
 }
 
-
-pub mod styled_buffer;
-pub mod diagnostic;
-pub mod emitter;
-pub mod snippet;
-
-#[macro_use]
-pub mod macros;

@@ -6,11 +6,11 @@
 
 
 use std::fmt;
-use crate::core::error::{
+use crate::error::{
     Level,
     snippet::{Style, StyledString},
 };
-use crate::core::span::*;
+use crate::span::*;
 
 
 /**

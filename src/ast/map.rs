@@ -11,6 +11,7 @@ pub use crate::ast::Node;
 pub struct NodeId(pub u32);
 
 
+#[derive(Debug)]
 pub struct AstMap {
     pub mapping: Vec<Node>,
 }

@@ -2,7 +2,7 @@
 
 
 use std::str::Chars;
-use crate::core::span::{symbol::sym, Span};
+use crate::span::{symbol::sym, Span};
 use crate::parser::ParseCtxt;
 use crate::lexer::tokens::{Token, Radix};
 use crate::ast::*;

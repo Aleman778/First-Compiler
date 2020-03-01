@@ -7,8 +7,7 @@ pub mod map;
 pub mod op;
 
 
-use crate::core::span::Span;
-use crate::core::span::symbol::Symbol;
+use crate::span::{symbol::Symbol, Span};
 
 
 /**

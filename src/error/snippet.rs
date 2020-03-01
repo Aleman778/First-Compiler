@@ -9,8 +9,8 @@
 use std::rc::Rc;
 use std::cmp::{min, max};
 use crate::core::source_map::*;
-use crate::core::error::Level;
-use crate::core::span::MultiSpan;
+use crate::error::Level;
+use crate::span::MultiSpan;
 
 
 /**
