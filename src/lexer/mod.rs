@@ -512,11 +512,11 @@ fn eat_escape_character(cur: &mut Cursor) {
         // ASCII escape characters.
         'x' => {
             cur.eat();
-            if cur.first().is_digit(7) {
+            if cur.first().is_digit(15) {
                 cur.eat();
-            }
-            if cur.second().is_digit(15) {
-                cur.eat();
+                if cur.first().is_digit(15) {
+                    cur.eat();
+                }
             }
         }
         'n' | 't' | 'r' | '\\' | '0' => {

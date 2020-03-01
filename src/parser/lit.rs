@@ -225,7 +225,6 @@ pub fn parse_float(
             return None;
         }
     }
-    println!("{:?}", value);
     Some(Lit { kind: LitKind::Float(value, ty), span: token.to_span() })
 }
 
@@ -251,6 +250,7 @@ pub fn parse_character(
 
     let span = Span::new(token.base, suffix);
     let mut chars = ctx.file.get_source(span).chars();
+
     assert!(chars.next() == Some('\''));
     
     let mut value: char = chars.next()?;
@@ -287,6 +287,7 @@ pub fn parse_byte(
 
     let span = Span::new(token.base, suffix);
     let mut chars = ctx.file.get_source(span).chars();
+
     assert!(chars.next() == Some('b'));
     assert!(chars.next() == Some('\''));
 
@@ -299,6 +300,7 @@ pub fn parse_byte(
         span_err!(ctx.sess, span, "byte literal may only contain one codepoint");
         return None;
     }
+
     Some(Lit { kind: LitKind::Byte(value), span })
 }
 
@@ -323,6 +325,7 @@ pub fn parse_string(
 
     let span = token.to_span();
     let input = ctx.file.get_source(span);
+
     assert!(&input[0..1] == "\"");
 
     let string = &input[1..suffix - 1];
@@ -351,7 +354,9 @@ pub fn parse_byte_string(
 
     let span = Span::new(token.base, suffix);
     let input = ctx.file.get_source(span);
+
     assert!(&input[0..2] == "b\"");
+
     let bytes = input[2..suffix - 1].as_bytes();
     Some(Lit { kind: LitKind::ByteStr(bytes.to_vec(), StrKind::Normal), span })
 }
@@ -379,9 +384,11 @@ pub fn parse_raw_string(
 
     let span = Span::new(token.base, suffix);
     let input = ctx.file.get_source(span);
+
     assert!(&input[0..1] == "r");
     assert!(&input[1..2 + num_hashes] == &"#".repeat(num_hashes));
     assert!(&input[1 + num_hashes..2 + num_hashes] == "\"");
+
     let string = &input[2 + num_hashes..suffix - num_hashes - 2];
     let symbol = ctx.sess.symbol_map.as_symbol(string);
     Some(Lit { kind: LitKind::Str(symbol, StrKind::Raw(num_hashes as u16)), span })
@@ -436,7 +443,14 @@ fn parse_escape_character(
                     return None;
                 }
             }; 
+            
             let value = if let Some(c) = chars.next() {
+                if !c.is_digit(16) {
+                    span_err!(ctx.sess, 
+                              token.to_span(), 
+                              "numerical escape character is too short");
+                    return None;
+                }
                 match c.to_digit(16) {
                     Some(x) => value * 16 + x as u8,
                     None => {
@@ -447,11 +461,14 @@ fn parse_escape_character(
                     }
                 }
             } else {
-                value
+                span_err!(ctx.sess, 
+                          token.to_span(), 
+                          "numerical escape character is too short");
+                return None;
             };
+
             Some(value as char)
         },
- 
         'n'  => Some('\n'),
         't'  => Some('\t'),
         'r'  => Some('\r'),
@@ -498,6 +515,8 @@ fn parse_escape_character(
         // Quote sscape characters.
         '\'' => Some('\''),
         '"'  => Some('"'),
+
+        // Everything else is invalid
         _ => {
             span_err!(ctx.sess, token.to_span(), "invalid escape character");
             None
@@ -533,6 +552,7 @@ mod tests {
                     tokens: tokens.peekable(),
                     ast_map: AstMap::new(),
                 };
+
                 let actual = if let Some(expr) = parse_expr(&mut ctx) {
                     if let ExprKind::Lit(lit) = expr.kind {
                         Some((*lit).kind)
@@ -542,6 +562,7 @@ mod tests {
                 } else {
                     None
                 };
+
                 assert_eq!(actual, $expected);
             }
         };
@@ -603,7 +624,7 @@ mod tests {
     test!(parse_ascii_escape_character, r"'\x37'", 
           Some(LitKind::Char('7')));
 
-    test!(parse_unicode_escape_character, r"\u{534}", 
+    test!(parse_unicode_escape_character, r"'\u{534}'", 
           Some(LitKind::Char('\u{534}')));
 
     // Testing bytes
@@ -619,5 +640,5 @@ mod tests {
     test!(parse_ascii_escape_character_byte, r"b'\x37'",
           Some(LitKind::Byte(55u8)));
 
-    test!(parse_unicode_escape_character_byte, r"\u{534}", None);
+    test!(parse_unicode_escape_character_byte, r"b'\u{534}'", None);
 }
