@@ -142,7 +142,7 @@ macro_rules! invalid_suffix_err {
     ($ctx:expr, $token:expr, $suffix:expr, $type:expr) => ({
         let span = Span::new($token.base + $suffix, $token.len - $suffix);
         let msg = &format!("suffixes on a raw string literal are invalid");
-        let mut err = $ctx.sess.struct_span_err(span, msg);
+        let err = $ctx.sess.struct_span_err(span, msg);
         $ctx.sess.emit(&err);
     })
 }
