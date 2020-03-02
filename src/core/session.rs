@@ -4,13 +4,12 @@
 
 use std::rc::Rc;
 use std::path::PathBuf;
+use crate::error::{diagnostic::*, emitter::Emitter, Handler};
+use crate::span::{symbol::SymbolMap, Span};
 use crate::core::{
     utils::ColorConfig,
-    error::{diagnostic::*, emitter::Emitter, Handler},
-    span::symbol::SymbolMap,
     source_map::SourceMap,
 };
-use crate::core::span::Span;
 
 
 /**

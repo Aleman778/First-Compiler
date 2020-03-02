@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::Mutex;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
-use crate::core::span::*;
+use crate::span::*;
 
 
 /**

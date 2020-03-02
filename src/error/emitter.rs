@@ -16,14 +16,14 @@ use std::cmp::{min, max, Reverse};
 use std::collections::HashMap;
 use termcolor::ColorSpec;
 use crate::core::utils::{Destination, ColorConfig};
-use crate::core::error::{
+use crate::core::source_map::*;
+use crate::span::*;
+use crate::error::{
     Level,
     styled_buffer::*,
     diagnostic::*,
     snippet::*,
 };
-use crate::core::source_map::*;
-use crate::core::span::*;
 
 
 const ANONYMIZED_LINENUM: &str = "LL";

@@ -4,7 +4,7 @@
 use crate::lexer::tokens::*;
 use crate::parser::ParseCtxt;
 use crate::parser::lit::*;
-use crate::core::span::Span;
+use crate::span::Span;
 use crate::ast;
 use TokenKind::*;
 
@@ -15,7 +15,13 @@ use TokenKind::*;
 pub fn parse_expr(ctx: &mut ParseCtxt) -> Option<ast::Expr> {
     let token = ctx.tokens.next()?;
     match token.kind {
-        Literal { kind, suffix_start } => parse_literal(ctx, &token, kind, suffix_start),
+        Literal { kind, suffix_start } => {
+            if let Some(next) = ctx.tokens.peek() {
+                None
+            } else {
+                parse_literal(ctx, &token, kind, suffix_start)
+            }
+        }
         Unknown => {
             let span = Span::new(token.base, token.len);
             span_err!(ctx.sess, span, "unknown start of a token `{}`", ctx.file.get_source(span));

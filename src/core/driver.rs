@@ -5,24 +5,18 @@
  ***************************************************************************/
 
 
-use log::info;
+use log::{Level, info};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::env;
 use crate::core::{
     session::Session,
-    span::symbol::SymbolMap,
-    error::{emitter::Emitter, Handler},
     utils::ColorConfig,
     source_map::{SourceMap, Filename},
-    // symbol::generator::gen_sym_table,
 };
-use crate::ast::*;
+use crate::error::{emitter::Emitter, Handler};
+use crate::span::symbol::SymbolMap;
 use crate::parser::parse_file;
-// use crate::interp::debug;
-// use crate::interp::env::RuntimeEnv;
-// use crate::typeck::{TypeChecker, TyCtxt};
-
 
 /**
  * The input defines the compilation source code target.
@@ -119,32 +113,8 @@ pub fn run_compiler(config: Config) {
         Input::Code{name, input} => sess.source_map().insert_source_file(name, input),
         Input::Empty => { eprintln!("error: no input specified"); return; }
     };
-    let _ast_map = parse_file(&mut sess, &file);
-    // ast.extend(parse_stdlib_basic(sess.source_map()));
-    // let mut sym_table = gen_sym_table(&ast);
-    // let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);
-    // ast.check_type(&mut ty_ctxt);
-    // if config.interpret {
-        // let mut env = RuntimeEnv::new(&mut sess);
-        // ast.eval(&mut env);
-    // }
-}
-
-
-/**
- * Parses the FFI items in the stdlib basic.sq file.
- */
-pub fn parse_stdlib_basic(_source_map: &SourceMap) -> Vec<Item> {
-    // let directory = env::var("SQRRLC_LIBSTD_DIR").unwrap_or("src/libstd/".to_string());
-    // let file = source_map.load_file(Path::new(&(directory + "basic.sq")))
-        // .expect("could not find basic.sq in the std library directory");
-    // let span = ParseSpan::new_extra(&file.source, file.id);
-    // let ast = File::parse(span).unwrap().1;
-    // ast.items
-    // println!("{:#?}", ast);
-    // ast.items
-    // debug::debug_functions().items
-    vec![]
+    let ast_map = parse_file(&mut sess, &file);
+    println!("\nParseResults:\n{:#?}", ast_map);
 }
     
 
@@ -209,7 +179,9 @@ pub fn main() {
              .help("Runs the compiler in testing mode")
              .hidden(true))
         .get_matches();
-
+    if matches.is_present("verbose") {
+        simple_logger::init_with_level(Level::Debug).unwrap();
+    }
     if matches.is_present("version") {
         const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
         println!("sqrrlc {}", VERSION.unwrap_or("unknown version"));

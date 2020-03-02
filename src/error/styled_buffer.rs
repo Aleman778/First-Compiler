@@ -4,7 +4,7 @@
 //! Note: this code is based on the rust compiler (but somewhat simplified).
 
 
-use crate::core::error::{
+use crate::error::{
     snippet::{Style, StyledString},
 };
 
