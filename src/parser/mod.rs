@@ -4,6 +4,7 @@
 
 mod expr;
 mod lit;
+mod op;
 
 
 use std::iter::Peekable;

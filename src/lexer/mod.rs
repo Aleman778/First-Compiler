@@ -61,6 +61,9 @@ impl<'a> Iterator for TokenStream<'a> {
             self.base_pos += len_consumed;
             self.input = &self.input[len_consumed..];
         }
+        if self.input.is_empty() {
+            return None;
+        }
         let token = advance_token(&mut Cursor::new(&self.input), self.base_pos);
         self.base_pos += token.len;
         self.input = &self.input[token.len..];
