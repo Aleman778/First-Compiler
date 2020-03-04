@@ -18,65 +18,51 @@ pub enum Assoc {
 }
 
 
+
+
+
 /**
  * Implementation of the binary operator node.
  */
 impl BinOp {
     /**
      * Returns the precedence and associativity of this operator.
-     * These are based on C++ operator precedence.
+     * These are based on C++ operator precedence:
+     * https://en.cppreference.com/w/cpp/language/operator_precedence
      */
     pub fn get_prec(&self) -> (u8, Assoc) {
         match self {
-            // Precedence: 1, Associativity: Left-to-right
-            BinOp::And(_) => (1, Assoc::Left),
-            BinOp::Or(_)  => (1, Assoc::Left),
-            
-            // Precedence: 2, Associativity: Left-to-right
-            BinOp::Eq(_)  => (2, Assoc::Left),
-            BinOp::Ne(_)  => (2, Assoc::Left),
-            
-            // Precedence: 3, Associativity: Left-to-right
-            BinOp::Lt(_)  => (3, Assoc::Left),
-            BinOp::Le(_)  => (3, Assoc::Left),
-            BinOp::Gt(_)  => (3, Assoc::Left),
-            BinOp::Ge(_)  => (3, Assoc::Left),
-            
-            // Precedence: 4, Associativity: Left-to-right
-            BinOp::Add(_) => (4, Assoc::Left),
-            BinOp::Sub(_) => (4, Assoc::Left),
-            
-            // Precedence: 5, Associativity: Left-to-right
-            BinOp::Mul(_) => (5, Assoc::Left),
-            BinOp::Div(_) => (5, Assoc::Left),
-            BinOp::Mod(_) => (5, Assoc::Left),
-            
-            // Precedence: 6, Associativity: Right-to-left
-            BinOp::Pow(_) => (6, Assoc::Right),
-            
-        }
-    }
+            BinOp::Pow(_)      => (4,  Assoc::Right),
+            BinOp::Mul(_)      => (5,  Assoc::Left),
+            BinOp::Div(_)      => (5,  Assoc::Left),
+            BinOp::Mod(_)      => (5,  Assoc::Left),
+            BinOp::Add(_)      => (6,  Assoc::Left),
+            BinOp::Sub(_)      => (6,  Assoc::Left),
+            BinOp::Shl(_)      => (7,  Assoc::Left),
+            BinOp::Shr(_)      => (7,  Assoc::Left),
+            BinOp::Lt(_)       => (9,  Assoc::Left),
+            BinOp::Le(_)       => (9,  Assoc::Left),
+            BinOp::Gt(_)       => (9,  Assoc::Left),
+            BinOp::Ge(_)       => (9,  Assoc::Left),
+            BinOp::Eq(_)       => (10, Assoc::Left),
+            BinOp::Ne(_)       => (10, Assoc::Left),
+            BinOp::BitAnd(_)   => (11, Assoc::Left),
+            BinOp::BitXor(_)   => (12, Assoc::Left), 
+            BinOp::BitOr(_)    => (13, Assoc::Left),
+            BinOp::And(_)      => (14, Assoc::Left),
+            BinOp::Or(_)       => (15, Assoc::Left),
+            BinOp::Assign(_)   => (16, Assoc::Right),
+            BinOp::AddEq(_)    => (16, Assoc::Right),
+            BinOp::SubEq(_)    => (16, Assoc::Right),
+            BinOp::MulEq(_)    => (16, Assoc::Right),
+            BinOp::DivEq(_)    => (16, Assoc::Right),
+            BinOp::ModEq(_)    => (16, Assoc::Right),
+            BinOp::BitAndEq(_) => (16, Assoc::Right),
+            BinOp::BitOrEq(_)  => (16, Assoc::Right),
+            BinOp::BitXorEq(_) => (16, Assoc::Right),
+            BinOp::ShlEq(_)    => (16, Assoc::Right),
+            BinOp::ShrEq(_)    => (16, Assoc::Right),
 
-
-    /**
-     * Returns the token string used by the given operator.
-     */
-    pub fn token(&self) -> &'static str {
-        match self {
-            BinOp::Add(_) => "+",
-            BinOp::Sub(_) => "-",
-            BinOp::Mul(_) => "*",
-            BinOp::Div(_) => "/",
-            BinOp::Pow(_) => "**",
-            BinOp::Mod(_) => "%",
-            BinOp::And(_) => "&&",
-            BinOp::Or(_)  => "||",
-            BinOp::Eq(_)  => "==",
-            BinOp::Ne(_)  => "!=",
-            BinOp::Lt(_)  => "<",
-            BinOp::Le(_)  => "<=",
-            BinOp::Gt(_)  => ">",
-            BinOp::Ge(_)  => ">=",
         }
     }
 }
@@ -87,22 +73,39 @@ impl BinOp {
  */
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            BinOp::Add(_) => write!(f, "add"),
-            BinOp::Sub(_) => write!(f, "subtract"),
-            BinOp::Mul(_) => write!(f, "multiplicate"),
-            BinOp::Div(_) => write!(f, "divide"),
-            BinOp::Pow(_) => write!(f, "power"),
-            BinOp::Mod(_) => write!(f, "modolu"),
-            BinOp::And(_) => write!(f, "logical and"),
-            BinOp::Or(_)  => write!(f, "logical or"),
-            BinOp::Eq(_)  => write!(f, "compare equal"),
-            BinOp::Ne(_)  => write!(f, "compare not equal"),
-            BinOp::Lt(_)  => write!(f, "compare less than"),
-            BinOp::Le(_)  => write!(f, "compare less than or equal"),
-            BinOp::Gt(_)  => write!(f, "compare greater than"),
-            BinOp::Ge(_)  => write!(f, "compare greater than or equal"),
-        }
+        let s = match self {
+            BinOp::Add(_)      => "+",
+            BinOp::Sub(_)      => "-",
+            BinOp::Mul(_)      => "*",
+            BinOp::Div(_)      => "/",
+            BinOp::Pow(_)      => "**",
+            BinOp::Mod(_)      => "%",
+            BinOp::BitAnd(_)   => "&",
+            BinOp::And(_)      => "&&",
+            BinOp::BitXor(_)   => "|",
+            BinOp::Or(_)       => "||", 
+            BinOp::BitOr(_)    => "^",
+            BinOp::Shl(_)      => "<<",
+            BinOp::Shr(_)      => ">>",
+            BinOp::Eq(_)       => "==",
+            BinOp::Ne(_)       => "!=",
+            BinOp::Lt(_)       => "<",
+            BinOp::Le(_)       => "<=",
+            BinOp::Gt(_)       => ">",
+            BinOp::Ge(_)       => ">=",
+            BinOp::Assign(_)   => "=",
+            BinOp::AddEq(_)    => "+=",
+            BinOp::SubEq(_)    => "-=",
+            BinOp::MulEq(_)    => "*=",
+            BinOp::DivEq(_)    => "/=",
+            BinOp::ModEq(_)    => "%=",
+            BinOp::BitAndEq(_) => "&=",
+            BinOp::BitOrEq(_)  => "|=",
+            BinOp::BitXorEq(_) => "^=",
+            BinOp::ShlEq(_)    => "<<=",
+            BinOp::ShrEq(_)    => ">>=",
+        };
+        write!(f, "{}", s)
     }
 }
 
@@ -118,19 +121,7 @@ impl UnOp {
      * These are based on C++ operator precedence.
      */
     pub fn get_prec(&self) -> (u8, Assoc) {
-        (7, Assoc::Right)
-    }
-
-
-    /**
-     * Returns the token string used by the given operator.
-     */
-    pub fn token(&self) -> &'static str {
-        match self {
-            UnOp::Neg(_)   => "-",
-            UnOp::Not(_)   => "!",
-            UnOp::Deref(_) => "*",
-        }
+        (3, Assoc::Right)
     }
 }
 
@@ -140,10 +131,12 @@ impl UnOp {
  */
 impl fmt::Display for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            UnOp::Neg(_)   => write!(f, "negated"),
-            UnOp::Not(_)   => write!(f, "logical inverted"),
-            UnOp::Deref(_) => write!(f, "dereferenced"),
-        }
+        let s = match self {
+            UnOp::Neg(_)   => "-",
+            UnOp::Not(_)   => "!",
+            UnOp::Ptr(_)   => "^",
+            UnOp::Deref(_) => "*",
+        };
+        write!(f, "{}", s)
     }
 }

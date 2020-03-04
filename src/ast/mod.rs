@@ -434,34 +434,66 @@ pub enum FloatTy {
  */
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum BinOp {
-    /// The `+` operator (addition)
+    /// The `+` operator for addition.
     Add(Span),
-    /// The `-` binary operator (subtraction)
+    /// The `-` operator for subtraction.
     Sub(Span),
-    /// The `*` operator (multiplication)
+    /// The `*` operator for multiplication.
     Mul(Span),
-    /// The `/` operator (division)
+    /// The `/` operator for division.
     Div(Span),
-    /// The `**` operator (power)
+    /// The `**` operator for power.
     Pow(Span),
-    /// The `%` operator (modulus)
+    /// The `%` operator for remainder.
     Mod(Span),
-    /// The `&&` operator (logical and)
+    /// The `&` operator for bitwise and.
+    BitAnd(Span),
+    /// The `&&` operator for logical and.
     And(Span),
-    /// The `||` operator (logical or)
+    /// The `&` operator for bitwise or.
+    BitOr(Span),
+    /// The `||` operator for logical or.
     Or(Span),
-    /// The `=` operator (equality)
+    /// The `^` operator for bitwise xor.
+    BitXor(Span),
+    /// The `<<` operator for shift left.
+    Shl(Span),
+    /// The `>>` operator for shift right.
+    Shr(Span),
+    /// The `=` operator for assignments.
+    Assign(Span),
+    /// The `==` operator for equality.
     Eq(Span),
-    /// The `!=` operator (not equal to)
+    /// The `!=` operator for not equal to.
     Ne(Span),
-    /// The `<` operator (less than)
+    /// The `<` operator for less than.
     Lt(Span),
-    /// The `<=` operator (less than or equal to)
+    /// The `<=` operator for less than or equal to.
     Le(Span),
-    /// The `>` operator (greater than)
+    /// The `>` operator for greater than.
     Gt(Span),
-    /// The `>=` operator (greater than or equal to)
+    /// The `>=` operator for greater than or equal to.
     Ge(Span),
+    /// The `+=` operator for addition and assignment.
+    AddEq(Span),
+    /// The `-=` operator for subtraction and assignment.
+    SubEq(Span),
+    /// The `*=` operator for subtraction and assignment.
+    MulEq(Span),
+    /// The `/=` operator for subtraction and assignment.
+    DivEq(Span),
+    /// The `%=` operator for remainder and assignment.
+    ModEq(Span),
+    /// The `&=` operator for bitwise and with assignment.
+    BitAndEq(Span),
+    /// The `|=` operator for bitwise or and assignment.
+    BitOrEq(Span),
+    /// The `^=` operator for bitwise xor and assignment.
+    BitXorEq(Span),
+    /// The `<<=` operator for shift left and assignment.
+    ShlEq(Span),
+    /// The `>>=` operator for shift right and assignment.
+    ShrEq(Span),
 }
 
 
@@ -470,10 +502,12 @@ pub enum BinOp {
  */
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum UnOp {
-    /// The `-` unary operator (negation)
+    /// The `-` operator (negation)
     Neg(Span),
     /// The `!` operator (logical inversion)
     Not(Span),
+    /// The `^` operator for pointers.
+    Ptr(Span),
     /// The `*` operator (dereferencing)
     Deref(Span),
 }

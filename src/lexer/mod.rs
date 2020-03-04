@@ -3,11 +3,10 @@
 
 mod cursor;
 pub mod tokens;
+pub mod stream;
 
 
-pub use crate::lexer::tokens::*;
-use crate::lexer::cursor::*;
-use std::iter::Iterator;
+use crate::lexer::{tokens::*, cursor::*, stream::*};
 use LitKind::*;
 use TokenKind::*;
 
@@ -18,57 +17,6 @@ use TokenKind::*;
  */
 pub fn tokenize(input: &str, base_pos: usize) -> TokenStream {
     TokenStream::new(input, base_pos)
-}
-
-
-/**
- * The token stream implements an iterator over a stream of tokens
- * that are lexed by the provided tokenizer.
- */
-#[derive(Clone)]
-pub struct TokenStream<'a> {
-    input: &'a str,
-    base_pos: usize,
-}
-
-
-impl<'a> TokenStream<'a> {
-    /**
-     * Creates a new token stream.
-     */
-    pub fn new(input: &'a str, base_pos: usize) -> TokenStream {
-        TokenStream { input, base_pos }
-    }
-}
-
-
-impl<'a> Iterator for TokenStream<'a> {
-    /**
-     * The item type to iterate over is the Token struct.
-     */
-    type Item = Token;
-
-    /**
-     * Parses the next token, returns None if it has reached the end of file.
-     */
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.input.is_empty() {
-            return None;
-        }
-        let cur = &mut Cursor::new(&self.input); 
-        if is_whitespace(cur.first()) {
-            let len_consumed = cur.eat_while(|c| is_whitespace(c));
-            self.base_pos += len_consumed;
-            self.input = &self.input[len_consumed..];
-        }
-        if self.input.is_empty() {
-            return None;
-        }
-        let token = advance_token(&mut Cursor::new(&self.input), self.base_pos);
-        self.base_pos += token.len;
-        self.input = &self.input[token.len..];
-        Some(token)
-    }
 }
 
 

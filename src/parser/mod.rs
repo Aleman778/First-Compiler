@@ -7,10 +7,10 @@ mod lit;
 mod op;
 
 
-use std::iter::Peekable;
 use crate::core::session::Session;
 use crate::core::source_map::SourceFile;
-use crate::lexer::*;
+use crate::lexer::tokenize;
+use crate::lexer::stream::TokenStream;
 use crate::parser::expr::parse_expr;
 use crate::ast::map::AstMap;
 
@@ -24,7 +24,7 @@ pub fn parse_file<'a>(session: &'a mut Session<'a>, file: &'a SourceFile) -> Ast
     let ctx = ParseCtxt {
         sess: session,
         file: file,
-        tokens: tokens.peekable(),
+        tokens: tokens,
         ast_map: AstMap::new(),
     };
     do_parse(ctx)
@@ -52,7 +52,7 @@ pub struct ParseCtxt<'a> {
     /// Source file currently being parsed.
     file: &'a SourceFile,
     /// Token stream for lexing input code.
-    tokens: Peekable<TokenStream<'a>>,
+    tokens: TokenStream<'a>,
     /// Output mapper used by abstract syntax tree.
     ast_map: AstMap,
 }

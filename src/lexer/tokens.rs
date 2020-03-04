@@ -7,6 +7,15 @@
 use crate::span::Span;
 
 
+/**
+ * Dummy token, is an unknown token that points to position 0 and has length of 0.
+ */
+pub const DUMMY_TOKEN: Token = Token { 
+    kind: TokenKind::Unknown, 
+    base: 0, 
+    len: 0 
+};
+
 
 /**
  * Tokens doesn't contain any data, only the token kind and length.
@@ -43,10 +52,12 @@ pub enum TokenKind {
     LineComment,
     /// Block comments e.g. `/* comment /* recursive */ */` or `/** doc-comment */`
     BlockComment { terminated: bool },
-    /// Identifier or keywords e.g. `hello_word`, `MyStruct`, `x`, `let` etc.
+    /// Identifier e.g. `hello_word`, `MyStruct`, `x` etc.
     Ident,
     /// Raw identifiers e.g. `r#while`.
     RawIdent,
+    /// Keywords e.g. `let`, `while` etc.
+    Keyword { kind: KeywordKind },
     /// Literal tokens e.g. `10_u8`, `"hello world!"`
     Literal { kind: LitKind, suffix_start: usize },
     /// Semicolon token `;`.
@@ -105,6 +116,11 @@ pub enum TokenKind {
     Percent,
     /// Unknown token, not expected by the lexer.
     Unknown,
+}
+
+
+pub enum KeywordKind {
+    
 }
 
 

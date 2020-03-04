@@ -28,7 +28,7 @@ fn main() {
     let config = driver::Config {
         input: driver::Input::Code {
             name: Filename::Custom("test".to_string()),
-            input: r###"    '\x37'    "###.to_string(),
+            input: r###"    1 + 2    "###.to_string(),
         },
         ..Default::default()
     };

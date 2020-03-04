@@ -1,0 +1,29 @@
+
+/***************************************************************************
+ * Simple program showing the syntax of the language.
+ ***************************************************************************/
+
+
+fn let_bindings() {
+    // Simple integer let binding
+    let a: i32 = 64;
+
+    // Let bindigs for integer literals infer to i32 by default
+    let b = 10;
+
+    // Let bindings for float literals infer to f64 by default
+    let c = 5.3;
+
+    // Let binding
+    let x = if a + b > 70 {
+        53
+    } else {
+        36
+    };
+}
+
+
+
+fn loops() {
+    
+}

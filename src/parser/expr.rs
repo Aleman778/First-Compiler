@@ -4,32 +4,39 @@
 use crate::lexer::tokens::*;
 use crate::parser::ParseCtxt;
 use crate::parser::lit::*;
+use crate::parser::op::*;
 use crate::span::Span;
+use crate::span::symbol::kw;
 use crate::ast;
 use TokenKind::*;
 
 
 /**
- * Parses an expression using the next tokens in the token stream.
+ * Parses an expression using the provided token and parse context.
  */
-pub fn parse_expr(ctx: &mut ParseCtxt) -> Option<ast::Expr> {
-    let token = ctx.tokens.next()?;
-    match token.kind {
-        Literal { kind, suffix_start } => {
-            if let Some(next) = ctx.tokens.peek() {
-                None
-            } else {
-                parse_literal(ctx, &token, kind, suffix_start)
+pub fn parse_expr(
+    ctx: &mut ParseCtxt,
+    token: &Token
+) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.peeked.len() == 0);
+    let atom = match token.kind {
+        Ident => parse_ident(),
+        RawIdent => parse_raw_ident(),
+        Keyword { kind } => {
+            match kind {
+                KeywordKind::
             }
         }
-        Unknown => {
-            let span = Span::new(token.base, token.len);
-            span_err!(ctx.sess, span, "unknown start of a token `{}`", ctx.file.get_source(span));
-            None
+        Literal { kind, suffix_start } =>
+            parse_literal(ctx, token, kind, suffix_start),
+        
+        LineComment | BlockComment { terminated } => {
+            span_err!(ctx.sess, token.to_span(), "expected expression, found comment");
+            return None;
         }
-        _ => None
     }
 }
+
 
 
 /**
@@ -38,43 +45,33 @@ pub fn parse_expr(ctx: &mut ParseCtxt) -> Option<ast::Expr> {
 pub fn parse_literal(
     ctx: &mut ParseCtxt, 
     token: &Token, 
-    kind: LitKind, 
+    kind: LitKind,
     suffix: usize
-) -> Option<ast::Expr> {
+) -> Option<ast::ExprKind> {
     let literal = match kind {
         LitKind::Int { radix, empty } => 
-            parse_int(ctx, token, radix, empty, suffix),
+            parse_int(ctx, token, radix, empty, suffix)?,
 
         LitKind::Float { radix, empty_exponent } => 
-            parse_float(ctx, token, radix, empty_exponent, suffix),
+            parse_float(ctx, token, radix, empty_exponent, suffix)?,
 
         LitKind::Char { terminated } => 
-            parse_character(ctx, token, terminated, suffix),
+            parse_character(ctx, token, terminated, suffix)?,
 
         LitKind::Byte { terminated } => 
-            parse_byte(ctx, token, terminated, suffix),
+            parse_byte(ctx, token, terminated, suffix)?,
 
         LitKind::Str { terminated } => 
-            parse_string(ctx, token, terminated, suffix),
+            parse_string(ctx, token, terminated, suffix)?,
 
         LitKind::ByteStr { terminated } => 
-            parse_byte_string(ctx, token, terminated, suffix),
+            parse_byte_string(ctx, token, terminated, suffix)?,
 
         LitKind::RawStr { num_hashes, started, terminated } =>
-            parse_raw_string(ctx, token, num_hashes, started, terminated, suffix),
+            parse_raw_string(ctx, token, num_hashes, started, terminated, suffix)?,
 
         LitKind::RawByteStr { num_hashes, started, terminated } =>
-            parse_raw_byte_string(ctx, token, num_hashes, started, terminated, suffix),
+            parse_raw_byte_string(ctx, token, num_hashes, started, terminated, suffix)?,
     };
-    println!("{:#?}", literal);
-    
-    if let Some(lit) = literal {
-        Some(ast::Expr {
-            node_id: ast::NodeId(0),
-            kind: ast::ExprKind::Lit(Box::new(lit)),
-            span: Span::new(token.base, token.len),
-        })
-    } else {
-        None
-    }
+    Some(ast::ExprKind::Lit(Box::new(literal)))
 } 
