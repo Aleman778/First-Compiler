@@ -5,8 +5,10 @@ use crate::lexer::tokens::*;
 use crate::parser::ParseCtxt;
 use crate::parser::lit::*;
 use crate::parser::op::*;
+use crate::span;
 use crate::span::Span;
 use crate::span::symbol::kw;
+use crate::ast::op::Assoc;
 use crate::ast;
 use TokenKind::*;
 
@@ -19,22 +21,76 @@ pub fn parse_expr(
     token: &Token
 ) -> Option<ast::Expr> {
     debug_assert!(ctx.tokens.peeked.len() == 0);
-    let atom = match token.kind {
+    parse_expr_climb(ctx, token, 1)
+}
+
+
+/**
+ * Parses a binary expression using precedence climbing.
+ */
+fn parse_expr_climb(
+    ctx: &mut ParseCtxt, 
+    token: &Token, 
+    min_prec: u8
+) -> Option<ast::Expr> {
+    let base_pos = token.base;
+    let expr_kind = match token.kind {
         // Ident => parse_ident(),
         // RawIdent => parse_raw_ident(),
         Literal { kind, suffix_start } =>
-            parse_literal(ctx, token, kind, suffix_start),
+            parse_literal(ctx, token, kind, suffix_start)?,
         _ => {
             span_err!(ctx.sess, token.to_span(), "expected expression, found {}", token);
             return None;
         }
     };
 
-    Some(ast::Expr {
+    println!("base_pos: {}, cur_pos: {}", base_pos, ctx.tokens.cur_pos());
+    let mut expr_lhs = ast::Expr {
         node_id: ast::NodeId(0),
-        kind: atom?,
-        span: token.to_span(),
-    })
+        kind: expr_kind,
+        span: Span::new(base_pos, ctx.tokens.cur_pos() - base_pos),
+    };
+
+    while let Some((binop, num_tokens)) = parse_binop(ctx, true) {
+        let (prec, assoc) = binop.get_prec();
+        if prec < min_prec {
+            break;
+        }
+
+        let next_min_prec = match assoc {
+            Assoc::Left => prec + 1,
+            Assoc::Right => prec,
+        };
+
+        ctx.tokens.consume(num_tokens);
+        let token = match ctx.tokens.next() {
+            Some(token) => token,
+            None => {
+                span_err!(ctx.sess, 
+                          Span::new(ctx.tokens.cur_pos(), 0), 
+                          "unterminated binary expression");
+                break;
+            }
+        };
+            
+        let expr_rhs = parse_expr_climb(ctx, &token, next_min_prec)?;
+        let span = span::combine(&(expr_lhs).span, &(expr_rhs).span);
+
+        let expr_kind = ast::ExprKind::Binary(
+            binop, 
+            Box::new(expr_lhs), 
+            Box::new(expr_rhs)
+        );
+
+        expr_lhs = ast::Expr {
+            node_id: ast::NodeId(0),
+            kind: expr_kind,
+            span: span,
+        };
+    }
+    println!("{:#?}", expr_lhs);
+    Some(expr_lhs)
 }
 
 

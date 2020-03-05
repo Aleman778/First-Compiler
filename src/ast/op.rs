@@ -32,36 +32,36 @@ impl BinOp {
      */
     pub fn get_prec(&self) -> (u8, Assoc) {
         match self {
-            BinOp::Pow(_)      => (4,  Assoc::Right),
-            BinOp::Mul(_)      => (5,  Assoc::Left),
-            BinOp::Div(_)      => (5,  Assoc::Left),
-            BinOp::Mod(_)      => (5,  Assoc::Left),
-            BinOp::Add(_)      => (6,  Assoc::Left),
-            BinOp::Sub(_)      => (6,  Assoc::Left),
-            BinOp::Shl(_)      => (7,  Assoc::Left),
-            BinOp::Shr(_)      => (7,  Assoc::Left),
-            BinOp::Lt(_)       => (9,  Assoc::Left),
-            BinOp::Le(_)       => (9,  Assoc::Left),
-            BinOp::Gt(_)       => (9,  Assoc::Left),
-            BinOp::Ge(_)       => (9,  Assoc::Left),
-            BinOp::Eq(_)       => (10, Assoc::Left),
-            BinOp::Ne(_)       => (10, Assoc::Left),
-            BinOp::BitAnd(_)   => (11, Assoc::Left),
-            BinOp::BitXor(_)   => (12, Assoc::Left), 
-            BinOp::BitOr(_)    => (13, Assoc::Left),
-            BinOp::And(_)      => (14, Assoc::Left),
-            BinOp::Or(_)       => (15, Assoc::Left),
-            BinOp::Assign(_)   => (16, Assoc::Right),
-            BinOp::AddEq(_)    => (16, Assoc::Right),
-            BinOp::SubEq(_)    => (16, Assoc::Right),
-            BinOp::MulEq(_)    => (16, Assoc::Right),
-            BinOp::DivEq(_)    => (16, Assoc::Right),
-            BinOp::ModEq(_)    => (16, Assoc::Right),
-            BinOp::BitAndEq(_) => (16, Assoc::Right),
-            BinOp::BitOrEq(_)  => (16, Assoc::Right),
-            BinOp::BitXorEq(_) => (16, Assoc::Right),
-            BinOp::ShlEq(_)    => (16, Assoc::Right),
-            BinOp::ShrEq(_)    => (16, Assoc::Right),
+            BinOp::Pow(_)      => (12,  Assoc::Right),
+            BinOp::Mul(_)      => (11,  Assoc::Left),
+            BinOp::Div(_)      => (11,  Assoc::Left),
+            BinOp::Mod(_)      => (11,  Assoc::Left),
+            BinOp::Add(_)      => (10,  Assoc::Left),
+            BinOp::Sub(_)      => (10,  Assoc::Left),
+            BinOp::Shl(_)      => (9,  Assoc::Left),
+            BinOp::Shr(_)      => (9,  Assoc::Left),
+            BinOp::Lt(_)       => (8,  Assoc::Left),
+            BinOp::Le(_)       => (8,  Assoc::Left),
+            BinOp::Gt(_)       => (8,  Assoc::Left),
+            BinOp::Ge(_)       => (8,  Assoc::Left),
+            BinOp::Eq(_)       => (7, Assoc::Left),
+            BinOp::Ne(_)       => (7, Assoc::Left),
+            BinOp::BitAnd(_)   => (6, Assoc::Left),
+            BinOp::BitXor(_)   => (5, Assoc::Left), 
+            BinOp::BitOr(_)    => (4, Assoc::Left),
+            BinOp::And(_)      => (3, Assoc::Left),
+            BinOp::Or(_)       => (2, Assoc::Left),
+            BinOp::Assign(_)   => (1, Assoc::Right),
+            BinOp::AddEq(_)    => (1, Assoc::Right),
+            BinOp::SubEq(_)    => (1, Assoc::Right),
+            BinOp::MulEq(_)    => (1, Assoc::Right),
+            BinOp::DivEq(_)    => (1, Assoc::Right),
+            BinOp::ModEq(_)    => (1, Assoc::Right),
+            BinOp::BitAndEq(_) => (1, Assoc::Right),
+            BinOp::BitOrEq(_)  => (1, Assoc::Right),
+            BinOp::BitXorEq(_) => (1, Assoc::Right),
+            BinOp::ShlEq(_)    => (1, Assoc::Right),
+            BinOp::ShrEq(_)    => (1, Assoc::Right),
 
         }
     }
@@ -121,7 +121,7 @@ impl UnOp {
      * These are based on C++ operator precedence.
      */
     pub fn get_prec(&self) -> (u8, Assoc) {
-        (3, Assoc::Right)
+        (13, Assoc::Right)
     }
 }
 

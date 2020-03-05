@@ -16,9 +16,14 @@ use std::iter::Iterator;
  * for peeking any amount of tokens.
  */
 pub struct TokenStream<'a> {
+    /// The input string slice.
     pub input: &'a str,
+    /// The tokens currently lexed and not consumed.
     pub peeked: Vec<Option<Token>>,
-    pub base_pos: usize,
+    /// The consumed tokens position in the entire program.
+    cur_pos: usize,
+    /// The base position of parsed tokens in the entire program.
+    base_pos: usize,
 }
 
 
@@ -30,6 +35,7 @@ impl<'a> TokenStream<'a> {
         TokenStream { 
             input: input,
             peeked: Vec::new(), 
+            cur_pos: base,
             base_pos: base,
         }
     }
@@ -84,6 +90,16 @@ impl<'a> TokenStream<'a> {
             self.peeked.remove(0);
         }
     }
+
+
+    /**
+     * Get the current position of consumed
+     * tokens i.e. excluding peeked tokens.
+     * This position is aboslute for entire program.
+     */
+    pub fn cur_pos(&self) -> usize {
+        self.cur_pos
+    }
     
 
     /**
@@ -123,10 +139,13 @@ impl<'a> Iterator for TokenStream<'a> {
      * Parses the next token, returns None if it has reached the end of file.
      */
     fn next(&mut self) -> Option<Self::Item> {
-        if self.peeked.len() > 0 {
-            self.peeked.remove(0)
+        let token = if self.peeked.len() > 0 {
+            self.peeked.remove(0)?
         } else {
-            self.eat()
-        }
+            self.eat()?
+        };
+
+        self.cur_pos = token.base + token.len;
+        Some(token)
     }
 }

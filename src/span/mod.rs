@@ -107,6 +107,25 @@ impl Span {
 
 
 /**
+ * Combine two spans into one span that includes both span and
+ * anything in between those spans.
+ */
+pub fn combine(span1: &Span, span2: &Span) -> Span {
+    if span1.base < span2.base {
+        Span {
+            base: span1.base,
+            len: (span2.base + span2.len as u32 - span1.base) as u16,
+        }
+    } else {
+        Span {
+            base: span2.base, 
+            len: (span1.base + span1.len as u32 - span2.base) as u16,
+        }
+    }
+}
+
+
+/**
  * Multi span struct is a data structure that holds mutliple spans
  * used for error dignostics.
  */
