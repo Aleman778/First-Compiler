@@ -17,24 +17,24 @@ use TokenKind::*;
 pub fn parse_expr(
     ctx: &mut ParseCtxt,
     token: &Token
-) -> Option<ast::ExprKind> {
+) -> Option<ast::Expr> {
     debug_assert!(ctx.tokens.peeked.len() == 0);
     let atom = match token.kind {
-        Ident => parse_ident(),
-        RawIdent => parse_raw_ident(),
-        Keyword { kind } => {
-            match kind {
-                KeywordKind::
-            }
-        }
+        // Ident => parse_ident(),
+        // RawIdent => parse_raw_ident(),
         Literal { kind, suffix_start } =>
             parse_literal(ctx, token, kind, suffix_start),
-        
-        LineComment | BlockComment { terminated } => {
-            span_err!(ctx.sess, token.to_span(), "expected expression, found comment");
+        _ => {
+            span_err!(ctx.sess, token.to_span(), "expected expression, found {}", token);
             return None;
         }
-    }
+    };
+
+    Some(ast::Expr {
+        node_id: ast::NodeId(0),
+        kind: atom?,
+        span: token.to_span(),
+    })
 }
 
 

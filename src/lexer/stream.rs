@@ -16,9 +16,9 @@ use std::iter::Iterator;
  * for peeking any amount of tokens.
  */
 pub struct TokenStream<'a> {
-    input: &'a str,
-    peeked: Vec<Option<Token>>,
-    base_pos: usize,
+    pub input: &'a str,
+    pub peeked: Vec<Option<Token>>,
+    pub base_pos: usize,
 }
 
 
@@ -38,7 +38,7 @@ impl<'a> TokenStream<'a> {
     /**
      * Peek at the next token in the stream.
      */
-    pub fn first(&mut self) -> &Token {
+    pub fn peek(&mut self) -> &Token {
         self.nth(0).unwrap_or(&DUMMY_TOKEN)
     }
 
@@ -46,7 +46,7 @@ impl<'a> TokenStream<'a> {
     /**
      * Peek at the second next token in the stream.
      */
-    pub fn second(&mut self) -> &Token {
+    pub fn peek2(&mut self) -> &Token {
         self.nth(1).unwrap_or(&DUMMY_TOKEN)
     }
 
@@ -54,23 +54,25 @@ impl<'a> TokenStream<'a> {
     /**
      * Peek at the third next token in the stream.
      */
-    pub fn third(&mut self) -> &Token {
+    pub fn peek3(&mut self) -> &Token {
         self.nth(2).unwrap_or(&DUMMY_TOKEN)
     }
+
 
     /**
      * Peek at the nth next token in the stream.
      */
     pub fn nth(&mut self, n: usize) -> Option<&Token> {
-        if let Some(token) = self.peeked.get(n) {
-            token.map(|t| &t)
-        } else {
-            let len = n - self.peeked.len() + 1;
-            for i in 0..len {
-                self.peeked.push(self.eat())
-            }
-            self.peeked.last()?.map(|t| &t)
+        if self.peeked.len() > n {
+            return self.peeked[n].as_ref()
         }
+        
+        let len = n - self.peeked.len() + 1;
+        for _i in 0..len {
+            let token = self.eat();
+            self.peeked.push(token)
+        }
+        self.peeked.last()?.as_ref()
     }
 
 
@@ -78,7 +80,7 @@ impl<'a> TokenStream<'a> {
      * Removes all the peeked tokens.
      */
     pub fn consume(&mut self, n: usize) {
-        for i in 0..n {
+        for _i in 0..n {
             self.peeked.remove(0);
         }
     }

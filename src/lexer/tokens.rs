@@ -4,6 +4,7 @@
  ***************************************************************************/
 
 
+use std::fmt;
 use crate::span::Span;
 
 
@@ -43,6 +44,13 @@ impl Token {
 }
 
 
+impl fmt::Display for Token {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.kind)
+    }
+}
+
+
 /**
  * Different kinds of common lexeme tokens.
  */
@@ -52,12 +60,10 @@ pub enum TokenKind {
     LineComment,
     /// Block comments e.g. `/* comment /* recursive */ */` or `/** doc-comment */`
     BlockComment { terminated: bool },
-    /// Identifier e.g. `hello_word`, `MyStruct`, `x` etc.
+    /// Identifier e.g. `hello_word`, `MyStruct`, `x`, `let`, `while` etc.
     Ident,
     /// Raw identifiers e.g. `r#while`.
     RawIdent,
-    /// Keywords e.g. `let`, `while` etc.
-    Keyword { kind: KeywordKind },
     /// Literal tokens e.g. `10_u8`, `"hello world!"`
     Literal { kind: LitKind, suffix_start: usize },
     /// Semicolon token `;`.
@@ -119,10 +125,48 @@ pub enum TokenKind {
 }
 
 
-pub enum KeywordKind {
-    
+impl fmt::Display for TokenKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            TokenKind::LineComment => "line comment",
+            TokenKind::BlockComment { terminated: _ } => "block comment",
+            TokenKind::Ident => "identifier",
+            TokenKind::RawIdent => "raw identifier",
+            TokenKind::Literal { kind, suffix_start: _ } => { 
+                return write!(f, "{}", kind); 
+            }
+            TokenKind::Semi => ";",
+            TokenKind::Comma => ",",
+            TokenKind::Dot => ".",
+            TokenKind::OpenParen => "(",
+            TokenKind::CloseParen => ")",
+            TokenKind::OpenBrace => "{",
+            TokenKind::CloseBrace => "}",
+            TokenKind::OpenBracket => "[",
+            TokenKind::CloseBracket => "]",
+            TokenKind::At => "@",
+            TokenKind::Pound => "#",
+            TokenKind::Tilde => "~",
+            TokenKind::Question => "?",
+            TokenKind::Colon => ":",
+            TokenKind::Dollar => "$",
+            TokenKind::Eq => "=",
+            TokenKind::Not => "!",
+            TokenKind::Lt => "<",
+            TokenKind::Gt => ">",
+            TokenKind::Plus => "+",
+            TokenKind::Minus => "-",
+            TokenKind::And => "&",
+            TokenKind::Or => "|",
+            TokenKind::Star => "*",
+            TokenKind::Slash => "/",
+            TokenKind::Caret => "^",
+            TokenKind::Percent => "%",
+            TokenKind::Unknown => "unknown",
+        };
+        write!(f, "{}", name)
+    }
 }
-
 
 /**
  * Different kinds of literal tokens.
@@ -145,6 +189,31 @@ pub enum LitKind {
     RawStr { num_hashes: usize, started: bool, terminated: bool },
     /// Raw byte string literals e.g. `br##"you are "#one""##`.
     RawByteStr { num_hashes: usize, started: bool, terminated: bool }
+}
+
+
+impl fmt::Display for LitKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            LitKind::Int { radix: _, empty: _ } => 
+                "integer",
+            LitKind::Float { radix: _, empty_exponent: _ } => 
+                "float",
+            LitKind::Char { terminated: _ } => 
+                "character",
+            LitKind::Byte { terminated: _ } => 
+                "byte",
+            LitKind::ByteStr { terminated: _ } => 
+                "byte string",
+            LitKind::Str { terminated: _ } => 
+                "string",
+            LitKind::RawStr { num_hashes: _, started: _, terminated: _ } => 
+                "raw string",
+            LitKind::RawByteStr { num_hashes: _, started: _, terminated: _ } => 
+                "raw byte strings"
+        };
+        write!(f, "{}", name)
+    }
 }
 
 

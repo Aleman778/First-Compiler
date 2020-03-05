@@ -549,11 +549,12 @@ mod tests {
                 let mut ctx = ParseCtxt {
                     sess: &mut sess,
                     file: &file,
-                    tokens: tokens.peekable(),
+                    tokens: tokens,
                     ast_map: AstMap::new(),
                 };
 
-                let actual = if let Some(expr) = parse_expr(&mut ctx) {
+                let token = ctx.tokens.next().unwrap();
+                let actual = if let Some(expr) = parse_expr(&mut ctx, &token) {
                     if let ExprKind::Lit(lit) = expr.kind {
                         Some((*lit).kind)
                     } else {

@@ -1,5 +1,5 @@
 [package]
-name = "compile_test"
+name = "macros"
 version = "0.1.0"
 authors = ["Alexander Mennborg <alexander.mennborg@gmail.com>"]
 edition = "2018"

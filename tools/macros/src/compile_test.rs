@@ -1,12 +1,13 @@
-
-/***************************************************************************
- * The common module defines the properties of a given test
- ***************************************************************************/
+//! Compile tests procedural macro code.
 
 
+use proc_macro::TokenStream;
+use quote::quote;
+use syn::parse::{Parse, ParseStream, Result};
+use syn::{parse_macro_input, Lit, Ident, Token};
+use std::path::Path;
 use std::{io, fs};
 use std::io::{prelude::*, BufReader};
-use std::path::Path;
 use std::fs::File;
 use std::ffi::OsStr;
 
@@ -110,4 +111,78 @@ pub fn find_source_files(dir: &Path, tests: &mut Vec<Test>) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+
+/**
+ * Concatinates two token streams.
+ */
+fn concat_ts(
+    accu: proc_macro2::TokenStream,
+    other: proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    quote! { #accu #other }
+}
+
+
+/**
+ * Parameter items from generate_tests macro.
+ */
+struct Params {
+    dir: Lit,
+    lambda: Ident,
+}
+
+
+/**
+ * Parses the items from input token stream.
+ */
+impl Parse for Params {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let dir: Lit = input.parse()?;
+        input.parse::<Token![;]>()?;
+        let lambda: Ident = input.parse()?;
+
+        Ok(Params {
+            dir,
+            lambda,
+        })
+    }
+}
+
+
+/**
+ * Generate tests based on given input.
+ */
+pub fn generate_tests(item: TokenStream) -> TokenStream {
+    let Params{dir, lambda} = parse_macro_input!(item as Params);
+    let path = if let Lit::Str(s) = dir {
+        s.value()
+    } else {
+        panic!("the directory argument has to be a string literal");
+    };
+    let mut tests = Vec::new();
+    find_source_files(&Path::new(&path), &mut tests).unwrap();
+    let mut expanded: proc_macro2::TokenStream = "".parse().unwrap();
+    for test in tests {
+        let test_pass = &test.pass;
+        let test_name = &test.name;
+        let test_file = &test.file;
+        let test_output = &test.output;
+        let func_ident = proc_macro2::Ident::new(&test_name, proc_macro2::Span::call_site());
+        expanded = concat_ts(expanded, quote! {
+            #[test]
+        });
+        if test.pass == "ignore" {
+            expanded = concat_ts(expanded, quote! {
+                #[ignore]
+            });
+        }
+        expanded = concat_ts(expanded, quote! {
+            fn #func_ident() {
+                #lambda(#test_pass, #test_file, #test_output);
+            }
+        });
+    }
+    expanded.into()
 }

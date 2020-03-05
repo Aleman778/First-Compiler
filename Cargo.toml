@@ -7,11 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+macros = { path = "./tools/macros" }
 termcolor = "1.0.5"
 unicode-width = "0.1.5"
 simple_logger = "1.4.0"
 clap = "2.33.0"
 log = "0.4"
-
-[dev-dependencies]
-compile_test = { path = "./tools/compile_test" }

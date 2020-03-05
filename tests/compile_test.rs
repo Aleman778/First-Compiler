@@ -1,11 +1,8 @@
-
-/***************************************************************************
- * Starts a compile test to test compiling many different files
- * in the `src/test` folder.
- ***************************************************************************/
+//! Starts a compile test to test compiling many different files
+//! in the `src/test` folder.
 
 
-// use compile_test::generate_tests;
+// use macros::generate_tests;
 use std::process::Command;
 use std::path::Path;
 use std::ffi::OsStr;
