@@ -90,12 +90,12 @@ integer_radix :: fn () {
 
 
 /**
- * If
+ * If statement with or without surrounding brackes is supported.
  */
 if_statements :: fn () {
     x := 12;
 
-    // If only one line is required you can elide brackets.
+    // If only one line is required you can elide brackets
     y := if x > 10 x/2 else x*2;
     assert_eq(y, 6);
 
@@ -114,7 +114,7 @@ if_statements :: fn () {
         x*2
     };
 
-    // You can follow else by another if statement.
+    // You can follow else by another if statement
     y:= if x > 100
         x/3
     else if x < 10
@@ -123,7 +123,7 @@ if_statements :: fn () {
         x/2;
     assert_eq(y, 6);
 
-    // Of course you can also include brackets here aswell.
+    // Of course you can also include brackets here aswell
     y:= if x > 100 {
         x/3
     } else if x < 10 {
@@ -135,6 +135,74 @@ if_statements :: fn () {
 }
 
 
+/**
+ * For loops over iterator is supported.
+ */
 for_loops :: fn () {
+    pln("For Loop:");
+        
+    // For loops are defined by an identifier and an iterable expression
+    pln("for a in 0..4 pln(a);\n")
+    for a in 0..4 pln(a);
+
+    pln("---------------------");
     
+    // Of cource you can also include brackets around expression
+    pln("for a in 2..4 { \n pln(a); \n }");
+    for a in 2..4 {
+        pln(a);
+    }
+}
+
+
+/**
+ * More powerful array support, both dynamic and fixed sized variants.
+ */
+arrays :: fn () {
+    pln("Arrays:")
+    
+    // Array of fixed size 10 i32 values with default values of 0
+    x := [10] i32;
+    pln("x := [10] i32\n-> x = {}", x);
+
+    // Arrays can also have dynamic size
+    x := [..] i32;
+    pln("x := [..] i32\n-> x = {}", x);
+
+    // Arrays can be initialized with other variables ([..] is elided)
+    x := i32 {5, 3, 9, 7, 2, 8, 6, 1, 4};
+    pln("x := i32 {5, 3, 9, 7, 2, 8, 6, 1, 4};\n-> x = {}", x);
+
+    // Type can also be elided, this will infer to type i32 in this case.
+    x := {5, 3, 9, 7, 2, 8, 6, 1, 4};
+    pln("x := {5, 3, 9, 7, 2, 8, 6, 1, 4};\n-> x = {}", x);
+
+    // Elements can be sorted
+    y := array_quicksort(x);
+    pln("y := array_quicksort(x);\n-> y = ", y);
+
+
+    // Array accessing is done this way
+    z := y[0..5];
+    pln("z := y[0..5];\n-> z = ", z);
+}
+
+
+/**
+ * There is support for structs. The contents of a struct is defined
+ * by an identifier followed by `:`, type and optionally `=` expr.
+ * The optional assignment allows for specification of defualt values.
+ */
+MyStruct :: struct {
+    alpha: i32,
+    beta: str = "beta",
+    gamma: [..] char = {'h', 'e', 'l', 'l', 'o'},
+}
+
+
+structs :: fn () {
+    x: MyStruct {
+        alpha := 5,
+        gamma := {'g', 'a', 'm', 'm', 'a'},
+    }
 }

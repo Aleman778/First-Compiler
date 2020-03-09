@@ -1,4 +1,4 @@
-//! The main entry point of the sqrrl compiler.
+//! The main entry point of the compiler.
 
 
 extern crate log;

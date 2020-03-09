@@ -205,7 +205,7 @@ pub struct Expr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
-    /// Arrays e.g. `[10]`
+    /// Arrays e.g. `[10] i32` (fixed size) or `[..] f32` (dynamic size).
     Array(Vec<Box<Expr>>),
 
     /// Assigning value to variable e.g. `a = calc()`.
@@ -224,10 +224,10 @@ pub enum ExprKind {
     Break,
     
     /// Function calls e.g. `foo(bar)`.
-    Call(Box<Expr>, Vec<Box<Expr>>),
+    Call(Box<Ident>, Vec<Box<Expr>>),
 
     /// Type casting e.g. `32 as u8`.
-    Cast(Box<Expr>, Box<Expr>),
+    Cast(Box<Expr>, Box<Ty>),
     
     /// Continue statements e.g. `continue`.
     Continue,

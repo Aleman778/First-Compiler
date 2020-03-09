@@ -202,17 +202,41 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
 pub fn parse_while(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
-    None
+    let token = ctx.tokens.next()?;
+    let cond = Box::new(parse_expr(ctx, &token)?);
+
+    let token = ctx.tokens.next()?;
+    let body = Box::new(parse_expr(ctx, &token)?);
+
+    Some(ast::ExprKind::While(ident, cond, body))
 }
 
 
 /**
  * Parses a function call using the next tokens in the parse context.
  */
-pub fn parse_fn_call(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == Ident);
-
-    None
+pub fn parse_fn_call(ctx: &mut ParseCtxt, ident; Ident) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == OpenParen);
+    
+    let mut exprs: Vec<Box<Expr>> = Vec::new();
+    loop {
+        let token = ctx.tokens.parse()?;
+        match token.kind {
+            CloseParen => break,
+            _ => {
+                expr.push(Box::new(parse_expr(ctx, &token, 1)));
+                
+                let token = ctx.tokens.parse()?;
+                if token.kind == Comma {
+                    span_err!(ctx.sess, token.to_span(), "expected `,` or `)`, found `{}`", token);
+                    return None;
+                }
+            }
+        }
+        
+    }
+    
+    Some(ast::ExprKind::Call(Box::new(ident), exprs))
 }
 
 
@@ -222,7 +246,10 @@ pub fn parse_fn_call(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
 pub fn parse_return(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
-    None
+    let token = ctx.tokens.next()?;
+    let expr = Box::new(parse_expr(ctx, &token, 1));
+    
+    Some(ast::ExprKind::Return(expr))
 }
 
 
@@ -337,21 +364,11 @@ pub fn parse_literal(
 }
 
 
-pub fn parse_parenthesized(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    None
-}
-
-
-pub fn parse_tuple(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    None
-}
-
-
-pub fn parse_block(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    None
-}
-
-
+/**
+ * Parses an array expression using the next tokens in parse context.
+ */
 pub fn parse_array(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+    
+    
     None
 }
