@@ -20,8 +20,8 @@ define_symbols! {
         For:        "for",
         Hide:       "hide",
         If:         "if",
-        Let:        "let",
-        Mut:        "mut",
+        In:         "in",
+        Loop:       "loop",
         Return:     "return",
         Struct:     "struct",
         True:       "true",
@@ -60,7 +60,7 @@ impl Symbol {
     
 
     #[inline]
-    fn index(self) -> usize {
+    pub fn index(self) -> usize {
         self.0 as usize
     }
 }

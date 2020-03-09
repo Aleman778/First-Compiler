@@ -37,7 +37,9 @@ pub fn parse_file<'a>(session: &'a mut Session<'a>, file: &'a SourceFile) -> Ast
  */
 pub fn do_parse<'a>(mut ctx: ParseCtxt<'a>) -> AstMap {
     let token = ctx.tokens.next().unwrap();
-    parse_expr(&mut ctx, &token);
+    let expr = parse_expr(&mut ctx, &token, 1);    
+    println!("{:#?}", expr);
+
     ctx.ast_map
 }
 

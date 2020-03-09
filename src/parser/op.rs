@@ -79,7 +79,6 @@ pub fn parse_unop(ctx: &mut ParseCtxt) -> Option<UnOp> {
     let op = match token.kind {
         Minus => Some(UnOp::Neg(span)),
         Not   => Some(UnOp::Not(span)),
-        Caret => Some(UnOp::Ptr(span)),
         Star  => Some(UnOp::Deref(span)),
         _     => None
     };

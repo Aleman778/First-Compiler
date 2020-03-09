@@ -134,7 +134,6 @@ impl fmt::Display for UnOp {
         let s = match self {
             UnOp::Neg(_)   => "-",
             UnOp::Not(_)   => "!",
-            UnOp::Ptr(_)   => "^",
             UnOp::Deref(_) => "*",
         };
         write!(f, "{}", s)

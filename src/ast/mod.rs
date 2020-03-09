@@ -205,32 +205,50 @@ pub struct Expr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
-    /// Expression for mutation for variable e.g. `a = calc()`.
+    /// Arrays e.g. `[10]`
+    Array(Vec<Box<Expr>>),
+
+    /// Assigning value to variable e.g. `a = calc()`.
     Assign(Box<Expr>, Box<Expr>),
+
+    /// Assigning value with operator to variable e.g. `a += 5`.
+    AssignOp(BinOp, Box<Expr>, Box<Expr>),
     
-    /// Expression for binary opeations e.g. `5 + a`, `b && check()`.
+    /// Binary opeations e.g. `5 + a`, `b && check()`.
     Binary(BinOp, Box<Expr>, Box<Expr>),
 
-    /// Expression for block statements e.g. `{ ... }`.
+    /// Block statements e.g. `{ ... }`.
     Block(Box<Block>),
     
-    /// Expression for break statements i.e. `break;`.
+    /// Break statements i.e. `break;`.
     Break,
     
-    /// Expression for function calls e.g. `foo(bar)`.
+    /// Function calls e.g. `foo(bar)`.
     Call(Box<Expr>, Vec<Box<Expr>>),
+
+    /// Type casting e.g. `32 as u8`.
+    Cast(Box<Expr>, Box<Expr>),
     
-    /// Expression for continue statements e.g. `continue;`.
+    /// Continue statements e.g. `continue`.
     Continue,
+
+    /// Field access e,g, `x.y`.
+    Field(Box<Expr>, Box<Ident>),
+
+    /// For loop e,g, `for i in 0..10 { do_something(); }`
+    For(Box<Ident>, Box<Expr>, Box<Expr>),
     
-    /// Expression for identifiers e.g. `foo`, `my_function`, `__PATH__`.
+    /// Identifiers e.g. `foo`, `my_function`, `__PATH__`.
     Ident(Box<Ident>),
     
-    /// Expression for if statements e.g. `if a > 5 { a = 6; } else { a = 4; }`.
-    If(Box<Expr>, Box<Block>, Box<Expr>),
+    /// If statements e.g. `if a > 5 { a = 6; } else { a = 4; }`.
+    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     
-    /// Expression for literals e.g. `32`, `true`.
+    /// Literals e.g. `32`, `true`.
     Lit(Box<Lit>),
+
+    /// Loop statement e.g. `loop { do_something(); }`.
+    Loop(Box<Block>),
         
     /// Parenthesized expression e.g. `(5 + 3)`.
     Paren(Box<Expr>),
@@ -238,13 +256,13 @@ pub enum ExprKind {
     /// Reference expression e.g. &342, &mut false.
     Reference(Box<Expr>),
     
-    /// Expression for return statements e.g. `return true;`, `return;`.
+    /// Return statements e.g. `return true;`, `return;`.
     Return(Box<Expr>),
     
-    /// Expression for unary operations e.g. `-a`, `!is_err()`.
+    /// Unary operations e.g. `-a`, `!is_err()`.
     Unary(UnOp, Box<Expr>),
     
-    /// Expression for while statements e.g. `while true { do_something(); }`.
+    /// While loop e.g. `while true { do_something(); }`.
     While(Box<Expr>, Box<Block>),
 }
 
@@ -252,7 +270,9 @@ pub enum ExprKind {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ident {
+    /// Symbol representing this identifier.
     pub symbol: Symbol,
+    /// Location of identifier.
     pub span: Span,
 }
 
@@ -506,8 +526,6 @@ pub enum UnOp {
     Neg(Span),
     /// The `!` operator (logical inversion)
     Not(Span),
-    /// The `^` operator for pointers.
-    Ptr(Span),
     /// The `*` operator (dereferencing)
     Deref(Span),
 }

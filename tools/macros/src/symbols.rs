@@ -105,6 +105,10 @@ pub fn define_symbols(input: TokenStream) -> TokenStream {
             panic!("symbol of name `{}` is duplicated", s);
         }
     };
+    
+    keywords_stream.extend(quote! {
+        pub const START_INDEX: usize = #counter;
+    });
 
     for keyword in &input.keywords.0 {
         let name = &keyword.name;
@@ -125,6 +129,10 @@ pub fn define_symbols(input: TokenStream) -> TokenStream {
 
         counter += 1;
     }
+
+    keywords_stream.extend(quote! {
+        pub const LAST_INDEX: usize = #counter - 1;
+    });
 
     for symbol in &input.symbols.0 {
         let name = &symbol.name;

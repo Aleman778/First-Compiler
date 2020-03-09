@@ -1,29 +1,140 @@
 
 /***************************************************************************
- * Simple program showing the syntax of the language.
+ * Example program to show off the language syntax and features.
  ***************************************************************************/
 
 
-fn let_bindings() {
-    // Simple integer let binding
-    let a: i32 = 64;
+/**
+ * Entry point of the program.
+ */
+main :: fn () {
+    variable_declarations();
+}
 
-    // Let bindigs for integer literals infer to i32 by default
-    let b = 10;
 
-    // Let bindings for float literals infer to f64 by default
-    let c = 5.3;
+/**
+ * Variable declarations are defined by the `:=` operator.
+ * To the left of this operator we specify the identifier.
+ * Optionally in between  `:` and `=` we can specify a type.
+ * Optionally we can provide a value to the right.
+ * If we do not initialize the variable we need to provide the type
+ * and elide the `=` operator.
+ */
+variable_declarations :: fn () {
+    pln("Variable Declarations:");
+    
+    // Variable declaration with type
+    pln("Declartion with type:");
+    counter: i32 = 32;
+    value: f64 = 0.64;
+    name: str = "sqrrl";
+    pln("counter: {}, value: {}, name: {}", counter, value, name);
 
-    // Let binding
-    let x = if a + b > 70 {
-        53
-    } else {
-        36
-    };
+    // Variable declaration without type (infers to same types as above)
+    pln("Declartion whitout:");
+    counter := 32;
+    value := 0.64;
+    name := "sqrrl";
+    pln("counter: {}, value: {}, name: {}", counter, value, name);
+
+    // Uninitialized variables requires types
+    pln("Declartion with type:");
+    counter: i32;
+    value: f64;
+    name: str;
+    pln("counter: {}, value: {}, name: {}", counter, value, name);
 }
 
 
 
-fn loops() {
+/**
+ * Variable assignment, you can assign (mutate) variables
+ * using only the `=` operator but there is also the option
+ * to combine arithmetic operator during assignment using
+ * the operators `+=`, `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, 
+ * `^=`, `<<=`, `>>=`.
+ */
+variable_assignments :: fn () {
+    pln("Variable Assignments:");
+
+    x := 0;
+    pln("x := 0 (= {})", x);
+
+    x = 10;
+    pln("x = 10 (x = {})", x);
+
+    x -= 5;    
+    pln("x -= 5 (x = {})", x);
+}
+
+
+/**
+ * Integer literal supports different radix types.
+ * There is support for decimal, binary `0b`, octal `0o` and 
+ */
+integer_radix :: fn () {
+    pln("Integer Radix:");
+
+    x := 1259;
+    pln("decimal: 1259 = {}", x);
+
+    x := 0b01110110;
+    pln("binary: 01110110 = {}", x);
+
+    x := 0o241;
+    pln("octal: 241 = {}", x);
+
+    x := 0xCAFE;
+    pln("hexadecimal: CAFE = {}", x);
+}
+
+
+/**
+ * If
+ */
+if_statements :: fn () {
+    x := 12;
+
+    // If only one line is required you can elide brackets.
+    y := if x > 10 x/2 else x*2;
+    assert_eq(y, 6);
+
+    // OR
+    y := if 
+        x > 10 x/2 
+    else 
+        x*2;
+    assert_eq(y, 6);
+    
+
+    // You can also include brackets
+    y := if x > 10 {
+        x/2
+    } else {
+        x*2
+    };
+
+    // You can follow else by another if statement.
+    y:= if x > 100
+        x/3
+    else if x < 10
+        x*2
+    else
+        x/2;
+    assert_eq(y, 6);
+
+    // Of course you can also include brackets here aswell.
+    y:= if x > 100 {
+        x/3
+    } else if x < 10 {
+        x*2
+    } else {
+        x/2
+    };
+    assert_eq(y, 6);
+}
+
+
+for_loops :: fn () {
     
 }
