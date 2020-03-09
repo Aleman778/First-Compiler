@@ -554,7 +554,7 @@ mod tests {
                 };
 
                 let token = ctx.tokens.next().unwrap();
-                let actual = if let Some(expr) = parse_expr(&mut ctx, &token) {
+                let actual = if let Some(expr) = parse_expr(&mut ctx, &token, 1) {
                     if let ExprKind::Lit(lit) = expr.kind {
                         Some((*lit).kind)
                     } else {

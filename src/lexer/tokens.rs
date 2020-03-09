@@ -54,7 +54,7 @@ impl fmt::Display for Token {
 /**
  * Different kinds of common lexeme tokens.
  */
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenKind {
     /// Single Line comment e.g. `// comment` or `/// doc-comment`
     LineComment,
@@ -171,7 +171,7 @@ impl fmt::Display for TokenKind {
 /**
  * Different kinds of literal tokens.
  */
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum LitKind {
     /// Integer literal e.g. `12u8`, `0xFF`.
     Int { radix: Radix, empty: bool },
@@ -220,7 +220,7 @@ impl fmt::Display for LitKind {
 /**
  * Different kinds of radix supported for number literals.
  */
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Radix {
     /// Literals with binary base prefixed with `0b`.
     Binary,

@@ -2,7 +2,7 @@
 
 
 use crate::lexer::{
-    tokens::{Token, DUMMY_TOKEN},
+    tokens::{Token, TokenKind, DUMMY_TOKEN},
     cursor::Cursor,
     advance_token,
     is_whitespace,
@@ -18,12 +18,19 @@ use std::iter::Iterator;
 pub struct TokenStream<'a> {
     /// The input string slice.
     pub input: &'a str,
+    
     /// The tokens currently lexed and not consumed.
     pub peeked: Vec<Option<Token>>,
+    
     /// The consumed tokens position in the entire program.
     cur_pos: usize,
+
     /// The base position of parsed tokens in the entire program.
     base_pos: usize,
+    
+    #[cfg(debug_assertions)]
+    /// The previous consumed token, used for debug asserts.
+    pub prev: TokenKind,
 }
 
 
@@ -37,6 +44,7 @@ impl<'a> TokenStream<'a> {
             peeked: Vec::new(), 
             cur_pos: base,
             base_pos: base,
+            prev: TokenKind::Unknown,
         }
     }
 
@@ -144,7 +152,10 @@ impl<'a> Iterator for TokenStream<'a> {
         } else {
             self.eat()?
         };
-
+        #[cfg(debug_assertions)]
+        {
+            self.prev = token.kind;
+        }
         self.cur_pos = token.base + token.len;
         Some(token)
     }

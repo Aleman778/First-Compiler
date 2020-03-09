@@ -14,7 +14,7 @@ use TokenKind::*;
 
 
 /**
- * Parses an expression using the provided token and parse context.
+ * Parses an expression using the provided token reference from the parse context.
  */
 pub fn parse_expr(
     ctx: &mut ParseCtxt,
@@ -81,8 +81,6 @@ pub fn parse_expr(
         }
     };
 
-    
-
     // The parsed left hand expression.
     let mut expr_lhs = ast::Expr {
         node_id: ast::NodeId(0),
@@ -125,9 +123,47 @@ pub fn parse_expr(
 
 
 /**
- * Parses a for loop using the next tokens in context.
+ * Parses an if statement using the next tokens in the parse context.
+ */
+pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == Ident);
+        
+    let token = ctx.tokens.next()?;
+    let cond = Box::new(parse_expr(ctx, &token, 1)?);
+
+    let token = ctx.tokens.next()?;
+    let then_body = Box::new(parse_expr(ctx, &token, 1)?);
+
+    let else_body = if let Some(kw) = parse_keyword(ctx) {
+        if kw.index() == kw::Else.index() {
+            ctx.tokens.next()?;
+            let token = ctx.tokens.next()?;
+            Some(Box::new(parse_expr(ctx, &token, 1)?))
+        } else {
+            span_err!(ctx.sess, 
+                      token.to_span(), 
+                      "expected keyword `else`, found `{}`",
+                      ctx.sess.symbol_map.as_str(kw));
+            return None;
+        }
+    } else {
+        None
+    };
+
+    if else_body.is_some() {
+        ctx.tokens.next()?;
+    }
+        
+    Some(ast::ExprKind::If(cond, then_body, else_body))
+}
+
+
+/**
+ * Parses a for loop using the next tokens in parse context.
  */
 pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == Ident);
+
     let token = ctx.tokens.next()?;
     let ident = Box::new(parse_ident(ctx, &token)?);
 
@@ -160,47 +196,32 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
 }
 
 
-pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    let token = ctx.tokens.next()?;
-    let cond = Box::new(parse_expr(ctx, &token, 1)?);
-
-    let token = ctx.tokens.next()?;
-    let then_body = Box::new(parse_expr(ctx, &token, 1)?);
-
-    let else_body = if let Some(kw) = parse_keyword(ctx) {
-        if kw.index() == kw::Else.index() {
-            ctx.tokens.next()?;
-            let token = ctx.tokens.next()?;
-            Some(Box::new(parse_expr(ctx, &token, 1)?))
-        } else {
-            span_err!(ctx.sess, 
-                      token.to_span(), 
-                      "expected keyword `else`, found `{}`",
-                      ctx.sess.symbol_map.as_str(kw));
-            return None;
-        }
-    } else {
-        None
-    };
-    if else_body.is_some() {
-        ctx.tokens.next()?;
-    }
-        
-    Some(ast::ExprKind::If(cond, then_body, else_body))
-}
-
-
-pub fn parse_return(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    None
-}
-
-
+/**
+ * Parses a while loop using the next tokens in parse context.
+ */
 pub fn parse_while(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == Ident);
+
     None
 }
 
 
+/**
+ * Parses a function call using the next tokens in the parse context.
+ */
 pub fn parse_fn_call(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == Ident);
+
+    None
+}
+
+
+/**
+ * Parses a function return statement using the next tokens in the parse context.
+ */
+pub fn parse_return(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == Ident);
+
     None
 }
 
@@ -209,6 +230,8 @@ pub fn parse_fn_call(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
  * Parses an identifier using the provided token and context.
  */
 pub fn parse_ident(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::Ident> {
+    debug_assert!(token.kind == Ident);
+
     match token.kind {
         Ident => {
             let source = ctx.file.get_source(token.to_span());
