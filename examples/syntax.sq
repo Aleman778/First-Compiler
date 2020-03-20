@@ -1,4 +1,5 @@
 
+
 /***************************************************************************
  * Example program to show off the language syntax and features.
  ***************************************************************************/
@@ -9,6 +10,13 @@
  */
 main :: fn () {
     variable_declarations();
+    variable_assignment();
+    integer_radix();
+    if_statements();
+    for_loops();
+    while_loops();
+    arrays();
+    structs();
 }
 
 
@@ -156,53 +164,159 @@ for_loops :: fn () {
 
 
 /**
- * More powerful array support, both dynamic and fixed sized variants.
+ * While loops are iterating as long as the condition is true.
+ */
+while_loops :: fn () {
+    pln("While Loops:");
+
+    // While loops are defined by a condition and loop expression
+    i := 0;
+    while i < 10 i += 1;
+    assert_eq(i, 10);
+    
+    // Of cource you can also incluide brackets around expression
+    i := 0;
+    while i < 10 {
+        pln("Iteration: {}", i);
+        i += 1;
+    }
+    assert_eq(i, 10);
+}
+
+
+/**
+ * Infinite loops iterates forever until break exits the loop.
+ */
+infinite_loops :: fn () {
+    pln("Infinte Loops:");
+
+    // Custom while loops are possible with infinite loops.
+    i := 0;
+    loop {
+        if i < 10 {
+            break;
+        }
+        i += 1;
+    }
+}
+
+
+/**
+ * Arrays have two variante, an array can either be fixed size,
+ * or have dynamic size. Here follows examples of how both can be defined and used.
  */
 arrays :: fn () {
     pln("Arrays:")
     
     // Array of fixed size 10 i32 values with default values of 0
-    x := [10] i32;
-    pln("x := [10] i32\n-> x = {}", x);
+    x : [10] i32;
+    pln("x : [10] i32\n-> x = {}", x);
 
     // Arrays can also have dynamic size
-    x := [..] i32;
-    pln("x := [..] i32\n-> x = {}", x);
+    x : [..] i32;
+    pln("x : [..] i32\n-> x = {}", x);
 
-    // Arrays can be initialized with other variables ([..] is elided)
-    x := i32 {5, 3, 9, 7, 2, 8, 6, 1, 4};
-    pln("x := i32 {5, 3, 9, 7, 2, 8, 6, 1, 4};\n-> x = {}", x);
+    // Arrays can be initialized with values
+    x: [] i32 = [5, 3, 9, 7, 2, 8, 6, 1, 4];
+    pln("x: [] i32 = [5, 3, 9, 7, 2, 8, 6, 1, 4];\n-> x = {}", x);
 
-    // Type can also be elided, this will infer to type i32 in this case.
-    x := {5, 3, 9, 7, 2, 8, 6, 1, 4};
-    pln("x := {5, 3, 9, 7, 2, 8, 6, 1, 4};\n-> x = {}", x);
+    // Type can also be elided, this will infer to type i32 in this case
+    x := [5, 3, 9, 7, 2, 8, 6, 1, 4];
+    pln("x := [5, 3, 9, 7, 2, 8, 6, 1, 4];\n-> x = {}", x);
 
     // Elements can be sorted
     y := array_quicksort(x);
     pln("y := array_quicksort(x);\n-> y = ", y);
 
-
     // Array accessing is done this way
     z := y[0..5];
     pln("z := y[0..5];\n-> z = ", z);
+
+    // Iterating over array is simple
+    for i in x pln("{}", i);
 }
 
 
 /**
- * There is support for structs. The contents of a struct is defined
- * by an identifier followed by `:`, type and optionally `=` expr.
- * The optional assignment allows for specification of defualt values.
+ * Structs are defined in the same way that functions are except for
+ * `fn` is changed to `struct'. Structs should use `CamelCase` instead
+ * of `snake_case`. Structs contains a list of fields declared in the
+ * same way we declare uninitialized variables.
  */
-MyStruct :: struct {
-    alpha: i32,
-    beta: str = "beta",
-    gamma: [..] char = {'h', 'e', 'l', 'l', 'o'},
+Vector3 :: struct {
+    x: f32,
+    y: f32,
+    z: f32,
 }
 
 
+/**
+ * Fields in structs can also have optionally default values
+ */
+MyStruct :: struct {
+    alpha: i32,
+    beta: f32 = 0.5,
+    gamma: [5] char = ['h', 'e', 'l', 'l', 'o'],
+}
+
+/**
+ * Structs can also accept parameters like functions.
+ * Here is an example of struct-of-array vector of 3 floats.
+ * Memory Layout: x, x, ..., x, y, y, ..., y, z, z, ..., z (#floats = 3N).
+ */
+SOAVector3 :: struct (N: i32) {
+    x: [N] f32,
+    y: [N] f32,
+    z: [N] f32,
+}
+
+
+/**
+ * This function shows uses of structs.
+ */
 structs :: fn () {
-    x: MyStruct {
-        alpha := 5,
-        gamma := {'g', 'a', 'm', 'm', 'a'},
-    }
+    // This is how structs are defined
+    x := MyStruct {
+        alpha: 5,
+        gamma: ['g', 'a', 'm', 'm', 'a'],
+    };
+
+    // Fields in struct are acessed via the dot operator
+    y = x.alpha;
+    
+
+    // Printing structs can be tedius
+    pln("MyStruct: {\n\talpha = {}, \n\tbeta = {}, \n\tgamma = {} \n}", x.alpha, x.beta, x.gamma);
+
+    // Here is a simpler debug print (similar as above)
+    pln("{:#?}", x);
+
+    soa := SOAVector3(N: i32) {
+        x: [N] 
+    };
+}
+
+
+MyEnum :: enum {
+    Low,
+    Mid,
+    High,
+}
+
+
+MonsterStats :: struct {
+    name: str = "Unnamed Monster",
+    hp: u32,
+    attack: u32 = 1,
+    defence: u32 = 0,
+}
+
+
+Monster :: enum (MonsterStats) {
+    Slime = MonsterStats {name: "Slime", hp: 10}
+}
+
+
+spawn_slime :: () -> Monster {
+    Monsters::Slime
 }

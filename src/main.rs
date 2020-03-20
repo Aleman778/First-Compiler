@@ -28,7 +28,7 @@ fn main() {
     let config = driver::Config {
         input: driver::Input::Code {
             name: Filename::Custom("test".to_string()),
-            input: r###"     for x in y x * 2    "###.to_string(),
+            input: r###"     [10, false, hello_world(10, 20, "hello")]    "###.to_string(),
         },
         ..Default::default()
     };

@@ -2,11 +2,15 @@
 //! them to form semantic meaning to the program.
 
 
+mod stmt;
 mod expr;
 mod lit;
 mod op;
+mod utils;
 
 
+use std::time::Instant;
+use log::{debug};
 use crate::core::session::Session;
 use crate::core::source_map::SourceFile;
 use crate::lexer::tokenize;
@@ -36,8 +40,13 @@ pub fn parse_file<'a>(session: &'a mut Session<'a>, file: &'a SourceFile) -> Ast
  * The resulting ast map is returned.
  */
 pub fn do_parse<'a>(mut ctx: ParseCtxt<'a>) -> AstMap {
+    debug!("parsing file {}...", ctx.file.name);
+    let start = Instant::now();
     let token = ctx.tokens.next().unwrap();
-    let expr = parse_expr(&mut ctx, &token, 1);    
+    let expr = parse_expr(&mut ctx, &token, 1);
+    let elapsed = start.elapsed();
+    debug!("parsed file {} in {:?}", ctx.file.name, elapsed);
+    
     println!("{:#?}", expr);
 
     ctx.ast_map

@@ -205,7 +205,7 @@ pub struct Expr {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
-    /// Arrays e.g. `[10] i32` (fixed size) or `[..] f32` (dynamic size).
+    /// Arrays e.g. `[1, 3, 4]`.
     Array(Vec<Box<Expr>>),
 
     /// Assigning value to variable e.g. `a = calc()`.
@@ -224,7 +224,7 @@ pub enum ExprKind {
     Break,
     
     /// Function calls e.g. `foo(bar)`.
-    Call(Box<Ident>, Vec<Box<Expr>>),
+    Call(Ident, Vec<Box<Expr>>),
 
     /// Type casting e.g. `32 as u8`.
     Cast(Box<Expr>, Box<Ty>),
@@ -232,47 +232,82 @@ pub enum ExprKind {
     /// Continue statements e.g. `continue`.
     Continue,
 
-    /// Field access e,g, `x.y`.
-    Field(Box<Expr>, Box<Ident>),
+    /// Field access expression e,g, `x.y`.
+    Field(Box<Expr>, Ident),
 
     /// For loop e,g, `for i in 0..10 { do_something(); }`
-    For(Box<Ident>, Box<Expr>, Box<Expr>),
+    For(Ident, Box<Expr>, Box<Expr>),
     
     /// Identifiers e.g. `foo`, `my_function`, `__PATH__`.
-    Ident(Box<Ident>),
+    Ident(Ident),
+
+    /// Array index e.g. `my_array[10]`, `my_array[func()]`.
+    Index(Box<Expr>, Box<Expr>),
     
-    /// If statements e.g. `if a > 5 { a = 6; } else { a = 4; }`.
+    /// If expression e.g. `if a > 5 { a = 6; } else { a = 4; }`.
     If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
     
     /// Literals e.g. `32`, `true`.
     Lit(Box<Lit>),
 
     /// Loop statement e.g. `loop { do_something(); }`.
-    Loop(Box<Block>),
+    Loop(Box<Expr>),
         
     /// Parenthesized expression e.g. `(5 + 3)`.
     Paren(Box<Expr>),
 
     /// Reference expression e.g. &342, &mut false.
     Reference(Box<Expr>),
+
+    /// Struct expression e.g. `MyStruct { x: 5, y: 10 }`.
+    Struct(Ident, Vec<Box<Field>>),
+
+    /// Range expression e.g. `2..5` (excluding 5), `2..=5` (including 5).
+    Range(Option<Box<Expr>>, Option<Box<Expr>>, RangeEnd),
     
-    /// Return statements e.g. `return true;`, `return;`.
-    Return(Box<Expr>),
+    /// Return expression e.g. `return true;`, `return;`.
+    Return(Option<Box<Expr>>),
+
+    /// Tuple expression e.g. `(5, 3, 6)`, 
+    Tuple(Vec<Box<Expr>>),
     
     /// Unary operations e.g. `-a`, `!is_err()`.
     Unary(UnOp, Box<Expr>),
     
     /// While loop e.g. `while true { do_something(); }`.
-    While(Box<Expr>, Box<Block>),
+    While(Box<Expr>, Box<Expr>),
 }
 
+/**
+ * Should the last value be included in the range
+ * or excluded. Included is marked using `..=` before right expression.
+ */
+#[derive(Clone, Debug, PartialEq)]
+pub enum RangeEnd {
+    Included,
+    Excluded,
+}
 
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ident {
     /// Symbol representing this identifier.
     pub symbol: Symbol,
+    
     /// Location of identifier.
+    pub span: Span,
+}
+
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Field {
+    /// Identifier key of this field.
+    pub key: Ident,
+
+    /// Value expression of this field.
+    pub value: Box<Expr>,
+
+    /// Location of field.
     pub span: Span,
 }
 

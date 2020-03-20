@@ -1,16 +1,19 @@
-//! Perser implementation for expressions.
+//! Parser implementation for expressions.
 
 
 use crate::lexer::tokens::*;
 use crate::parser::ParseCtxt;
 use crate::parser::lit::*;
 use crate::parser::op::*;
+use crate::parser::stmt;
+use crate::parser::utils;
 use crate::span;
 use crate::span::Span;
 use crate::span::symbol::{Symbol, kw};
 use crate::ast::op::Assoc;
 use crate::ast;
 use TokenKind::*;
+
 
 
 /**
@@ -21,15 +24,19 @@ pub fn parse_expr(
     token: &Token,
     min_prec: u8,
 ) -> Option<ast::Expr> {
+    // Keep track of starting position, used for resulting expression span.
     let base_pos = token.base;
+
+    // Starts by parsing atom starting with the provided token.
     let expr_kind = match token.kind {
+        // Parse any expression starting with a keyword or identifier.
         Ident => {
             let source = ctx.file.get_source(token.to_span());
             let symbol = ctx.sess.symbol_map.as_symbol(source);
 
             match symbol {
                 kw::Break => ast::ExprKind::Break,
-                kw::Continue => ast::ExprKind ::Continue,
+                kw::Continue => ast::ExprKind::Continue,
 
                 kw::True => ast::ExprKind::Lit(Box::new(
                     ast::Lit { 
@@ -49,34 +56,38 @@ pub fn parse_expr(
                 kw::If     => parse_if(ctx)?,
                 kw::Return => parse_return(ctx)?,
                 kw::While  => parse_while(ctx)?,
+                kw::Loop   => parse_loop(ctx)?,
                 
-                _ => ast::ExprKind::Ident(Box::new(
-                    ast::Ident { 
-                        symbol, 
-                        span: token.to_span() 
-                    }
-                ))
+                // Parse any expression starting only with an identifier.
+                _ => parse_identifier(ctx, token)?
             }
         }
 
-        RawIdent => {   
-            let source = ctx.file.get_source(token.to_span());
-            let symbol = ctx.sess.symbol_map.as_symbol(source);
-            ast::ExprKind::Ident(Box::new(
-                ast::Ident { 
-                    symbol, 
-                    span: token.to_span() 
-                }
-            ))
+        // Parse any expression starting only with a raw identifier.
+        RawIdent => parse_identifier(ctx, token)?,
+
+        // Parse any literal expression using information from token and source code.
+        Literal { kind, suffix_start } => parse_literal(ctx, &token, kind, suffix_start)?,
+
+        // Parse parenthesized or tuple expression
+        OpenParen => parse_parenthesized(ctx)?,
+
+        // Parse an array expression.
+        OpenBracket => {
+            let exprs = utils::parse_many(ctx, Comma, CloseBracket, |ctx, t| parse_expr(ctx, t, 1))?;
+            ast::ExprKind::Array(exprs)
+        },
+
+        // Parse a block expression.
+        OpenBrace => {
+            let token = ctx.tokens.next()?;
+            let block = stmt::parse_block(ctx, &token)?;
+            ast::ExprKind::Block(Box::new(block))
         }
 
-        Literal { kind, suffix_start } => parse_literal(ctx, &token, kind, suffix_start)?,
-        OpenParen => parse_parenthesized(ctx)?,
-        OpenBrace => parse_block(ctx)?,
-        OpenBracket => parse_array(ctx)?,
-
+        // Report error if failed to match any valid start of expression.
         _ => {
-            span_err!(ctx.sess, token.to_span(), "expected expression, found {}", token);
+            unexpected_token_err!(ctx, token, ["expression"]);
             return None;
         }
     };
@@ -86,6 +97,42 @@ pub fn parse_expr(
         node_id: ast::NodeId(0),
         kind: expr_kind,
         span: Span::new(base_pos, ctx.tokens.cur_pos() - base_pos),
+    };
+
+    // Some expressions that matches, we might want to combine it with lhs expr.
+    match ctx.tokens.peek().kind {
+        OpenParen => {
+            if let ast::ExprKind::Ident(ident) = expr_lhs.kind {
+                ctx.tokens.next()?;
+                expr_lhs = ast::Expr {
+                    node_id: ast::NodeId(0),
+                    kind: parse_fn_call(ctx, ident)?,
+                    span: Span::new(base_pos, ctx.tokens.cur_pos() - base_pos),
+                }
+            }
+        }
+
+        OpenBracket => {
+            ctx.tokens.next()?;
+            expr_lhs = ast::Expr {
+                node_id: ast::NodeId(0),
+                kind: parse_index(ctx, Box::new(expr_lhs))?,
+                span: Span::new(base_pos, ctx.tokens.cur_pos() - base_pos),
+            }
+        }
+
+        OpenBrace => {
+            if let ast::ExprKind::Ident(ident) = expr_lhs.kind {
+                ctx.tokens.next()?;
+                expr_lhs = ast::Expr {
+                    node_id: ast::NodeId(0),
+                    kind: parse_struct(ctx, ident)?,
+                    span: Span::new(base_pos, ctx.tokens.cur_pos() - base_pos),
+                }
+            }
+        }
+
+        _ => (),
     };
 
     // Parse optionally a binary expression using precedence climbing.
@@ -117,7 +164,6 @@ pub fn parse_expr(
         };
     }
 
-
     Some(expr_lhs)
 }
 
@@ -127,7 +173,7 @@ pub fn parse_expr(
  */
 pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
-        
+    
     let token = ctx.tokens.next()?;
     let cond = Box::new(parse_expr(ctx, &token, 1)?);
 
@@ -140,10 +186,7 @@ pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
             let token = ctx.tokens.next()?;
             Some(Box::new(parse_expr(ctx, &token, 1)?))
         } else {
-            span_err!(ctx.sess, 
-                      token.to_span(), 
-                      "expected keyword `else`, found `{}`",
-                      ctx.sess.symbol_map.as_str(kw));
+            unexpected_token_err!(ctx, token, ["else"]);
             return None;
         }
     } else {
@@ -153,7 +196,7 @@ pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     if else_body.is_some() {
         ctx.tokens.next()?;
     }
-        
+    
     Some(ast::ExprKind::If(cond, then_body, else_body))
 }
 
@@ -165,24 +208,22 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
     let token = ctx.tokens.next()?;
-    let ident = Box::new(parse_ident(ctx, &token)?);
+    let ident = if let ast::ExprKind::Ident(ident) = parse_identifier(ctx, &token)? {
+        ident
+    } else {
+        panic!("parsed identifier is not an identifier, what is going on?");
+    };
 
     if let Some(kw) = parse_keyword(ctx) {
         if kw.index() != kw::In.index() {
-            span_err!(ctx.sess, 
-                      token.to_span(), 
-                      "expected keyword `in`, found `{}`",
-                      ctx.sess.symbol_map.as_str(kw));
+            unexpected_token_err!(ctx, token, ["in"]);
             return None;
         } else {
             ctx.tokens.next()?;
         }
     } else {
         let token = ctx.tokens.peek();
-        span_err!(ctx.sess, 
-                  token.to_span(), 
-                  "expected keyword `in`, found `{}`",
-                  token);
+        unexpected_token_err!(ctx, token, ["in"]);
         return None;
     }
 
@@ -203,40 +244,37 @@ pub fn parse_while(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
     let token = ctx.tokens.next()?;
-    let cond = Box::new(parse_expr(ctx, &token)?);
+    let cond = Box::new(parse_expr(ctx, &token, 1)?);
 
     let token = ctx.tokens.next()?;
-    let body = Box::new(parse_expr(ctx, &token)?);
+    let body = Box::new(parse_expr(ctx, &token, 1)?);
 
-    Some(ast::ExprKind::While(ident, cond, body))
+    Some(ast::ExprKind::While(cond, body))
+}
+
+
+/**
+ * Parses a while loop using the next tokens in parse context.
+ */
+pub fn parse_loop(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == Ident);
+
+    let token = ctx.tokens.next()?;
+    let body = Box::new(parse_expr(ctx, &token, 1)?);
+
+    Some(ast::ExprKind::Loop(body))
 }
 
 
 /**
  * Parses a function call using the next tokens in the parse context.
  */
-pub fn parse_fn_call(ctx: &mut ParseCtxt, ident; Ident) -> Option<ast::ExprKind> {
+pub fn parse_fn_call(ctx: &mut ParseCtxt, ident: ast::Ident) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == OpenParen);
     
-    let mut exprs: Vec<Box<Expr>> = Vec::new();
-    loop {
-        let token = ctx.tokens.parse()?;
-        match token.kind {
-            CloseParen => break,
-            _ => {
-                expr.push(Box::new(parse_expr(ctx, &token, 1)));
-                
-                let token = ctx.tokens.parse()?;
-                if token.kind == Comma {
-                    span_err!(ctx.sess, token.to_span(), "expected `,` or `)`, found `{}`", token);
-                    return None;
-                }
-            }
-        }
-        
-    }
-    
-    Some(ast::ExprKind::Call(Box::new(ident), exprs))
+
+    let exprs = utils::parse_many(ctx, Comma, CloseParen, |ctx, t| parse_expr(ctx, t, 1))?;
+    Some(ast::ExprKind::Call(ident, exprs))
 }
 
 
@@ -247,54 +285,57 @@ pub fn parse_return(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
     let token = ctx.tokens.next()?;
-    let expr = Box::new(parse_expr(ctx, &token, 1));
+    let expr = parse_expr(ctx, &token, 1).map(|expr| Box::new(expr));
     
     Some(ast::ExprKind::Return(expr))
 }
 
 
 /**
- * Parses an identifier using the provided token and context.
+ * Parses an identifier expression using the provided token and context.
+ * Identifier expressions includes `identifier`, `function calls`, etc.
  */
-pub fn parse_ident(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::Ident> {
+pub fn parse_identifier(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::ExprKind> {
     debug_assert!(token.kind == Ident);
+    let source = ctx.file.get_source(token.to_span());
+    let symbol = ctx.sess.symbol_map.as_symbol(source);
 
-    match token.kind {
+    let ident = match token.kind {
+        // For identifiers check validity i.e. it not a keyword or empty.
         Ident => {
-            let source = ctx.file.get_source(token.to_span());
-            let symbol = ctx.sess.symbol_map.as_symbol(source);
-
             if let kw::Invalid = symbol {
                 span_err!(ctx.sess, token.to_span(), "identifier cannot be empty");
-                None
+                return None;
             } else if symbol.index() > kw::START_INDEX + 1 && symbol.index() < kw::LAST_INDEX {
-                span_err!(ctx.sess, token.to_span(), "expected identifier, found keyword `{}`", source);
-                None
+                unexpected_token_err!(ctx, token, [Ident]);
+                return None;
             } else {
-                Some(ast::Ident { 
-                    symbol, 
-                    span: token.to_span() 
-                })
-            }
-        }
-
-        RawIdent => {
-            let source = ctx.file.get_source(token.to_span());
-            let symbol = ctx.sess.symbol_map.as_symbol(source);
-
-            Some(ast::Ident { 
+                ast::Ident { 
                     symbol, 
                     span: token.to_span() 
                 }
-            )
+            }
         }
 
-        _ => {
-            span_err!(ctx.sess, token.to_span(), "expected identifier, found `{}`", token);
-            None
+        // No checks neccessary for raw identifiers.
+        RawIdent => {
+            ast::Ident { 
+                symbol, 
+                span: token.to_span()
+            }
         }
-    }
+
+        // Nothing matched, expected either identifier or raw identifier.
+        _ => {
+            unexpected_token_err!(ctx, token, [Ident]);
+            return None;
+        }
+    };
+
+    Some(ast::ExprKind::Ident(ident))
 }
+
+
 
 
 
@@ -365,10 +406,114 @@ pub fn parse_literal(
 
 
 /**
- * Parses an array expression using the next tokens in parse context.
+ * Parses a parenthesized or tuple expression using the next tokens in parse context.
  */
-pub fn parse_array(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+pub fn parse_parenthesized(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == OpenParen);
+
+    let token = ctx.tokens.next()?;
+    let expr = Box::new(parse_expr(ctx, &token, 1)?);
+
+    let token = ctx.tokens.peek();
+    match token.kind {
+        CloseParen => {
+            ctx.tokens.next()?;
+            Some(ast::ExprKind::Paren(expr))
+        }
+        Comma => {
+            ctx.tokens.next()?;
+            let mut exprs = utils::parse_many(ctx, Comma, CloseParen, |ctx, t| parse_expr(ctx, t, 1))?;
+            exprs.insert(0, expr);
+            Some(ast::ExprKind::Tuple(exprs))
+        }
+        _ => {   
+            let token = ctx.tokens.next()?;
+            unexpected_token_err!(ctx, token, [Comma, OpenParen]);
+            None
+        }
+    }
+}
+
+
+/**
+ * Parses a range expression using the next tokens in parse context.
+ */
+pub fn parse_range(ctx: &mut ParseCtxt, lhs_expr: Option<Box<ast::Expr>>) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == Dot);
+
+    let token = ctx.tokens.next()?;
+    if token.kind != Dot {
+        unexpected_token_err!(ctx, token, [Dot]);
+    }
+
+    let mut token = ctx.tokens.next()?;
+    let range_end = if token.kind == Eq {
+        token = ctx.tokens.next()?;
+        ast::RangeEnd::Included
+    } else {
+        ast::RangeEnd::Excluded
+    };
+
+    let token = ctx.tokens.peek();
+    let rhs_expr = if utils::is_expr_start(&token) {
+        let token = ctx.tokens.next()?;
+        Some(Box::new(parse_expr(ctx, &token, 1)?))
+    } else {
+        None
+    };
+
+    Some(ast::ExprKind::Range(lhs_expr, rhs_expr, range_end))
+}
+
+
+/**
+ * Parses an array index using the next tokens in parse context.
+ */
+pub fn parse_index(ctx: &mut ParseCtxt, lhs_expr: Box<ast::Expr>) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == OpenBracket);
+    let token = ctx.tokens.next()?;
+    let rhs_expr = Box::new(parse_expr(ctx, &token, 1)?);
+    let token = ctx.tokens.next()?;
+    match token.kind {
+        CloseBracket => Some(ast::ExprKind::Index(lhs_expr, rhs_expr)),
+        _ => {
+            unexpected_token_err!(ctx, token, [CloseBracket]);
+            None
+        }
+    }
+}
+
+
+/**
+ * Parses a struct expression using the next tokens in the parse context and provided identifier.
+ */
+pub fn parse_struct(ctx: &mut ParseCtxt, ident: ast::Ident) -> Option<ast::ExprKind> {
+    debug_assert!(ctx.tokens.prev == OpenBrace);
+
+    let fields = utils::parse_many(ctx, Comma, CloseBrace, |ctx, t| parse_field(ctx, t))?;
+    Some(ast::ExprKind::Struct(ident, fields))
+}
+
+
+/**
+ * Parses a field ast node using the next tokens in the parse context and the provided token.
+ */
+pub fn parse_field(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::Field> {
+    let base_pos = token.base;
+    let key = match parse_identifier(ctx, &token)? {
+        ast::ExprKind::Ident(ident) => ident,
+        _ => return None,
+    };
+
+    let token = ctx.tokens.next()?;
+    if token.kind != Colon {
+        unexpected_token_err!(ctx, token, [Colon]);
+        return None;
+    }
     
+    let token = ctx.tokens.next()?;
+    let value = Box::new(parse_expr(ctx, &token, 1)?);
+    let span = Span::new(base_pos, token.base + token.len);
     
-    None
+    Some(ast::Field { key, value, span })
 }

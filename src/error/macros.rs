@@ -146,3 +146,29 @@ macro_rules! invalid_suffix_err {
         $ctx.sess.emit(&err);
     })
 }
+
+
+#[macro_export]
+macro_rules! unexpected_token_err {
+    ($ctx:expr, $token:expr, $expected:expr) => ({
+        let mut expected_msg = String::new();
+        for (i, elem) in $expected.iter().enumerate() {
+            expected_msg.push('`');
+            expected_msg.push_str(&format!("{}", elem));
+            expected_msg.push('`');
+            if i + 2 < $expected.len() {
+                expected_msg.push_str(", ");
+            } else if i + 1 < $expected.len() {
+                expected_msg.push_str(" or ");
+            }
+        }
+        let found_msg = if $token.kind == TokenKind::Ident {
+            $ctx.file.get_source($token.to_span()).to_string()
+        } else {
+            format!("{}", $token.kind)
+        };
+        let msg = &format!("expected {}, found `{}`", expected_msg, found_msg);
+        let err = $ctx.sess.struct_span_err($token.to_span(), msg);
+        $ctx.sess.emit(&err);
+    })
+}
