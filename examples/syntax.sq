@@ -123,7 +123,7 @@ if_statements :: fn () {
     };
 
     // You can follow else by another if statement
-    y:= if x > 100
+    y := if x > 100
         x/3
     else if x < 10
         x*2
@@ -132,7 +132,7 @@ if_statements :: fn () {
     assert_eq(y, 6);
 
     // Of course you can also include brackets here aswell
-    y:= if x > 100 {
+    y := if x > 100 {
         x/3
     } else if x < 10 {
         x*2

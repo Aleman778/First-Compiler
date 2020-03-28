@@ -3,17 +3,15 @@
 
 use crate::lexer::tokens::*;
 use crate::parser::ParseCtxt;
-use crate::parser::lit::*;
-use crate::parser::op::*;
-use crate::parser::stmt;
+use crate::parser::{utils, stmt, lit};
 use crate::parser::utils;
-use crate::span;
 use crate::span::Span;
 use crate::span::symbol::{Symbol, kw};
 use crate::ast::op::Assoc;
+use crate::ast::BinOp;
+use crate::span;
 use crate::ast;
 use TokenKind::*;
-
 
 
 /**
@@ -38,19 +36,19 @@ pub fn parse_expr(
                 kw::Break => ast::ExprKind::Break,
                 kw::Continue => ast::ExprKind::Continue,
 
-                kw::True => ast::ExprKind::Lit(Box::new(
+                kw::True => ast::ExprKind::Lit(
                     ast::Lit { 
                         kind: ast::LitKind::Bool(true), 
                         span: token.to_span(),
                     }
-                )),
+                ),
 
-                kw::False => ast::ExprKind::Lit(Box::new(
+                kw::False => ast::ExprKind::Lit(
                     ast::Lit { 
                         kind: ast::LitKind::Bool(false), 
                         span: token.to_span(),
                     }
-                )),
+                ),
 
                 kw::For    => parse_for(ctx)?,
                 kw::If     => parse_if(ctx)?,
@@ -59,12 +57,12 @@ pub fn parse_expr(
                 kw::Loop   => parse_loop(ctx)?,
                 
                 // Parse any expression starting only with an identifier.
-                _ => parse_identifier(ctx, token)?
+                _ => ast::ExprKind::Ident(utils::parse_identifier(ctx, token)?)
             }
         }
 
         // Parse any expression starting only with a raw identifier.
-        RawIdent => parse_identifier(ctx, token)?,
+        RawIdent => ast::ExprKind::Ident(utils::parse_identifier(ctx, token)?),
 
         // Parse any literal expression using information from token and source code.
         Literal { kind, suffix_start } => parse_literal(ctx, &token, kind, suffix_start)?,
@@ -85,6 +83,30 @@ pub fn parse_expr(
             ast::ExprKind::Block(Box::new(block))
         }
 
+        // Parse a range without lhs expression.
+        Dot => parse_range(ctx, None)?,
+
+        // Parse a negation unary expression.
+        Minus => {
+            let token = ctx.tokens.next()?;
+            let expr_rhs = parse_expr(ctx, &token, min_prec)?;
+            ast::ExprKind::Unary(ast::UnOp::Neg, Box::new(expr_rhs))
+        }
+
+        // Parse a  expression.
+        Not => {
+            let token = ctx.tokens.next()?;
+            let expr_rhs = parse_expr(ctx, &token, min_prec)?;
+            ast::ExprKind::Unary(ast::UnOp::Not, Box::new(expr_rhs))
+        }
+
+        // Parse a pointer expression.
+        Star => {
+            let token = ctx.tokens.next()?;
+            let expr_rhs = parse_expr(ctx, &token, min_prec)?;
+            ast::ExprKind::Pointer(Box::new(expr_rhs))
+        }
+
         // Report error if failed to match any valid start of expression.
         _ => {
             unexpected_token_err!(ctx, token, ["expression"]);
@@ -101,6 +123,7 @@ pub fn parse_expr(
 
     // Some expressions that matches, we might want to combine it with lhs expr.
     match ctx.tokens.peek().kind {
+        // Parse a function call expression.
         OpenParen => {
             if let ast::ExprKind::Ident(ident) = expr_lhs.kind {
                 ctx.tokens.next()?;
@@ -112,6 +135,7 @@ pub fn parse_expr(
             }
         }
 
+        // Parse an array index expression.
         OpenBracket => {
             ctx.tokens.next()?;
             expr_lhs = ast::Expr {
@@ -121,6 +145,7 @@ pub fn parse_expr(
             }
         }
 
+        // Parse a struct expression.
         OpenBrace => {
             if let ast::ExprKind::Ident(ident) = expr_lhs.kind {
                 ctx.tokens.next()?;
@@ -132,11 +157,39 @@ pub fn parse_expr(
             }
         }
 
+        // Parse either range or field expression.
+        Dot => {
+            let expr_kind = match ctx.tokens.peek().kind {
+                // Parses a range expression.
+                Dot => parse_range(ctx, Some(Box::new(expr_lhs)))?,
+
+                // Parses a field expression.
+                Ident |
+                RawIdent => {
+                    let token = ctx.tokens.next()?;
+                    let ident = utils::parse_identifier(ctx, &token)?;
+                    ast::ExprKind::Field(Box::new(expr_lhs), ident)
+                }
+
+                // Expects only `identifier` or `.`.
+                _ => {
+                    unexpected_token_err!(ctx, token, [Dot, Ident]);
+                    return None;
+                }
+            };
+
+            expr_lhs = ast::Expr {
+                node_id: ast::NodeId(0),
+                kind: expr_kind,
+                span: Span::new(base_pos, ctx.tokens.cur_pos() - base_pos),
+           }
+        }
+
         _ => (),
     };
 
     // Parse optionally a binary expression using precedence climbing.
-    while let Some((binop, num_tokens)) = parse_binop(ctx, true) {
+    while let Some((binop, num_tokens)) = utils::parse_binop(ctx, true) {
         let (prec, assoc) = binop.get_prec();
         if prec < min_prec {
             break;
@@ -180,7 +233,7 @@ pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     let token = ctx.tokens.next()?;
     let then_body = Box::new(parse_expr(ctx, &token, 1)?);
 
-    let else_body = if let Some(kw) = parse_keyword(ctx) {
+    let else_body = if let Some(kw) = utils::parse_keyword(ctx) {
         if kw.index() == kw::Else.index() {
             ctx.tokens.next()?;
             let token = ctx.tokens.next()?;
@@ -208,13 +261,9 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
     let token = ctx.tokens.next()?;
-    let ident = if let ast::ExprKind::Ident(ident) = parse_identifier(ctx, &token)? {
-        ident
-    } else {
-        panic!("parsed identifier is not an identifier, what is going on?");
-    };
+    let ident = utils::parse_identifier(ctx, &token);
 
-    if let Some(kw) = parse_keyword(ctx) {
+    if let Some(kw) = utils::parse_keyword(ctx) {
         if kw.index() != kw::In.index() {
             unexpected_token_err!(ctx, token, ["in"]);
             return None;
@@ -292,82 +341,6 @@ pub fn parse_return(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
 
 
 /**
- * Parses an identifier expression using the provided token and context.
- * Identifier expressions includes `identifier`, `function calls`, etc.
- */
-pub fn parse_identifier(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::ExprKind> {
-    debug_assert!(token.kind == Ident);
-    let source = ctx.file.get_source(token.to_span());
-    let symbol = ctx.sess.symbol_map.as_symbol(source);
-
-    let ident = match token.kind {
-        // For identifiers check validity i.e. it not a keyword or empty.
-        Ident => {
-            if let kw::Invalid = symbol {
-                span_err!(ctx.sess, token.to_span(), "identifier cannot be empty");
-                return None;
-            } else if symbol.index() > kw::START_INDEX + 1 && symbol.index() < kw::LAST_INDEX {
-                unexpected_token_err!(ctx, token, [Ident]);
-                return None;
-            } else {
-                ast::Ident { 
-                    symbol, 
-                    span: token.to_span() 
-                }
-            }
-        }
-
-        // No checks neccessary for raw identifiers.
-        RawIdent => {
-            ast::Ident { 
-                symbol, 
-                span: token.to_span()
-            }
-        }
-
-        // Nothing matched, expected either identifier or raw identifier.
-        _ => {
-            unexpected_token_err!(ctx, token, [Ident]);
-            return None;
-        }
-    };
-
-    Some(ast::ExprKind::Ident(ident))
-}
-
-
-
-
-
-/**
- * Tries to parse a specific keyword and reports error if not found.
- * One token is peeked and should be consumed if needed outside of this function.
- */
-pub fn parse_keyword(ctx: &mut ParseCtxt) -> Option<Symbol> {
-    let token = ctx.tokens.peek();
-    match token.kind {
-        Ident => {
-            let source = ctx.file.get_source(token.to_span());
-            let symbol = ctx.sess.symbol_map.as_symbol(source);
-
-            if let kw::Invalid = symbol {
-                span_err!(ctx.sess, token.to_span(), "keyword cannot be empty");
-                None
-            } else if symbol.index() > kw::START_INDEX + 1 && symbol.index() < kw::LAST_INDEX {
-                Some(symbol)
-            } else {
-                None
-            }
-        }
-
-        _ => {
-            None
-        }
-    }
-}
-
-
-/**
  * Parses a literal expression using the current token.
  */
 pub fn parse_literal(
@@ -401,7 +374,7 @@ pub fn parse_literal(
         LitKind::RawByteStr { num_hashes, started, terminated } =>
             parse_raw_byte_string(ctx, token, num_hashes, started, terminated, suffix)?,
     };
-    Some(ast::ExprKind::Lit(Box::new(literal)))
+    Some(ast::ExprKind::Lit(literal))
 }
 
 
@@ -446,9 +419,9 @@ pub fn parse_range(ctx: &mut ParseCtxt, lhs_expr: Option<Box<ast::Expr>>) -> Opt
         unexpected_token_err!(ctx, token, [Dot]);
     }
 
-    let mut token = ctx.tokens.next()?;
+    let token = ctx.tokens.next()?;
     let range_end = if token.kind == Eq {
-        token = ctx.tokens.next()?;
+        ctx.tokens.next()?;
         ast::RangeEnd::Included
     } else {
         ast::RangeEnd::Excluded
@@ -490,30 +463,115 @@ pub fn parse_index(ctx: &mut ParseCtxt, lhs_expr: Box<ast::Expr>) -> Option<ast:
 pub fn parse_struct(ctx: &mut ParseCtxt, ident: ast::Ident) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == OpenBrace);
 
-    let fields = utils::parse_many(ctx, Comma, CloseBrace, |ctx, t| parse_field(ctx, t))?;
+    let fields = utils::parse_many(ctx, Comma, CloseBrace, |ctx, t| utils::parse_field(ctx, t))?;
     Some(ast::ExprKind::Struct(ident, fields))
 }
 
 
-/**
- * Parses a field ast node using the next tokens in the parse context and the provided token.
- */
-pub fn parse_field(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::Field> {
-    let base_pos = token.base;
-    let key = match parse_identifier(ctx, &token)? {
-        ast::ExprKind::Ident(ident) => ident,
-        _ => return None,
-    };
+#[cfg(test)]
+/// Unit testing of the different expression parsers.
+mod tests {
+    use crate::lexer::tokenize;
+    use crate::ast::map::AstMap;
+    use crate::span::DUMMY_SPAN;
+    use crate::span::symbol::SymbolMap;
+    use crate::core::session::Session;
+    use crate::core::source_map::Filename;
+    use crate::parser::expr::parse_expr;
+    use crate::parser::ParseCtxt;
+    use crate::ast;
+    use std::rc::Rc;
+    use ast::ExprKind::*;
+    use ast::LitKind::*;
+    use ast::LitIntTy::*;
 
-    let token = ctx.tokens.next()?;
-    if token.kind != Colon {
-        unexpected_token_err!(ctx, token, [Colon]);
-        return None;
+
+    static SYMBOLS: Rc<SymbolMap> = Rc::new(SymbolMap::new());
+
+                  
+    macro_rules! test {
+        ($name:ident, $input:expr, $expected:expr) => {
+            #[test]
+            fn $name() {
+                let mut sess = Session::new();
+                unsafe {
+                    // SYMBOLS = Some(&mut sess.symbol_map);
+                    sess.symbol_map = Rc::clone(&SYMBOLS);
+                }
+                let fname = Filename::Custom("test".to_string());
+                let file = sess.source_map().insert_source_file(fname, $input.to_string());
+                let tokens = tokenize(&file.source, file.start_pos.index());
+                let mut ctx = ParseCtxt {
+                    sess: &mut sess,
+                    file: &file,
+                    tokens: tokens,
+                    ast_map: AstMap::new(),
+                };
+
+                let token = ctx.tokens.next().unwrap();
+                let actual = parse_expr(&mut ctx, &token, 1);
+
+                assert_eq!(actual, $expected.map(|e| *e));
+            }
+        }
+    }
+
+
+    macro_rules! ast {
+        (expr: $kind:expr) => {
+            Box::new(ast::Expr {
+                node_id: ast::NodeId(0),
+                kind: $kind,
+                span: DUMMY_SPAN
+            })
+        };
+
+        (lit: $kind:expr) => {
+            Box::new(ast::Expr {
+                node_id: ast::NodeId(0),
+                kind: Lit(ast::Lit {
+                    kind: $kind,
+                    span: DUMMY_SPAN
+                }),
+                span: DUMMY_SPAN
+            })
+        };
+    }
+
+
+    macro_rules! ident {
+        ($ident: expr) => (
+            unsafe {
+                ast::Ident {
+                    symbol: SYMBOLS.unwrap().as_symbol($ident),
+                    span: DUMMY_SPAN,
+                }
+            }
+        );
     }
     
-    let token = ctx.tokens.next()?;
-    let value = Box::new(parse_expr(ctx, &token, 1)?);
-    let span = Span::new(base_pos, token.base + token.len);
-    
-    Some(ast::Field { key, value, span })
+
+    // Testing array expression parser
+    test!(parse_array, "[1, 3, 4]", Some(
+        ast!(
+            expr: Array(
+                vec![
+                    ast!(lit: Int(1, Unsuffixed)),
+                    ast!(lit: Int(3, Unsuffixed)), 
+                    ast!(lit: Int(4, Unsuffixed)),
+                ]
+            )
+        )
+    ));
+
+
+    // Testing assignment expression parser
+    test!(parse_assign, "x = 5", Some(
+        ast!(
+            expr: Assign(
+                ast!(expr: Ident(ident!("x"))),
+                ast!(lit: Int(5, Unsuffixed))
+            )
+        )
+    ));
 }

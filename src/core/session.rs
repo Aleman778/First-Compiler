@@ -48,7 +48,7 @@ impl<'a> Session<'a> {
                 ColorConfig::Always)),
             working_dir,
             source_map,
-            symbol_map: SymbolMap::new(), 
+            symbol_map: SymbolMap::new(),
         }
     }
 

@@ -22,7 +22,7 @@ pub struct NodeId(pub u32);
  * A node can be for example an item, statement, expression etc.
  * Every node has a parent node except for the root.
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Node {
     /// Id of the parent node.
     pub parent: NodeId,
@@ -30,6 +30,13 @@ pub struct Node {
     pub kind: NodeKind,
     /// Location of this node.
     pub span: Span,
+}
+
+
+impl PartialEq for Node {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
 }
 
 
@@ -57,7 +64,7 @@ pub enum NodeKind {
  * Items are usually everything defined in global scope.
  * However you can have nested items e.g. `fn test() { fn test2() { ... } ... }`
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Item {
     /// Identifier of this item.
     pub ident: Ident,
@@ -72,6 +79,15 @@ pub struct Item {
 }
 
 
+impl PartialEq for Item {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind 
+            && self.ident == other.ident 
+            && self.vis == other.vis
+    }
+}
+
+
 /**
  * Different kinds of items available.
  */
@@ -81,19 +97,31 @@ pub enum ItemKind {
     Fn(FnSig, Box<Block>),
     /// Foreign functions are defined only with a signature, code resides elsewhere.
     ForeignFn(FnSig),
+    /// Structs are defined by a list of fields.
+    Struct(Vec<SField>),
+    /// Enums are defined by list of fields with values and common type.
+    Enum(Vec<EField>),
 }
 
 
 /**
  * Visibility of a specific item.
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Visibility {
     /// Kind of visibility
     pub kind: VisibilityKind,
     /// Location of visibility notation.
     pub span: Span,
 }
+
+
+impl PartialEq for Visibility {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
 
 
 /**
@@ -112,13 +140,25 @@ pub enum VisibilityKind {
  * Function signature defines the attributes
  * of a given function e.g. input/ output types.
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct FnSig {
     /// Input arguments to function.
     pub inputs: Vec<Box<Ty>>,
     /// Return type of function.
     pub output: Box<Ty>,
+    /// Location of function signature.
+    pub span: Span,
 }
+
+
+
+impl PartialEq for FnSig {
+    fn eq(&self, other: &Self) -> bool {
+        self.inputs == other.inputs
+            && self.output == other.output
+    }
+}
+
 
 
 /**
@@ -126,12 +166,19 @@ pub struct FnSig {
  * Statements can be local variable, expressions and items.
  * Mostly statements ends with a semicolon.
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Stmt {
     /// Kind of statement.
     pub kind: StmtKind,
     /// Location of statement.
     pub span: Span,
+}
+
+
+impl PartialEq for Stmt {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
 }
 
 
@@ -158,7 +205,7 @@ pub enum StmtKind {
 /**
  * Block contains a vector of statements.
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Block {
     /// Statements in the block.
     pub stmts: Vec<Box<Stmt>>,
@@ -169,11 +216,20 @@ pub struct Block {
 }
 
 
+impl PartialEq for Block {
+    fn eq(&self, other: &Self) -> bool {
+        self.stmts == other.stmts
+            && self.expr == other.expr
+    }
+}
+
+
+
 /**
  * Local variable declartion defines information about
  * the variable e.g. `let mut a: i32 = 53;`
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Local {
     /// Is the local variable mutable?
     pub mutable: bool,
@@ -188,11 +244,21 @@ pub struct Local {
 }
 
 
+impl PartialEq for Local {
+    fn eq(&self, other: &Self) -> bool {
+        self.mutable == other.mutable
+            && self.ident == other.ident
+            && self.ty == other.ty
+            && self.init == other.init
+    }
+}
+
+
 /**
  * All nodes are expressions but exepct for two exceptions
  * those are items and local variables.
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Expr {
     /// The expression identifier.
     pub node_id: NodeId,
@@ -200,6 +266,13 @@ pub struct Expr {
     pub kind: ExprKind,
     /// Location of expression.
     pub span: Span,
+}
+
+
+impl PartialEq for Expr {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
 }
 
 
@@ -240,15 +313,15 @@ pub enum ExprKind {
     
     /// Identifiers e.g. `foo`, `my_function`, `__PATH__`.
     Ident(Ident),
+    
+    /// If expression e.g. `if a > 5 { a = 6; } else { a = 4; }`.
+    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
 
     /// Array index e.g. `my_array[10]`, `my_array[func()]`.
     Index(Box<Expr>, Box<Expr>),
     
-    /// If expression e.g. `if a > 5 { a = 6; } else { a = 4; }`.
-    If(Box<Expr>, Box<Expr>, Option<Box<Expr>>),
-    
     /// Literals e.g. `32`, `true`.
-    Lit(Box<Lit>),
+    Lit(Lit),
 
     /// Loop statement e.g. `loop { do_something(); }`.
     Loop(Box<Expr>),
@@ -256,8 +329,8 @@ pub enum ExprKind {
     /// Parenthesized expression e.g. `(5 + 3)`.
     Paren(Box<Expr>),
 
-    /// Reference expression e.g. &342, &mut false.
-    Reference(Box<Expr>),
+    /// Pointer expression e.g. *342, *test().
+    Pointer(Box<Expr>),
 
     /// Struct expression e.g. `MyStruct { x: 5, y: 10 }`.
     Struct(Ident, Vec<Box<Field>>),
@@ -289,26 +362,76 @@ pub enum RangeEnd {
 }
 
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Ident {
     /// Symbol representing this identifier.
     pub symbol: Symbol,
-    
     /// Location of identifier.
     pub span: Span,
 }
 
 
-#[derive(Clone, Debug, PartialEq)]
+impl PartialEq for Ident {
+    fn eq(&self, other: &Self) -> bool {
+        self.symbol == other.symbol
+    }
+}
+
+
+#[derive(Clone, Debug)]
 pub struct Field {
     /// Identifier key of this field.
     pub key: Ident,
-
-    /// Value expression of this field.
+    /// Optionally the type stored in this field.
     pub value: Box<Expr>,
-
     /// Location of field.
     pub span: Span,
+}
+
+
+impl PartialEq for Field {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+            && self.value == other.value
+    }
+}
+
+
+#[derive(Clone, Debug)]
+pub struct StructField {
+    /// Identifier key of this field.
+    pub key: Ident,
+    /// Optionally the type stored in this field.
+    pub value: Option<Box<Expr>>,
+    /// Location of field.
+    pub span: Span,
+}
+
+
+impl PartialEq for StructField {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+            && self.value == other.value
+    }
+}
+
+
+#[derive(Clone, Debug)]
+pub struct EnumField {
+    /// Identifier key of this field.
+    pub key: Ident,
+    /// Optionally the type stored in this field.
+    pub value: Box<Expr>,
+    /// Location of field.
+    pub span: Span,
+}
+
+
+impl PartialEq for EnumField {
+    fn eq(&self, other: &Self) -> bool {
+        self.key == other.key
+            && self.value == other.value
+    }
 }
 
 
@@ -316,7 +439,7 @@ pub struct Field {
  * The type enum contains the different types of supported types.
  * Can be an integer, boolean or reference.
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Ty {
     /// Kind of type annotation.
     pub kind: TyKind,
@@ -325,11 +448,18 @@ pub struct Ty {
 }
 
 
+impl PartialEq for Ty {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
+}
+
+
 /**
  * Type reference struct defines the type as a reference.
  * e.g. `&mut i32` defines a mutable i32 type reference.
  */
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct TypeRef {
     /// Mutable reference flag.
     pub mutable: bool,
@@ -337,6 +467,14 @@ pub struct TypeRef {
     pub elem: Box<Ty>,
     /// Location of type reference declaration.
     pub span: Span,
+}
+
+
+impl PartialEq for TypeRef {
+    fn eq(&self, other: &Self) -> bool {
+        self.mutable == other.mutable
+            && self.elem == other.elem
+    }
 }
 
 
@@ -429,12 +567,19 @@ pub enum LitFloatTy {
 }
 
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Lit {
     /// Kind of literal.
     pub kind: LitKind,
     /// Location of literal.
     pub span: Span,
+}
+
+
+impl PartialEq for Lit {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind == other.kind
+    }
 }
 
 
