@@ -2,9 +2,10 @@
 
 
 use crate::span::{Span, DUMMY_SPAN};
+use crate::span::symbol::kw;
 use crate::lexer::tokens::*;
 use crate::parser::ParseCtxt;
-use crate::parser::{utils, stmt};
+use crate::parser::{utils, stmt, ty};
 use crate::ast;
 use TokenKind::*;
 
@@ -18,39 +19,48 @@ pub fn parse_item(
 ) -> Option<ast::Item> {
     let base_pos = token.base;
     let ident = utils::parse_identifier(ctx, token)?;
-    if !utils::parse_tokens(ctx, [Colon, Colon]) {
+    if !utils::parse_tokens(ctx, &[Colon, Colon])? {
         return None;
     }
 
-    let vis = ast::Visibility::Visible;
-
-    let token = ctx.tokens.next()?;
-    let keyword = utils::parse_keyword(ctx, &token)?;
+    let mut viskind = ast::VisibilityKind::Visible;
+    let mut keyword = utils::parse_keyword(ctx)?;
+    match keyword {
+        kw::Hidden => {
+            viskind = ast::VisibilityKind::Hidden;
+            keyword = utils::parse_keyword(ctx)?;
+        }
+        _ => ()
+    };
+    
     let kind = match keyword {
-        kw::Fn => parse_fn(),
-        kw::Struct => parse_struct(),
-        kw::Enum => parse_enum(),
+        kw::Fn => parse_fn(ctx)?,
+        kw::Struct => parse_struct(ctx)?,
+        kw::Enum => parse_enum(ctx)?,
         kw::Extern => {
-            let token = ctx.tokens.next()?;
-            let keyword = utils::parse_keyword(ctx, &token)?;
+            let keyword = utils::parse_keyword(ctx)?;
             match keyword {
-                kw::Fn => parse_extern_fn(),
+                kw::Fn => parse_extern_fn(ctx)?,
                 _ => {
-                    unexpected_token_err!(ctx, token, [kw::Fn]);
+                    unexpected_token_err!(ctx, token, ["fn"]);
                     return None;
                 }
             }
         }
         _ => {
-            unexpected_token_err!(ctx, token, [kw::Fn, kw::Struct, kw::Enum, kw::Extern]);
+            unexpected_token_err!(ctx, token, ["fn", "struct", "enum", "extern"]);
             return None;
         }
+    };
+    let vis = ast::Visibility {
+        kind: viskind,
+        span: DUMMY_SPAN,
     };
     let span = Span::new(base_pos, ctx.tokens.cur_pos() - base_pos);
 
     Some(ast::Item {
         ident,
-        node_id: NodeId(0),
+        node_id: ast::NodeId(0),
         kind,
         vis,
         span
@@ -59,10 +69,14 @@ pub fn parse_item(
 
 
 /**
- * Parses a function item and its body using theprovided context.
+ * Parses a function item and its body using the provided context.
  */
 pub fn parse_fn(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
-    None
+    let fn_sig = parse_fn_sig(ctx)?;
+    let token = ctx.tokens.next()?;
+    let block = Box::new(stmt::parse_block(ctx, &token)?);
+
+    Some(ast::ItemKind::Fn(fn_sig, block))
 }
 
 
@@ -75,10 +89,49 @@ pub fn parse_extern_fn(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
 
 
 /**
- * Parses a function signature using the privded context.
+ * Parses a function signature using the provided context.
  */
 pub fn parse_fn_sig(ctx: &mut ParseCtxt) -> Option<ast::FnSig> {
-    None
+    let token = ctx.tokens.next()?;
+    let base_pos = token.base;
+    
+    if token.kind != OpenParen {
+        unexpected_token_err!(ctx, token, [OpenParen]);
+        return None;
+    }
+
+    let inputs = utils::parse_many(ctx, Comma, CloseParen, parse_arg)?;
+
+    // Parse output type part `-> ty`
+    let mut output = None;
+    if ctx.tokens.peek().kind == Minus {
+        ctx.tokens.consume(1);
+
+        if ctx.tokens.peek().kind == Gt {
+            ctx.tokens.consume(1);
+
+            let token = ctx.tokens.next()?;
+            output = Some(Box::new(ty::parse_ty(ctx, &token)?));
+        } else {
+            unexpected_token_err!(ctx, token, [Gt]);
+            return None;
+        }
+    }
+
+    let span = Span::new(base_pos, ctx.tokens.cur_pos() - base_pos);
+    Some(ast::FnSig { inputs, output, span })
+}
+
+
+/**
+ * Parses a function argument using the provided token and context.
+ */
+pub fn parse_arg(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::FnArg> {
+    let ident = utils::parse_identifier(ctx, token)?;
+    let ntoken = ctx.tokens.next()?;
+    let ty = Box::new(ty::parse_ty(ctx, &ntoken)?);
+    let span = Span::new(token.base, ctx.tokens.cur_pos() - token.base);
+    Some(ast::FnArg { ident, ty, span})
 }
 
 

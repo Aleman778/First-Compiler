@@ -1,7 +1,11 @@
 //! Parser utilit functions.
 
 
+use crate::ast;
+use crate::span::Span;
+use crate::span::symbol::{Symbol, kw};
 use crate::lexer::tokens::*;
+use crate::parser::{expr, ty};
 use crate::parser::ParseCtxt;
 use TokenKind::*;
 
@@ -49,7 +53,7 @@ where
 /**
  * Parses an identifier using the provided token and context.
  */
-pub fn parse_identifier(ctx: &mut ParseCtxt, token: &Token) -> Option<Ident> {
+pub fn parse_identifier(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::Ident> {
     debug_assert!(token.kind == Ident);
     let source = ctx.file.get_source(token.to_span());
     let symbol = ctx.sess.symbol_map.as_symbol(source);
@@ -121,18 +125,20 @@ pub fn parse_keyword(ctx: &mut ParseCtxt) -> Option<Symbol> {
 /**
  * Parses a sequence of tokens and reports error if any is missing or out of order.
  */
-pub fn parse_tokens(ctx: &mut ParseCtxt, expected: &[Token]) -> bool {
+pub fn parse_tokens(ctx: &mut ParseCtxt, expected: &[TokenKind]) -> Option<bool> {
     let mut span = ctx.tokens.peek().to_span();
     let mut found = Vec::new();
     for t in expected {
         let token = ctx.tokens.next()?;
+        span.len = (token.base - (span.base as usize) + token.len) as u16;
+
+        if t != &token.kind {
+            span_err!(ctx.sess, span, "expected `{:?}`, found `{:?}`", expected, found);
+            return Some(false);
+        }        
         found.push(token);
-        if t.kind != token.kind {
-            span_err!(ctx.sess, t.to_span(), "expected `{:?}`, found `{:?}`", expected, found);
-            return false;
-        }
     }
-    return true;
+    return Some(true);
 }
 
 
@@ -141,7 +147,7 @@ pub fn parse_tokens(ctx: &mut ParseCtxt, expected: &[Token]) -> bool {
  * It is possible to choose either to parse type, value or both at the same time.
  * Syntax: `ident: value`.
  */
-pub fn parse_init_field(
+pub fn parse_field(
     ctx: &mut ParseCtxt,
     token: &Token
 ) -> Option<ast::Field> {
@@ -181,19 +187,18 @@ pub fn parse_struct_field(
     }
 
     let token = ctx.tokens.next()?;
-    let ty = Box::new(ty::parse_ty(ctx, &token, 1)?);
+    let ty = Box::new(ty::parse_ty(ctx, &token)?);
        
     let token = ctx.tokens.next()?;
-    let value = if token.kind = Eq {
+    let value = if token.kind == Eq {
         let token = ctx.tokens.next()?;
         Some(Box::new(expr::parse_expr(ctx, &token, 1)?))
     } else {
         None
     };
     
-    let kind = ast::FieldKind::Struct(ty, value);
     let span = Span::new(base_pos, token.base + token.len);
-    Some(ast::Field { key, kind, span })
+    Some(ast::StructField { key, ty, value, span })
 }
 
 
@@ -212,7 +217,7 @@ let base_pos = token.base;
     let token = ctx.tokens.next()?;
     let value = if token.kind == Eq {
         let token = ctx.tokens.next()?;
-        Some(Box::new(expr::parse_expr(ctx, &token, 1)?));
+        Some(Box::new(expr::parse_expr(ctx, &token, 1)?))
     } else {
         None
     };
@@ -227,7 +232,7 @@ let base_pos = token.base;
  * Parsing binops uses peeking for tokens but consumes the tokens that
  * are used, set peek to true for skipping the consumption of peeked tokens.
  */
-pub fn parse_binop(ctx: &mut ParseCtxt, peek: bool) -> Option<(BinOp, usize)> {
+pub fn parse_binop(ctx: &mut ParseCtxt, peek: bool) -> Option<(ast::BinOp, usize)> {
     ctx.tokens.peek3();
     let first = ctx.tokens.peeked[0].as_ref().unwrap_or(&DUMMY_TOKEN);
     let second = ctx.tokens.peeked[1].as_ref().unwrap_or(&DUMMY_TOKEN);
@@ -239,40 +244,40 @@ pub fn parse_binop(ctx: &mut ParseCtxt, peek: bool) -> Option<(BinOp, usize)> {
     
     let result = match (first.kind, second.kind, third.kind) {
         // Operators with three tokens
-        (Lt, Lt, Eq)     => Some((BinOp::ShlEq(span3), 3)),
-        (Gt, Gt, Eq)     => Some((BinOp::ShrEq(span3), 3)),
+        (Lt, Lt, Eq)     => Some((ast::BinOp::ShlEq(span3), 3)),
+        (Gt, Gt, Eq)     => Some((ast::BinOp::ShrEq(span3), 3)),
 
         // Operators with two tokens
-        (Star, Star, _)  => Some((BinOp::Pow(span2), 2)),
-        (And, And, _)    => Some((BinOp::And(span2), 2)),
-        (Or, Or, _)      => Some((BinOp::Or(span2), 2)),
-        (Lt, Lt, _)      => Some((BinOp::Shl(span2), 2)),
-        (Gt, Gt, _)      => Some((BinOp::Shr(span2), 2)),
-        (Lt, Eq, _)      => Some((BinOp::Le(span2), 2)),
-        (Gt, Eq, _)      => Some((BinOp::Ge(span2), 2)),
-        (Eq, Eq, _)      => Some((BinOp::Eq(span2), 2)),
-        (Not, Eq, _)     => Some((BinOp::Ne(span2), 2)),
-        (Plus, Eq, _)    => Some((BinOp::AddEq(span2), 2)),
-        (Minus, Eq, _)   => Some((BinOp::SubEq(span2), 2)),
-        (Star, Eq, _)    => Some((BinOp::MulEq(span2), 2)),
-        (Slash, Eq, _)   => Some((BinOp::DivEq(span2), 2)),
-        (Percent, Eq, _) => Some((BinOp::ModEq(span2), 2)),
-        (And, Eq, _)     => Some((BinOp::BitAndEq(span2), 2)),
-        (Or, Eq, _)      => Some((BinOp::BitOrEq(span2), 2)),
-        (Caret, Eq, _)   => Some((BinOp::BitXorEq(span2), 2)),
+        (Star, Star, _)  => Some((ast::BinOp::Pow(span2), 2)),
+        (And, And, _)    => Some((ast::BinOp::And(span2), 2)),
+        (Or, Or, _)      => Some((ast::BinOp::Or(span2), 2)),
+        (Lt, Lt, _)      => Some((ast::BinOp::Shl(span2), 2)),
+        (Gt, Gt, _)      => Some((ast::BinOp::Shr(span2), 2)),
+        (Lt, Eq, _)      => Some((ast::BinOp::Le(span2), 2)),
+        (Gt, Eq, _)      => Some((ast::BinOp::Ge(span2), 2)),
+        (Eq, Eq, _)      => Some((ast::BinOp::Eq(span2), 2)),
+        (Not, Eq, _)     => Some((ast::BinOp::Ne(span2), 2)),
+        (Plus, Eq, _)    => Some((ast::BinOp::AddEq(span2), 2)),
+        (Minus, Eq, _)   => Some((ast::BinOp::SubEq(span2), 2)),
+        (Star, Eq, _)    => Some((ast::BinOp::MulEq(span2), 2)),
+        (Slash, Eq, _)   => Some((ast::BinOp::DivEq(span2), 2)),
+        (Percent, Eq, _) => Some((ast::BinOp::ModEq(span2), 2)),
+        (And, Eq, _)     => Some((ast::BinOp::BitAndEq(span2), 2)),
+        (Or, Eq, _)      => Some((ast::BinOp::BitOrEq(span2), 2)),
+        (Caret, Eq, _)   => Some((ast::BinOp::BitXorEq(span2), 2)),
 
         // Operators with one tokens
-        (Lt, _, _)       => Some((BinOp::Le(span1), 1)),
-        (Gt, _, _)       => Some((BinOp::Ge(span1), 1)),
-        (Eq, _, _)       => Some((BinOp::Eq(span1), 1)),
-        (Plus, _, _)     => Some((BinOp::Add(span1), 1)),
-        (Minus, _, _)    => Some((BinOp::Sub(span1), 1)),
-        (Star, _, _)     => Some((BinOp::Mul(span1), 1)),
-        (Slash, _, _)    => Some((BinOp::Div(span1), 1)),
-        (Percent, _, _)  => Some((BinOp::Mod(span1), 1)),
-        (And, _, _)      => Some((BinOp::BitAnd(span1), 1)),
-        (Or, _, _)       => Some((BinOp::BitOr(span1), 1)),
-        (Caret, _, _)    => Some((BinOp::BitXor(span1), 1)),
+        (Lt, _, _)       => Some((ast::BinOp::Le(span1), 1)),
+        (Gt, _, _)       => Some((ast::BinOp::Ge(span1), 1)),
+        (Eq, _, _)       => Some((ast::BinOp::Eq(span1), 1)),
+        (Plus, _, _)     => Some((ast::BinOp::Add(span1), 1)),
+        (Minus, _, _)    => Some((ast::BinOp::Sub(span1), 1)),
+        (Star, _, _)     => Some((ast::BinOp::Mul(span1), 1)),
+        (Slash, _, _)    => Some((ast::BinOp::Div(span1), 1)),
+        (Percent, _, _)  => Some((ast::BinOp::Mod(span1), 1)),
+        (And, _, _)      => Some((ast::BinOp::BitAnd(span1), 1)),
+        (Or, _, _)       => Some((ast::BinOp::BitOr(span1), 1)),
+        (Caret, _, _)    => Some((ast::BinOp::BitXor(span1), 1)),
         _                => None,
     };
     if !peek {

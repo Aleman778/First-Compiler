@@ -98,9 +98,9 @@ pub enum ItemKind {
     /// Foreign functions are defined only with a signature, code resides elsewhere.
     ForeignFn(FnSig),
     /// Structs are defined by a list of fields.
-    Struct(Vec<SField>),
+    Struct(Vec<StructField>),
     /// Enums are defined by list of fields with values and common type.
-    Enum(Vec<EField>),
+    Enum(Vec<EnumField>),
 }
 
 
@@ -143,9 +143,9 @@ pub enum VisibilityKind {
 #[derive(Clone, Debug)]
 pub struct FnSig {
     /// Input arguments to function.
-    pub inputs: Vec<Box<Ty>>,
+    pub inputs: Vec<Box<FnArg>>,
     /// Return type of function.
-    pub output: Box<Ty>,
+    pub output: Option<Box<Ty>>,
     /// Location of function signature.
     pub span: Span,
 }
@@ -160,10 +160,32 @@ impl PartialEq for FnSig {
 }
 
 
+/**
+ * Function argument is defined by an identifier and type.
+ * It is also valid for the last arguments to 
+ */
+#[derive(Clone, Debug)]
+pub struct FnArg {
+    /// Identifier of the function argument.
+    pub ident: Ident,
+    /// The type of the function argument.
+    pub ty: Box<Ty>,
+    /// Location of the function argument.
+    pub span: Span,
+}
+
+
+impl PartialEq for FnArg {
+    fn eq(&self, other: &Self) -> bool {
+        self.ident == other.ident
+            && self.ty == other.ty
+    }
+}
+
 
 /**
  * Blocks contains a vector of statements.
- * Statements can be local variable, expressions and items.
+ * Statements can  be local variable, expressions and items.
  * Mostly statements ends with a semicolon.
  */
 #[derive(Clone, Debug)]
@@ -231,8 +253,6 @@ impl PartialEq for Block {
  */
 #[derive(Clone, Debug)]
 pub struct Local {
-    /// Is the local variable mutable?
-    pub mutable: bool,
     /// Local variable identifier.
     pub ident: Ident,
     /// Type annotation, if any was provided.
@@ -246,8 +266,7 @@ pub struct Local {
 
 impl PartialEq for Local {
     fn eq(&self, other: &Self) -> bool {
-        self.mutable == other.mutable
-            && self.ident == other.ident
+        self.ident == other.ident
             && self.ty == other.ty
             && self.init == other.init
     }
@@ -401,6 +420,8 @@ impl PartialEq for Field {
 pub struct StructField {
     /// Identifier key of this field.
     pub key: Ident,
+    /// Struct fields requires type annotations.
+    pub ty: Box<Ty>,
     /// Optionally the type stored in this field.
     pub value: Option<Box<Expr>>,
     /// Location of field.
@@ -421,7 +442,7 @@ pub struct EnumField {
     /// Identifier key of this field.
     pub key: Ident,
     /// Optionally the type stored in this field.
-    pub value: Box<Expr>,
+    pub value: Option<Box<Expr>>,
     /// Location of field.
     pub span: Span,
 }
@@ -456,29 +477,6 @@ impl PartialEq for Ty {
 
 
 /**
- * Type reference struct defines the type as a reference.
- * e.g. `&mut i32` defines a mutable i32 type reference.
- */
-#[derive(Clone, Debug)]
-pub struct TypeRef {
-    /// Mutable reference flag.
-    pub mutable: bool,
-    /// Type element.
-    pub elem: Box<Ty>,
-    /// Location of type reference declaration.
-    pub span: Span,
-}
-
-
-impl PartialEq for TypeRef {
-    fn eq(&self, other: &Self) -> bool {
-        self.mutable == other.mutable
-            && self.elem == other.elem
-    }
-}
-
-
-/**
  * The different kinds of types supported.
  */
 #[derive(Clone, Debug, PartialEq)]
@@ -488,14 +486,24 @@ pub enum TyKind {
     /// Different kinds of unsigned integer types e.g. `u32`, `u8`.
     UInt(UIntTy),
     /// Floating point types e.g. `f32` or `f64`.
-    Float(LitFloatTy),
+    Float(FloatTy),
+    /// String type defined by `str`.
+    Str,
+    /// Character type defined by `char`.
+    Char,
     /// Boolean type defined by `bool`.
     Bool,
-    /// Type reference is defined by `&` and another type.
-    Ref(TypeRef),
+    /// Reference type defined by `&i32`.
+    Ptr(Box<Ty>),
+    /// Array type declartion e.g. `[N] i32`.
+    Array(Option<Box<Expr>>, Box<Ty>),
+    /// Tuple type is defined by mutliple different types e.g. `(i32, str)`.
+    Tuple(Vec<Box<Ty>>),
+    /// Tuple type is defined by mutliple different types e.g. `(i32, str)`.
+    FnSig(Vec<Box<Ty>>, Box<Ty>),
     /// Infer means that no specific type was given and should infer to something.
     Infer,
-    /// This type has no type, used for functions that does not return anything.
+    /// This type has no type, used for functions that does not return anything, written `()`.
     None,
 }
 

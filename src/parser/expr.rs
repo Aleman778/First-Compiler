@@ -4,11 +4,9 @@
 use crate::lexer::tokens::*;
 use crate::parser::ParseCtxt;
 use crate::parser::{utils, stmt, lit};
-use crate::parser::utils;
 use crate::span::Span;
-use crate::span::symbol::{Symbol, kw};
+use crate::span::symbol::kw;
 use crate::ast::op::Assoc;
-use crate::ast::BinOp;
 use crate::span;
 use crate::ast;
 use TokenKind::*;
@@ -88,16 +86,16 @@ pub fn parse_expr(
 
         // Parse a negation unary expression.
         Minus => {
-            let token = ctx.tokens.next()?;
-            let expr_rhs = parse_expr(ctx, &token, min_prec)?;
-            ast::ExprKind::Unary(ast::UnOp::Neg, Box::new(expr_rhs))
+            let ntoken = ctx.tokens.next()?;
+            let expr_rhs = parse_expr(ctx, &ntoken, min_prec)?;
+            ast::ExprKind::Unary(ast::UnOp::Neg(token.to_span()), Box::new(expr_rhs))
         }
 
         // Parse a  expression.
         Not => {
-            let token = ctx.tokens.next()?;
-            let expr_rhs = parse_expr(ctx, &token, min_prec)?;
-            ast::ExprKind::Unary(ast::UnOp::Not, Box::new(expr_rhs))
+            let ntoken = ctx.tokens.next()?;
+            let expr_rhs = parse_expr(ctx, &ntoken, min_prec)?;
+            ast::ExprKind::Unary(ast::UnOp::Not(token.to_span()), Box::new(expr_rhs))
         }
 
         // Parse a pointer expression.
@@ -261,7 +259,7 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
     let token = ctx.tokens.next()?;
-    let ident = utils::parse_identifier(ctx, &token);
+    let ident = utils::parse_identifier(ctx, &token)?;
 
     if let Some(kw) = utils::parse_keyword(ctx) {
         if kw.index() != kw::In.index() {
@@ -351,28 +349,28 @@ pub fn parse_literal(
 ) -> Option<ast::ExprKind> {
     let literal = match kind {
         LitKind::Int { radix, empty } => 
-            parse_int(ctx, token, radix, empty, suffix)?,
+            lit::parse_int(ctx, token, radix, empty, suffix)?,
 
         LitKind::Float { radix, empty_exponent } => 
-            parse_float(ctx, token, radix, empty_exponent, suffix)?,
+            lit::parse_float(ctx, token, radix, empty_exponent, suffix)?,
 
         LitKind::Char { terminated } => 
-            parse_character(ctx, token, terminated, suffix)?,
+            lit::parse_character(ctx, token, terminated, suffix)?,
 
         LitKind::Byte { terminated } => 
-            parse_byte(ctx, token, terminated, suffix)?,
+            lit::parse_byte(ctx, token, terminated, suffix)?,
 
         LitKind::Str { terminated } => 
-            parse_string(ctx, token, terminated, suffix)?,
+            lit::parse_string(ctx, token, terminated, suffix)?,
 
         LitKind::ByteStr { terminated } => 
-            parse_byte_string(ctx, token, terminated, suffix)?,
+            lit::parse_byte_string(ctx, token, terminated, suffix)?,
 
         LitKind::RawStr { num_hashes, started, terminated } =>
-            parse_raw_string(ctx, token, num_hashes, started, terminated, suffix)?,
+            lit::parse_raw_string(ctx, token, num_hashes, started, terminated, suffix)?,
 
         LitKind::RawByteStr { num_hashes, started, terminated } =>
-            parse_raw_byte_string(ctx, token, num_hashes, started, terminated, suffix)?,
+            lit::parse_raw_byte_string(ctx, token, num_hashes, started, terminated, suffix)?,
     };
     Some(ast::ExprKind::Lit(literal))
 }
@@ -485,19 +483,11 @@ mod tests {
     use ast::LitKind::*;
     use ast::LitIntTy::*;
 
-
-    static SYMBOLS: Rc<SymbolMap> = Rc::new(SymbolMap::new());
-
-                  
     macro_rules! test {
         ($name:ident, $input:expr, $expected:expr) => {
             #[test]
             fn $name() {
                 let mut sess = Session::new();
-                unsafe {
-                    // SYMBOLS = Some(&mut sess.symbol_map);
-                    sess.symbol_map = Rc::clone(&SYMBOLS);
-                }
                 let fname = Filename::Custom("test".to_string());
                 let file = sess.source_map().insert_source_file(fname, $input.to_string());
                 let tokens = tokenize(&file.source, file.start_pos.index());
@@ -539,16 +529,16 @@ mod tests {
     }
 
 
-    macro_rules! ident {
-        ($ident: expr) => (
-            unsafe {
-                ast::Ident {
-                    symbol: SYMBOLS.unwrap().as_symbol($ident),
-                    span: DUMMY_SPAN,
-                }
-            }
-        );
-    }
+    // macro_rules! ident {
+    //     ($ident: expr) => (
+    //         unsafe {
+    //             ast::Ident {
+    //                 symbol: SYMBOLS.unwrap().as_symbol($ident),
+    //                 span: DUMMY_SPAN,
+    //             }
+    //         }
+    //     );
+    // }
     
 
     // Testing array expression parser
@@ -566,12 +556,12 @@ mod tests {
 
 
     // Testing assignment expression parser
-    test!(parse_assign, "x = 5", Some(
-        ast!(
-            expr: Assign(
-                ast!(expr: Ident(ident!("x"))),
-                ast!(lit: Int(5, Unsuffixed))
-            )
-        )
-    ));
+    // test!(parse_assign, "x = 5", Some(
+    //     ast!(
+    //         expr: Assign(
+    //             ast!(expr: Ident(ident!("x"))),
+    //             ast!(lit: Int(5, Unsuffixed))
+    //         )
+    //     )
+    // ));
 }
