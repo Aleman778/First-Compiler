@@ -16,7 +16,8 @@ pub mod parser;
 
 
 use crate::core::driver;
-use crate::core::source_map::Filename;
+// use crate::core::source_map::Filename;
+use std::path::PathBuf;
 
 
 /**
@@ -26,10 +27,15 @@ fn main() {
     simple_logger::init_with_level(log::Level::Debug).unwrap();
     
     let config = driver::Config {
-        input: driver::Input::Code {
-            name: Filename::Custom("test".to_string()),
-            input: r###"     [10, false, hello_world(10, 20, "hello")]    "###.to_string(),
-        },
+        // input: driver::Input::Code {
+            // name: Filename::Custom("test".to_string()),
+            // input: r###"
+                        // add :: fn (a: i32, b: i32) -> i32 {
+                            // return a + b;
+                        // }
+                   // "###.to_string(),
+            // },
+        input: driver::Input::File(PathBuf::from("c:/dev/sqrrl-lang/examples/syntax.sq")),
         ..Default::default()
     };
 

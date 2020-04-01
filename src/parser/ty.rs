@@ -46,7 +46,7 @@ pub fn parse_ty(
 
                 // Float types.
                 sym::f32 => ast::TyKind::Float(ast::FloatTy::F32),
-                sym::f32 => ast::TyKind::Float(ast::FloatTy::F64),
+                sym::f64 => ast::TyKind::Float(ast::FloatTy::F64),
 
                 // Miscellaneous types.
                 sym::str  => ast::TyKind::Str,
@@ -62,12 +62,12 @@ pub fn parse_ty(
 
         // Parses array declarations e.g. `[N] i32`.
         OpenBracket => {
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             let size_expr = if token.kind == CloseBracket {
                 None
             } else {
                 let expr = Box::new(expr::parse_expr(ctx, &token, 1)?);
-                let token = ctx.tokens.next()?;
+                let token = utils::next_token(ctx)?;
                 if token.kind != CloseBracket {
                     unexpected_token_err!(ctx, token, [CloseBracket]);
                     return None;
@@ -75,9 +75,8 @@ pub fn parse_ty(
                 Some(expr)
             };
 
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             let element_ty = Box::new(parse_ty(ctx, &token)?);
-            let span = Span::new(base_pos, ctx.tokens.cur_pos() - base_pos);
 
             ast::TyKind::Array(size_expr, element_ty)
         }
@@ -85,7 +84,7 @@ pub fn parse_ty(
         // Parses none, tuple or function signature type,
         // e.g. `()`, `(str, i32)` or `(i32, i32) -> i32` respectively.
         OpenParen => {
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             if token.kind == CloseParen {
                 ast::TyKind::None
             } else {
@@ -97,11 +96,11 @@ pub fn parse_ty(
                     if ctx.tokens.peek().kind == Gt {
                         ctx.tokens.consume(1);
 
-                        let token = ctx.tokens.next()?;
+                        let token = utils::next_token(ctx)?;
                         let output = Box::new(parse_ty(ctx, &token)?);
                         ast::TyKind::FnSig(inputs, output)
                     } else {
-                        let token = ctx.tokens.next()?;
+                        let token = utils::next_token(ctx)?;
                         unexpected_token_err!(ctx, token, [Minus]);
                         return None;
                     }
@@ -111,11 +110,33 @@ pub fn parse_ty(
             }
         }
 
-        // Pointer type
-        // Star => {
-            // let token = ctx.tokens.next()?;
-            // None
-        // }
+        // Pointer type e.g. `*MyStruct`.
+        Star => {
+            let token = utils::next_token(ctx)?;
+            let ty = Box::new(parse_ty(ctx, &token)?);
+            ast::TyKind::Pointer(ty)
+        }
+
+        // Polymorphic type e.g. `$T` or `$T/MyStruct`.
+        Dollar => {
+            let token = utils::next_token(ctx)?;
+            let ident = utils::parse_identifier(ctx, &token)?;
+            
+            let ty = if ctx.tokens.peek().kind == Slash {
+                ctx.tokens.consume(1);
+
+                let token = utils::next_token(ctx)?;
+                let kind = parse_custom_ty(ctx, &token)?;
+                let span = Span::new(base_pos, ctx.tokens.cur_pos() - base_pos);
+                Some(Box::new(ast::Ty { kind, span }))
+            } else {
+                None
+            };
+
+            ast::TyKind::Polymorphic(ident, ty)
+        }
+
+        // Failed to parse type report error.
         _ => {
             unexpected_token_err!(ctx, token, ["type"]);
             return None;
@@ -127,17 +148,10 @@ pub fn parse_ty(
 }
 
 
-pub fn parse_basic_ty(
-    ctx: &mut ParseCtxt,
-    token: &Token
-) -> Option<ast::TyKind> {
-    None
-}
-
-
 pub fn parse_custom_ty(
     ctx: &mut ParseCtxt,
     token: &Token
 ) -> Option<ast::TyKind> {
-    None
+    let ident = utils::parse_identifier(ctx, token)?;
+    Some(ast::TyKind::Custom(ident))
 }

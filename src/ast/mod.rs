@@ -493,14 +493,18 @@ pub enum TyKind {
     Char,
     /// Boolean type defined by `bool`.
     Bool,
+    /// Custom type is defined by an identifier e.g. `MyStruct`.
+    Custom(Ident),
     /// Reference type defined by `&i32`.
-    Ptr(Box<Ty>),
+    Pointer(Box<Ty>),
     /// Array type declartion e.g. `[N] i32`.
     Array(Option<Box<Expr>>, Box<Ty>),
     /// Tuple type is defined by mutliple different types e.g. `(i32, str)`.
     Tuple(Vec<Box<Ty>>),
     /// Tuple type is defined by mutliple different types e.g. `(i32, str)`.
     FnSig(Vec<Box<Ty>>, Box<Ty>),
+    /// Polymorphic type defined by either `$T` or `$T/MyStruct`.
+    Polymorphic(Ident, Option<Box<Ty>>),
     /// Infer means that no specific type was given and should infer to something.
     Infer,
     /// This type has no type, used for functions that does not return anything, written `()`.

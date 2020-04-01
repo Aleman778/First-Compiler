@@ -166,7 +166,7 @@ fn line_comment(cur: &mut Cursor) -> TokenKind {
 fn block_comment(cur: &mut Cursor) -> TokenKind {
     debug_assert!(cur.prev == '/');
     cur.eat();
-    debug_assert!(cur.prev == '/');
+    debug_assert!(cur.prev == '*');
     let mut depth: usize = 1;
     while let Some(c) = cur.eat() {
         match c {

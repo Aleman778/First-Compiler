@@ -11,12 +11,11 @@ mod utils;
 
 
 use std::time::Instant;
-use log::{debug};
+use log::{debug, info};
 use crate::core::session::Session;
 use crate::core::source_map::SourceFile;
 use crate::lexer::tokenize;
 use crate::lexer::stream::TokenStream;
-use crate::parser::expr::parse_expr;
 use crate::ast::map::AstMap;
 
 
@@ -41,15 +40,24 @@ pub fn parse_file<'a>(session: &'a mut Session<'a>, file: &'a SourceFile) -> Ast
  * The resulting ast map is returned.
  */
 pub fn do_parse<'a>(mut ctx: ParseCtxt<'a>) -> AstMap {
-    debug!("parsing file {}...", ctx.file.name);
+    debug!("parsing file `{}`...", ctx.file.name.display());
     let start = Instant::now();
-    let token = ctx.tokens.next().unwrap();
-    let expr = parse_expr(&mut ctx, &token, 1);
-    let elapsed = start.elapsed();
-    debug!("parsed file {} in {:?}", ctx.file.name, elapsed);
+    let mut units = Vec::new();
     
-    println!("{:#?}", expr);
-
+    while let Some(token) = utils::next_non_comment_token(&mut ctx) {
+        let item = item::parse_item(&mut ctx, &token);
+        if item.is_none() {
+            info!("parsing file `{}` failed!", ctx.file.name.display());
+            return ctx.ast_map;
+        } else {
+            units.push(item.unwrap());
+        }
+    }
+    
+    let elapsed = start.elapsed();
+    debug!("parsed file `{}` in {:?}", ctx.file.name.display(), elapsed);
+    println!("{:#?}", units);
+    
     ctx.ast_map
 }
 

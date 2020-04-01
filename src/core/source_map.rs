@@ -26,6 +26,18 @@ pub enum Filename {
 }
 
 
+impl Filename {
+    pub fn display(&self) -> String {
+        match self {
+            Filename::Real(path) => path.file_name().map_or(
+                "unknown".to_string(), 
+                |s| s.to_str().unwrap_or("unknown").to_string()),
+            Filename::Custom(string) => string.clone()
+        }
+    }
+}
+
+
 /**
  * Contains a map of all the loaded source files.
  * File paths are mapped to source files.

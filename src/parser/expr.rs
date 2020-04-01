@@ -76,7 +76,7 @@ pub fn parse_expr(
 
         // Parse a block expression.
         OpenBrace => {
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             let block = stmt::parse_block(ctx, &token)?;
             ast::ExprKind::Block(Box::new(block))
         }
@@ -86,21 +86,21 @@ pub fn parse_expr(
 
         // Parse a negation unary expression.
         Minus => {
-            let ntoken = ctx.tokens.next()?;
+            let ntoken = utils::next_token(ctx)?;
             let expr_rhs = parse_expr(ctx, &ntoken, min_prec)?;
             ast::ExprKind::Unary(ast::UnOp::Neg(token.to_span()), Box::new(expr_rhs))
         }
 
         // Parse a  expression.
         Not => {
-            let ntoken = ctx.tokens.next()?;
+            let ntoken = utils::next_token(ctx)?;
             let expr_rhs = parse_expr(ctx, &ntoken, min_prec)?;
             ast::ExprKind::Unary(ast::UnOp::Not(token.to_span()), Box::new(expr_rhs))
         }
 
         // Parse a pointer expression.
         Star => {
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             let expr_rhs = parse_expr(ctx, &token, min_prec)?;
             ast::ExprKind::Pointer(Box::new(expr_rhs))
         }
@@ -124,7 +124,7 @@ pub fn parse_expr(
         // Parse a function call expression.
         OpenParen => {
             if let ast::ExprKind::Ident(ident) = expr_lhs.kind {
-                ctx.tokens.next()?;
+                utils::next_token(ctx)?;
                 expr_lhs = ast::Expr {
                     node_id: ast::NodeId(0),
                     kind: parse_fn_call(ctx, ident)?,
@@ -135,7 +135,7 @@ pub fn parse_expr(
 
         // Parse an array index expression.
         OpenBracket => {
-            ctx.tokens.next()?;
+            utils::next_token(ctx)?;
             expr_lhs = ast::Expr {
                 node_id: ast::NodeId(0),
                 kind: parse_index(ctx, Box::new(expr_lhs))?,
@@ -146,7 +146,7 @@ pub fn parse_expr(
         // Parse a struct expression.
         OpenBrace => {
             if let ast::ExprKind::Ident(ident) = expr_lhs.kind {
-                ctx.tokens.next()?;
+                utils::next_token(ctx)?;
                 expr_lhs = ast::Expr {
                     node_id: ast::NodeId(0),
                     kind: parse_struct(ctx, ident)?,
@@ -164,7 +164,7 @@ pub fn parse_expr(
                 // Parses a field expression.
                 Ident |
                 RawIdent => {
-                    let token = ctx.tokens.next()?;
+                    let token = utils::next_token(ctx)?;
                     let ident = utils::parse_identifier(ctx, &token)?;
                     ast::ExprKind::Field(Box::new(expr_lhs), ident)
                 }
@@ -199,7 +199,7 @@ pub fn parse_expr(
         };
 
         ctx.tokens.consume(num_tokens);
-        let token = ctx.tokens.next()?;
+        let token = utils::next_token(ctx)?;
         let expr_rhs = parse_expr(ctx, &token, next_min_prec)?;
         let span = span::combine(&(expr_lhs).span, &(expr_rhs).span);
         let expr_kind = ast::ExprKind::Binary(
@@ -225,16 +225,16 @@ pub fn parse_expr(
 pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
     
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let cond = Box::new(parse_expr(ctx, &token, 1)?);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let then_body = Box::new(parse_expr(ctx, &token, 1)?);
 
     let else_body = if let Some(kw) = utils::parse_keyword(ctx) {
         if kw.index() == kw::Else.index() {
-            ctx.tokens.next()?;
-            let token = ctx.tokens.next()?;
+            utils::next_token(ctx)?;
+            let token = utils::next_token(ctx)?;
             Some(Box::new(parse_expr(ctx, &token, 1)?))
         } else {
             unexpected_token_err!(ctx, token, ["else"]);
@@ -245,7 +245,7 @@ pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     };
 
     if else_body.is_some() {
-        ctx.tokens.next()?;
+        utils::next_token(ctx)?;
     }
     
     Some(ast::ExprKind::If(cond, then_body, else_body))
@@ -258,7 +258,7 @@ pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
 pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let ident = utils::parse_identifier(ctx, &token)?;
 
     if let Some(kw) = utils::parse_keyword(ctx) {
@@ -266,7 +266,7 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
             unexpected_token_err!(ctx, token, ["in"]);
             return None;
         } else {
-            ctx.tokens.next()?;
+            utils::next_token(ctx)?;
         }
     } else {
         let token = ctx.tokens.peek();
@@ -274,10 +274,10 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
         return None;
     }
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let iter = Box::new(parse_expr(ctx, &token, 1)?);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let body = Box::new(parse_expr(ctx, &token, 1)?);
 
     Some(ast::ExprKind::For(ident, iter, body))
@@ -290,10 +290,10 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
 pub fn parse_while(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let cond = Box::new(parse_expr(ctx, &token, 1)?);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let body = Box::new(parse_expr(ctx, &token, 1)?);
 
     Some(ast::ExprKind::While(cond, body))
@@ -306,7 +306,7 @@ pub fn parse_while(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
 pub fn parse_loop(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let body = Box::new(parse_expr(ctx, &token, 1)?);
 
     Some(ast::ExprKind::Loop(body))
@@ -331,7 +331,7 @@ pub fn parse_fn_call(ctx: &mut ParseCtxt, ident: ast::Ident) -> Option<ast::Expr
 pub fn parse_return(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Ident);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let expr = parse_expr(ctx, &token, 1).map(|expr| Box::new(expr));
     
     Some(ast::ExprKind::Return(expr))
@@ -382,23 +382,23 @@ pub fn parse_literal(
 pub fn parse_parenthesized(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == OpenParen);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let expr = Box::new(parse_expr(ctx, &token, 1)?);
 
     let token = ctx.tokens.peek();
     match token.kind {
         CloseParen => {
-            ctx.tokens.next()?;
+            utils::next_token(ctx)?;
             Some(ast::ExprKind::Paren(expr))
         }
         Comma => {
-            ctx.tokens.next()?;
+            utils::next_token(ctx)?;
             let mut exprs = utils::parse_many(ctx, Comma, CloseParen, |ctx, t| parse_expr(ctx, t, 1))?;
             exprs.insert(0, expr);
             Some(ast::ExprKind::Tuple(exprs))
         }
         _ => {   
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             unexpected_token_err!(ctx, token, [Comma, OpenParen]);
             None
         }
@@ -412,14 +412,14 @@ pub fn parse_parenthesized(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
 pub fn parse_range(ctx: &mut ParseCtxt, lhs_expr: Option<Box<ast::Expr>>) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == Dot);
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     if token.kind != Dot {
         unexpected_token_err!(ctx, token, [Dot]);
     }
 
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let range_end = if token.kind == Eq {
-        ctx.tokens.next()?;
+        utils::next_token(ctx)?;
         ast::RangeEnd::Included
     } else {
         ast::RangeEnd::Excluded
@@ -427,7 +427,7 @@ pub fn parse_range(ctx: &mut ParseCtxt, lhs_expr: Option<Box<ast::Expr>>) -> Opt
 
     let token = ctx.tokens.peek();
     let rhs_expr = if utils::is_expr_start(&token) {
-        let token = ctx.tokens.next()?;
+        let token = utils::next_token(ctx)?;
         Some(Box::new(parse_expr(ctx, &token, 1)?))
     } else {
         None
@@ -442,9 +442,9 @@ pub fn parse_range(ctx: &mut ParseCtxt, lhs_expr: Option<Box<ast::Expr>>) -> Opt
  */
 pub fn parse_index(ctx: &mut ParseCtxt, lhs_expr: Box<ast::Expr>) -> Option<ast::ExprKind> {
     debug_assert!(ctx.tokens.prev == OpenBracket);
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let rhs_expr = Box::new(parse_expr(ctx, &token, 1)?);
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     match token.kind {
         CloseBracket => Some(ast::ExprKind::Index(lhs_expr, rhs_expr)),
         _ => {
@@ -498,7 +498,7 @@ mod tests {
                     ast_map: AstMap::new(),
                 };
 
-                let token = ctx.tokens.next().unwrap();
+                let token = utils::next_token(ctx).unwrap();
                 let actual = parse_expr(&mut ctx, &token, 1);
 
                 assert_eq!(actual, $expected.map(|e| *e));

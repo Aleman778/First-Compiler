@@ -17,18 +17,27 @@ pub fn parse_item(
     ctx: &mut ParseCtxt,
     token: &Token
 ) -> Option<ast::Item> {
+    println!("{}", ctx.file.get_source(token.to_span()));
+    debug_assert!(token.kind == Ident || token.kind == RawIdent);
     let base_pos = token.base;
     let ident = utils::parse_identifier(ctx, token)?;
-    if !utils::parse_tokens(ctx, &[Colon, Colon])? {
+    
+    let first = utils::next_token(ctx)?;
+    let second = utils::next_token(ctx)?;
+    if first.kind != Colon || second.kind != Colon {
+        let span = Span::new(first.base, second.base - first.base + second.len);
+        span_err!(ctx.sess, span, "expected `::` found `{}{}`", first, second);
         return None;
     }
 
     let mut viskind = ast::VisibilityKind::Visible;
     let mut keyword = utils::parse_keyword(ctx)?;
+    ctx.tokens.consume(1);
     match keyword {
         kw::Hidden => {
             viskind = ast::VisibilityKind::Hidden;
             keyword = utils::parse_keyword(ctx)?;
+            ctx.tokens.consume(1);
         }
         _ => ()
     };
@@ -52,12 +61,13 @@ pub fn parse_item(
             return None;
         }
     };
+
     let vis = ast::Visibility {
         kind: viskind,
         span: DUMMY_SPAN,
     };
-    let span = Span::new(base_pos, ctx.tokens.cur_pos() - base_pos);
 
+    let span = Span::new(base_pos, ctx.tokens.cur_pos() - base_pos);
     Some(ast::Item {
         ident,
         node_id: ast::NodeId(0),
@@ -73,7 +83,7 @@ pub fn parse_item(
  */
 pub fn parse_fn(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
     let fn_sig = parse_fn_sig(ctx)?;
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let block = Box::new(stmt::parse_block(ctx, &token)?);
 
     Some(ast::ItemKind::Fn(fn_sig, block))
@@ -83,7 +93,7 @@ pub fn parse_fn(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
 /**
  * Parses a foreign function interface using the provided context.
  */
-pub fn parse_extern_fn(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
+pub fn parse_extern_fn(_ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
     None
 }
 
@@ -92,7 +102,7 @@ pub fn parse_extern_fn(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
  * Parses a function signature using the provided context.
  */
 pub fn parse_fn_sig(ctx: &mut ParseCtxt) -> Option<ast::FnSig> {
-    let token = ctx.tokens.next()?;
+    let token = utils::next_token(ctx)?;
     let base_pos = token.base;
     
     if token.kind != OpenParen {
@@ -110,7 +120,7 @@ pub fn parse_fn_sig(ctx: &mut ParseCtxt) -> Option<ast::FnSig> {
         if ctx.tokens.peek().kind == Gt {
             ctx.tokens.consume(1);
 
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             output = Some(Box::new(ty::parse_ty(ctx, &token)?));
         } else {
             unexpected_token_err!(ctx, token, [Gt]);
@@ -127,10 +137,19 @@ pub fn parse_fn_sig(ctx: &mut ParseCtxt) -> Option<ast::FnSig> {
  * Parses a function argument using the provided token and context.
  */
 pub fn parse_arg(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::FnArg> {
+    let base_pos = token.base;
     let ident = utils::parse_identifier(ctx, token)?;
-    let ntoken = ctx.tokens.next()?;
-    let ty = Box::new(ty::parse_ty(ctx, &ntoken)?);
-    let span = Span::new(token.base, ctx.tokens.cur_pos() - token.base);
+
+    let token = utils::next_token(ctx)?;
+    if token.kind != Colon {
+        unexpected_token_err!(ctx, token, [Colon]);
+        return None;
+    }
+
+    let token = utils::next_token(ctx)?;
+    let ty = Box::new(ty::parse_ty(ctx, &token)?);
+
+    let span = Span::new(base_pos, ctx.tokens.cur_pos() - base_pos);
     Some(ast::FnArg { ident, ty, span})
 }
 
@@ -138,7 +157,7 @@ pub fn parse_arg(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::FnArg> {
 /**
  * Parses a struct item and its fields using the provided context.
  */
-pub fn parse_struct(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
+pub fn parse_struct(_ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
     None
 }
 
@@ -146,6 +165,6 @@ pub fn parse_struct(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
 /**
  * Parses a enum item and its fields using the provided context.
  */
-pub fn parse_enum(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
+pub fn parse_enum(_ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
     None
 }

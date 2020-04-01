@@ -48,20 +48,20 @@ pub fn parse_stmt(
                 // Parses a specific type information.
                 _ => {
                     ctx.tokens.consume(1);
-                    let token = ctx.tokens.next()?;
+                    let token = utils::next_token(ctx)?;
                     Some(Box::new(ty::parse_ty(ctx, &token)?))
                 }
             };
 
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             let init = if token.kind == Eq { 
-                let token = ctx.tokens.next()?;
+                let token = utils::next_token(ctx)?;
                 Some(Box::new(expr::parse_expr(ctx, &token, 1)?))
             } else {
                 None
             };
 
-            let token = ctx.tokens.next()?;
+            let token = utils::next_token(ctx)?;
             if token.kind != Semi {
                 unexpected_token_err!(ctx, token, [Semi]);
                 return None;
@@ -78,24 +78,17 @@ pub fn parse_stmt(
             ast::StmtKind::Local(local)
         }
         
-        // Parses an expression statement ending with a semicolon.
-        Semi => {
-            ctx.tokens.consume(1);
-
-            let token = ctx.tokens.next()?;
-            let expr = Box::new(expr::parse_expr(ctx, &token, 1)?);
-
-            ast::StmtKind::Semi(expr)
-        }
-
-        // Parses an expression statement ending without a semicolon.
+        // Parses an expression statement.
         _ => {
-            ctx.tokens.consume(1);
-
-            let token = ctx.tokens.next()?;
             let expr = Box::new(expr::parse_expr(ctx, &token, 1)?);
 
-            ast::StmtKind::Expr(expr)
+            match ctx.tokens.peek().kind {
+                Semi => {
+                    ctx.tokens.consume(1);
+                    ast::StmtKind::Semi(expr)
+                }
+                _ => ast::StmtKind::Expr(expr)
+            }
         }
     };
 
@@ -125,7 +118,7 @@ pub fn parse_block(
     };
 
     loop {
-        let token = ctx.tokens.next()?;
+        let token = utils::next_non_comment_token(ctx)?;
         match token.kind {
             CloseBrace => {
                 block.span = Span::new(base_pos, token.base - base_pos + token.len);

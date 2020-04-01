@@ -24,7 +24,7 @@ where
 {
     let mut exprs: Vec<Box<T>> = Vec::new();
 
-    let token = ctx.tokens.next()?;
+    let token = next_token(ctx)?;
     if token.kind == end {
         return Some(exprs);
     } else {
@@ -33,9 +33,9 @@ where
     }
     
     loop {
-        let token = ctx.tokens.next()?;
+        let token = next_token(ctx)?;
         if token.kind == sep {
-            let token = ctx.tokens.next()?;
+            let token = next_token(ctx)?;
             let expr = Box::new(parser(ctx, &token)?);
             exprs.push(expr);
         } else if token.kind == end {
@@ -54,7 +54,7 @@ where
  * Parses an identifier using the provided token and context.
  */
 pub fn parse_identifier(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::Ident> {
-    debug_assert!(token.kind == Ident);
+    debug_assert!(token.kind == Ident || token.kind == RawIdent);
     let source = ctx.file.get_source(token.to_span());
     let symbol = ctx.sess.symbol_map.as_symbol(source);
 
@@ -123,26 +123,6 @@ pub fn parse_keyword(ctx: &mut ParseCtxt) -> Option<Symbol> {
 
 
 /**
- * Parses a sequence of tokens and reports error if any is missing or out of order.
- */
-pub fn parse_tokens(ctx: &mut ParseCtxt, expected: &[TokenKind]) -> Option<bool> {
-    let mut span = ctx.tokens.peek().to_span();
-    let mut found = Vec::new();
-    for t in expected {
-        let token = ctx.tokens.next()?;
-        span.len = (token.base - (span.base as usize) + token.len) as u16;
-
-        if t != &token.kind {
-            span_err!(ctx.sess, span, "expected `{:?}`, found `{:?}`", expected, found);
-            return Some(false);
-        }        
-        found.push(token);
-    }
-    return Some(true);
-}
-
-
-/**
  * Parses an initializer field ast node using the next tokens in the parse context and token.
  * It is possible to choose either to parse type, value or both at the same time.
  * Syntax: `ident: value`.
@@ -154,13 +134,13 @@ pub fn parse_field(
     let base_pos = token.base;
     let key = parse_identifier(ctx, &token)?;
 
-    let token = ctx.tokens.next()?;
+    let token = next_token(ctx)?;
     if token.kind != Colon {
         unexpected_token_err!(ctx, token, [Colon]);
         return None;
     }
     
-    let token = ctx.tokens.next()?;
+    let token = next_token(ctx)?;
     let value = Box::new(expr::parse_expr(ctx, &token, 1)?);
     let span = Span::new(base_pos, token.base + token.len);
     Some(ast::Field { key, value, span })
@@ -172,26 +152,26 @@ pub fn parse_field(
  * It is possible to choose either to parse type, value or both at the same time.
  * Syntax: `ident: ty` or `ident: ty = value`.
  */
+#[allow(dead_code)]
 pub fn parse_struct_field(
     ctx: &mut ParseCtxt,
     token: &Token
 ) -> Option<ast::StructField> {
-    let token = ctx.tokens.next()?;
     let base_pos = token.base;
     let key = parse_identifier(ctx, &token)?;
 
-    let token = ctx.tokens.next()?;
+    let token = next_token(ctx)?;
     if token.kind != Colon {
         unexpected_token_err!(ctx, token, [Colon]);
         return None;
     }
 
-    let token = ctx.tokens.next()?;
+    let token = next_token(ctx)?;
     let ty = Box::new(ty::parse_ty(ctx, &token)?);
        
-    let token = ctx.tokens.next()?;
+    let token = next_token(ctx)?;
     let value = if token.kind == Eq {
-        let token = ctx.tokens.next()?;
+        let token = next_token(ctx)?;
         Some(Box::new(expr::parse_expr(ctx, &token, 1)?))
     } else {
         None
@@ -207,16 +187,17 @@ pub fn parse_struct_field(
  * It is possible to choose either to parse type, value or both at the same time.
  * Syntax: `ident = value`.
  */
+#[allow(dead_code)]
 pub fn parse_enum_field(
     ctx: &mut ParseCtxt,
     token: &Token
 ) -> Option<ast::EnumField> {
-let base_pos = token.base;
+    let base_pos = token.base;
     let key = parse_identifier(ctx, &token)?;
 
-    let token = ctx.tokens.next()?;
+    let token = next_token(ctx)?;
     let value = if token.kind == Eq {
-        let token = ctx.tokens.next()?;
+        let token = next_token(ctx)?;
         Some(Box::new(expr::parse_expr(ctx, &token, 1)?))
     } else {
         None
@@ -286,6 +267,48 @@ pub fn parse_binop(ctx: &mut ParseCtxt, peek: bool) -> Option<(ast::BinOp, usize
         }
     }
     result
+}
+
+
+/**
+ * Strips the next tokens that are comments and
+ * returns the next token that is not a comment.
+ * Note: this function does not report errors when
+ * lexer reached end of file, do manual check on 
+ * option instead of try operator.
+ */
+pub fn next_non_comment_token(ctx: &mut ParseCtxt) -> Option<Token> { 
+    while let Some(token) = ctx.tokens.next() {
+        match token.kind {
+            LineComment => (),
+
+            BlockComment { terminated } => {
+                if !terminated {
+                    span_err!(ctx.sess, token.to_span(), "block comment is not terminated");
+                }
+            }
+
+            _ => return Some(token),
+        }
+    }
+    None
+}
+
+
+/**
+ * Returns the next token in the lexed token stream.
+ * Note: this function does report error when lexer 
+ * reached end of file, so using try operator is fine! 
+ */
+pub fn next_token(ctx: &mut ParseCtxt) -> Option<Token> {
+    let token = ctx.tokens.next();
+    if token.is_none() {
+        let span = Span::from_range(ctx.file.end_pos, ctx.file.end_pos);
+        let mut err = struct_span_err!(ctx.sess, span, "reached end of file while parsing");
+        err.span_label(span, "help: maybe missing closing curly brace: `}`");
+        ctx.sess.emit(&mut err);
+    }
+    token
 }
 
 

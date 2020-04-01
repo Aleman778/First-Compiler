@@ -553,7 +553,7 @@ mod tests {
                     ast_map: AstMap::new(),
                 };
 
-                let token = ctx.tokens.next().unwrap();
+                let token = utils::next_token(ctx).unwrap();
                 let actual = if let Some(expr) = parse_expr(&mut ctx, &token, 1) {
                     if let ExprKind::Lit(lit) = expr.kind {
                         Some(lit.kind)

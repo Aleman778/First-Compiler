@@ -237,38 +237,38 @@ arrays :: fn () {
 }
 
 
-/**
- * Structs are defined in the same way that functions are except for
- * `fn` is changed to `struct'. Structs should use `CamelCase` instead
- * of `snake_case`. Structs contains a list of fields declared in the
- * same way we declare uninitialized variables.
- */
-Vector3 :: struct {
-    x: f32,
-    y: f32,
-    z: f32,
-}
+// /**
+//  * Structs are defined in the same way that functions are except for
+//  * `fn` is changed to `struct'. Structs should use `CamelCase` instead
+//  * of `snake_case`. Structs contains a list of fields declared in the
+//  * same way we declare uninitialized variables.
+//  */
+// Vector3 :: struct {
+//     x: f32,
+//     y: f32,
+//     z: f32,
+// }
 
 
-/**
- * Fields in structs can also have optionally default values
- */
-MyStruct :: struct {
-    alpha: i32,
-    beta: f32 = 0.5,
-    gamma: [5] char = ['h', 'e', 'l', 'l', 'o'],
-}
+// /**
+//  * Fields in structs can also have optionally default values
+//  */
+// MyStruct :: struct {
+//     alpha: i32,
+//     beta: f32 = 0.5,
+//     gamma: [5] char = ['h', 'e', 'l', 'l', 'o'],
+// }
 
-/**
- * Structs can also accept parameters like functions.
- * Here is an example of struct-of-array vector of 3 floats.
- * Memory Layout: x, x, ..., x, y, y, ..., y, z, z, ..., z (#floats = 3N).
- */
-SOAVector3 :: struct (N: i32) {
-    x: [N] f32,
-    y: [N] f32,
-    z: [N] f32,
-}
+// /**
+//  * Structs can also accept parameters like functions.
+//  * Here is an example of struct-of-array vector of 3 floats.
+//  * Memory Layout: x, x, ..., x, y, y, ..., y, z, z, ..., z (#floats = 3N).
+//  */
+// SOAVector3 :: struct (N: i32) {
+//     x: [N] f32,
+//     y: [N] f32,
+//     z: [N] f32,
+// }
 
 
 /**
@@ -291,32 +291,32 @@ structs :: fn () {
     // Here is a simpler debug print (similar as above)
     pln("{:#?}", x);
 
-    soa := SOAVector3(N: i32) {
-        x: [N] 
-    };
+    // soa := SOAVector3(N: i32) {
+        // x: [N] 
+    // };
 }
 
 
-MyEnum :: enum {
-    Low,
-    Mid,
-    High,
-}
+// MyEnum :: enum {
+//     Low,
+//     Mid,
+//     High,
+// }
 
 
-MonsterStats :: struct {
-    name: str = "Unnamed Monster",
-    hp: u32,
-    attack: u32 = 1,
-    defence: u32 = 0,
-}
+// MonsterStats :: struct {
+//     name: str = "Unnamed Monster",
+//     hp: u32,
+//     attack: u32 = 1,
+//     defence: u32 = 0,
+// }
 
 
-Monster :: enum (MonsterStats) {
-    Slime = MonsterStats {name: "Slime", hp: 10}
-}
+// Monster :: enum (MonsterStats) {
+//     Slime = MonsterStats {name: "Slime", hp: 10}
+// }
 
 
-spawn_slime :: () -> Monster {
-    Monsters::Slime
-}
+// spawn_slime :: () -> Monster {
+//     Monsters::Slime
+// }
