@@ -238,7 +238,6 @@ pub fn parse_character(
     terminated: bool,
     suffix: usize
 ) -> Option<Lit> {
-    println!("{:#?}", token);
     if !terminated {
         span_err!(ctx.sess, Span::new(token.base + token.len, 1), "unterminated character literal");
         return None;
@@ -534,7 +533,7 @@ mod tests {
     use crate::ast::map::AstMap;
     use crate::core::session::Session;
     use crate::core::source_map::Filename;
-    use crate::parser::expr::parse_expr;
+    use crate::parser::{utils, expr};
     use crate::parser::ParseCtxt;
 
 
@@ -553,8 +552,8 @@ mod tests {
                     ast_map: AstMap::new(),
                 };
 
-                let token = utils::next_token(ctx).unwrap();
-                let actual = if let Some(expr) = parse_expr(&mut ctx, &token, 1) {
+                let token = utils::next_token(&mut ctx).unwrap();
+                let actual = if let Some(expr) = expr::parse_expr(&mut ctx, &token, 1) {
                     if let ExprKind::Lit(lit) = expr.kind {
                         Some(lit.kind)
                     } else {

@@ -157,7 +157,7 @@ impl SourceMap {
         return match self.get_file(file_idx) {
             Some(file) => match file.lines.binary_search(&pos) {
                 Ok(line) => Ok((file, line)),
-                Err(_line) => Err(file),
+                Err(line) => Ok((file, line.saturating_sub(1))),
             }
             None => panic!("byte position is out of range"),
         }
@@ -166,7 +166,7 @@ impl SourceMap {
     pub fn lookup_char_pos(&self, pos: BytePos) -> Location {
         match self.lookup_line(pos) {
             Ok((file, line)) => {
-                let col = pos.index() - line;
+                let col = pos.index() - file.lines[line].index();
                 Location {
                     file,
                     line,

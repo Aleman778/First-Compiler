@@ -48,6 +48,8 @@ impl FileWithAnnotatedLines {
         for span_label in &msp.span_labels() {
             let lo = sm.lookup_char_pos(span_label.span.lo());
             let mut hi = sm.lookup_char_pos(span_label.span.hi());
+            println!("lo: {:?}, hi: {:?}", lo, hi);
+            
             if lo.line == hi.line && lo.col == hi.col {
                 hi.col += 1;
             }

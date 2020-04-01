@@ -76,7 +76,6 @@ pub fn parse_expr(
 
         // Parse a block expression.
         OpenBrace => {
-            let token = utils::next_token(ctx)?;
             let block = stmt::parse_block(ctx, &token)?;
             ast::ExprKind::Block(Box::new(block))
         }
@@ -157,6 +156,7 @@ pub fn parse_expr(
 
         // Parse either range or field expression.
         Dot => {
+            ctx.tokens.consume(1);
             let expr_kind = match ctx.tokens.peek().kind {
                 // Parses a range expression.
                 Dot => parse_range(ctx, Some(Box::new(expr_lhs)))?,
@@ -171,6 +171,7 @@ pub fn parse_expr(
 
                 // Expects only `identifier` or `.`.
                 _ => {
+                    let token = utils::next_token(ctx)?;
                     unexpected_token_err!(ctx, token, [Dot, Ident]);
                     return None;
                 }
@@ -223,7 +224,7 @@ pub fn parse_expr(
  * Parses an if statement using the next tokens in the parse context.
  */
 pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == Ident);
+    debug_assert!(ctx.tokens.prev() == Ident);
     
     let token = utils::next_token(ctx)?;
     let cond = Box::new(parse_expr(ctx, &token, 1)?);
@@ -244,10 +245,6 @@ pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
         None
     };
 
-    if else_body.is_some() {
-        utils::next_token(ctx)?;
-    }
-    
     Some(ast::ExprKind::If(cond, then_body, else_body))
 }
 
@@ -256,7 +253,7 @@ pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
  * Parses a for loop using the next tokens in parse context.
  */
 pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == Ident);
+    debug_assert!(ctx.tokens.prev() == Ident);
 
     let token = utils::next_token(ctx)?;
     let ident = utils::parse_identifier(ctx, &token)?;
@@ -288,7 +285,7 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
  * Parses a while loop using the next tokens in parse context.
  */
 pub fn parse_while(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == Ident);
+    debug_assert!(ctx.tokens.prev() == Ident);
 
     let token = utils::next_token(ctx)?;
     let cond = Box::new(parse_expr(ctx, &token, 1)?);
@@ -304,7 +301,7 @@ pub fn parse_while(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
  * Parses a while loop using the next tokens in parse context.
  */
 pub fn parse_loop(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == Ident);
+    debug_assert!(ctx.tokens.prev() == Ident);
 
     let token = utils::next_token(ctx)?;
     let body = Box::new(parse_expr(ctx, &token, 1)?);
@@ -317,7 +314,7 @@ pub fn parse_loop(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
  * Parses a function call using the next tokens in the parse context.
  */
 pub fn parse_fn_call(ctx: &mut ParseCtxt, ident: ast::Ident) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == OpenParen);
+    debug_assert!(ctx.tokens.prev() == OpenParen);
     
 
     let exprs = utils::parse_many(ctx, Comma, CloseParen, |ctx, t| parse_expr(ctx, t, 1))?;
@@ -329,7 +326,7 @@ pub fn parse_fn_call(ctx: &mut ParseCtxt, ident: ast::Ident) -> Option<ast::Expr
  * Parses a function return statement using the next tokens in the parse context.
  */
 pub fn parse_return(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == Ident);
+    debug_assert!(ctx.tokens.prev() == Ident);
 
     let token = utils::next_token(ctx)?;
     let expr = parse_expr(ctx, &token, 1).map(|expr| Box::new(expr));
@@ -380,7 +377,7 @@ pub fn parse_literal(
  * Parses a parenthesized or tuple expression using the next tokens in parse context.
  */
 pub fn parse_parenthesized(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == OpenParen);
+    debug_assert!(ctx.tokens.prev() == OpenParen);
 
     let token = utils::next_token(ctx)?;
     let expr = Box::new(parse_expr(ctx, &token, 1)?);
@@ -410,16 +407,16 @@ pub fn parse_parenthesized(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
  * Parses a range expression using the next tokens in parse context.
  */
 pub fn parse_range(ctx: &mut ParseCtxt, lhs_expr: Option<Box<ast::Expr>>) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == Dot);
+    debug_assert!(ctx.tokens.prev() == Dot);
 
     let token = utils::next_token(ctx)?;
     if token.kind != Dot {
         unexpected_token_err!(ctx, token, [Dot]);
+        return None;
     }
 
-    let token = utils::next_token(ctx)?;
-    let range_end = if token.kind == Eq {
-        utils::next_token(ctx)?;
+    let range_end = if ctx.tokens.peek().kind == Eq {
+        ctx.tokens.consume(1);
         ast::RangeEnd::Included
     } else {
         ast::RangeEnd::Excluded
@@ -441,7 +438,7 @@ pub fn parse_range(ctx: &mut ParseCtxt, lhs_expr: Option<Box<ast::Expr>>) -> Opt
  * Parses an array index using the next tokens in parse context.
  */
 pub fn parse_index(ctx: &mut ParseCtxt, lhs_expr: Box<ast::Expr>) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == OpenBracket);
+    debug_assert!(ctx.tokens.prev() == OpenBracket);
     let token = utils::next_token(ctx)?;
     let rhs_expr = Box::new(parse_expr(ctx, &token, 1)?);
     let token = utils::next_token(ctx)?;
@@ -459,7 +456,7 @@ pub fn parse_index(ctx: &mut ParseCtxt, lhs_expr: Box<ast::Expr>) -> Option<ast:
  * Parses a struct expression using the next tokens in the parse context and provided identifier.
  */
 pub fn parse_struct(ctx: &mut ParseCtxt, ident: ast::Ident) -> Option<ast::ExprKind> {
-    debug_assert!(ctx.tokens.prev == OpenBrace);
+    debug_assert!(ctx.tokens.prev() == OpenBrace);
 
     let fields = utils::parse_many(ctx, Comma, CloseBrace, |ctx, t| utils::parse_field(ctx, t))?;
     Some(ast::ExprKind::Struct(ident, fields))
@@ -475,7 +472,7 @@ mod tests {
     use crate::span::symbol::SymbolMap;
     use crate::core::session::Session;
     use crate::core::source_map::Filename;
-    use crate::parser::expr::parse_expr;
+    use crate::parser::{utils, expr};
     use crate::parser::ParseCtxt;
     use crate::ast;
     use std::rc::Rc;
@@ -498,8 +495,8 @@ mod tests {
                     ast_map: AstMap::new(),
                 };
 
-                let token = utils::next_token(ctx).unwrap();
-                let actual = parse_expr(&mut ctx, &token, 1);
+                let token = utils::next_token(&mut ctx).unwrap();
+                let actual = expr::parse_expr(&mut ctx, &token, 1);
 
                 assert_eq!(actual, $expected.map(|e| *e));
             }

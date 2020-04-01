@@ -5,8 +5,8 @@ use crate::lexer::{
     tokens::{Token, TokenKind, DUMMY_TOKEN},
     cursor::Cursor,
     advance_token,
-    is_whitespace,
 };
+use TokenKind::*;
 use std::iter::Iterator;
 
 
@@ -30,7 +30,7 @@ pub struct TokenStream<'a> {
     
     #[cfg(debug_assertions)]
     /// The previous consumed token, used for debug asserts.
-    pub prev: TokenKind,
+    prev: TokenKind,
 }
 
 
@@ -44,7 +44,24 @@ impl<'a> TokenStream<'a> {
             peeked: Vec::new(), 
             cur_pos: base,
             base_pos: base,
+            #[cfg(debug_assertions)]
             prev: TokenKind::Unknown,
+        }
+    }
+
+    
+    /**
+     * Returns the previously consumed token.
+     * Note: can only be used inside debug_assert!().
+     */
+    pub fn prev(&self) -> TokenKind {
+        #[cfg(debug_assertions)]
+        {
+            self.prev
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            Unknown
         }
     }
 
@@ -94,8 +111,14 @@ impl<'a> TokenStream<'a> {
      * Removes all the peeked tokens.
      */
     pub fn consume(&mut self, n: usize) {
-        for _i in 0..n {
-            self.peeked.remove(0);
+        for i in 0..n {
+            let token = self.peeked.remove(0);
+            #[cfg(debug_assertions)]
+            {
+                if i == n - 1 {
+                    self.prev = token.map_or(self.prev, |t| t.kind); 
+                }
+            }
         }
     }
 
@@ -114,25 +137,23 @@ impl<'a> TokenStream<'a> {
      * Consumes the next token even if there are already peeked tokens.
      */
     fn eat(&mut self) -> Option<Token> {
-        if self.input.is_empty() {
-            return None;
-        }
+        while !self.input.is_empty() {
+            let cur = &mut Cursor::new(&self.input); 
+            let token = advance_token(cur, self.base_pos);
+            self.base_pos += token.len;
+            self.input = &self.input[token.len..];
+            match token.kind {
+                // Strip comments and whitespaces.
+                LineComment |
+                BlockComment { terminated: _ } |
+                Whitespace => continue,
 
-        let cur = &mut Cursor::new(&self.input); 
-        if is_whitespace(cur.first()) {
-            let len_consumed = cur.eat_while(|c| is_whitespace(c));
-            self.base_pos += len_consumed;
-            self.input = &self.input[len_consumed..];
-
-            if self.input.is_empty() {
-                return None;
+                // If valid token then return it.
+                _ => return Some(token)
             }
         }
 
-        let token = advance_token(&mut Cursor::new(&self.input), self.base_pos);
-        self.base_pos += token.len;
-        self.input = &self.input[token.len..];
-        Some(token)
+        None
     }
 }
 

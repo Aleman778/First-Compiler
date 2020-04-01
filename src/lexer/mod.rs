@@ -33,6 +33,8 @@ fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
             _ => Slash,
         },
 
+        c if is_whitespace(c) => whitespace(cur),
+
         // Matching against byte literals
         'b' => match (cur.first(), cur.second()) {
             ('\'', _) => {
@@ -151,9 +153,9 @@ fn advance_token(cur: &mut Cursor, base_pos: usize) -> Token {
  * Parses line comment token.
  */
 fn line_comment(cur: &mut Cursor) -> TokenKind {
-    debug_assert!(cur.prev == '/');
+    debug_assert!(cur.prev() == '/');
     cur.eat();
-    debug_assert!(cur.prev == '/');
+    debug_assert!(cur.prev() == '/');
     cur.eat_while(|c| c != '\n');
     LineComment
 }
@@ -164,9 +166,9 @@ fn line_comment(cur: &mut Cursor) -> TokenKind {
  * /* ... */ or nested /* ... /* ... */ */
  */
 fn block_comment(cur: &mut Cursor) -> TokenKind {
-    debug_assert!(cur.prev == '/');
+    debug_assert!(cur.prev() == '/');
     cur.eat();
-    debug_assert!(cur.prev == '*');
+    debug_assert!(cur.prev() == '*');
     let mut depth: usize = 1;
     while let Some(c) = cur.eat() {
         match c {
@@ -194,11 +196,18 @@ fn block_comment(cur: &mut Cursor) -> TokenKind {
 }
 
 
+fn whitespace(cur: &mut Cursor) -> TokenKind {
+    debug_assert!(is_whitespace(cur.prev()));
+    cur.eat_while(is_whitespace);
+    Whitespace
+}
+
+
 /**
  * Parsers numberical literal token.
  */
 fn number(cur: &mut Cursor, first_char: char) -> LitKind {
-    debug_assert!(cur.prev.is_digit(10));
+    debug_assert!(cur.prev().is_digit(10));
     let mut radix = Radix::Decimal;
     if first_char == '0' {
         let has_digits = match cur.first() {
@@ -285,7 +294,7 @@ fn number(cur: &mut Cursor, first_char: char) -> LitKind {
  * Parses indentifier or keyword.
  */
 fn identifier(cur: &mut Cursor) -> TokenKind {
-    debug_assert!(is_ident_start(cur.prev));
+    debug_assert!(is_ident_start(cur.prev()));
     cur.eat_while(is_ident_continue);
     Ident
 }
@@ -295,7 +304,7 @@ fn identifier(cur: &mut Cursor) -> TokenKind {
  * Parses raw identifiers.
  */
 fn raw_identifier(cur: &mut Cursor) -> TokenKind {
-    debug_assert!(cur.prev == 'r' || cur.first() == '#' || is_ident_start(cur.second()));
+    debug_assert!(cur.prev() == 'r' || cur.first() == '#' || is_ident_start(cur.second()));
     cur.eat();
     cur.eat_while(is_ident_continue);
     RawIdent
@@ -375,7 +384,7 @@ fn eat_literal_suffix(cur: &mut Cursor) {
  * was terminated, i.e. ended with `'` character.
  */
 fn eat_character(cur: &mut Cursor) -> bool {
-    debug_assert!(cur.prev == '\'');
+    debug_assert!(cur.prev() == '\'');
     match cur.first() {
         // Defines an escape character.
         '\\' => {
@@ -407,7 +416,7 @@ fn eat_character(cur: &mut Cursor) -> bool {
  * was terminated, i.e. ended with `"` character.
  */
 fn eat_string(cur: &mut Cursor) -> bool {
-    debug_assert!(cur.prev == '"');
+    debug_assert!(cur.prev() == '"');
     while let Some(c) = cur.eat() {
         match c {
             // String is terminated.
@@ -429,7 +438,7 @@ fn eat_string(cur: &mut Cursor) -> bool {
  * - has the string terminated
  */
 fn eat_raw_string(cur: &mut Cursor) -> (usize, bool, bool) {
-    debug_assert!(cur.prev == 'r');
+    debug_assert!(cur.prev() == 'r');
     let num_hashes = cur.eat_while(|c| c == '#');
     let mut started = false;
     let mut terminated = false;
@@ -459,7 +468,7 @@ fn eat_raw_string(cur: &mut Cursor) -> (usize, bool, bool) {
  * Returns true if consumed, false otherwise.
  */
 fn eat_escape_character(cur: &mut Cursor) {
-    debug_assert!(cur.prev == '\\');
+    debug_assert!(cur.prev() == '\\');
     match cur.first() {
         // ASCII escape characters.
         'x' => {

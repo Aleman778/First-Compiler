@@ -17,7 +17,6 @@ pub fn parse_item(
     ctx: &mut ParseCtxt,
     token: &Token
 ) -> Option<ast::Item> {
-    println!("{}", ctx.file.get_source(token.to_span()));
     debug_assert!(token.kind == Ident || token.kind == RawIdent);
     let base_pos = token.base;
     let ident = utils::parse_identifier(ctx, token)?;

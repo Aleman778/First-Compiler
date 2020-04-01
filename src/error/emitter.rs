@@ -349,7 +349,7 @@ impl Emitter {
         //   | |_^ span_label
         if let [ann] = &line.annotations[..] {
             if let AnnotationType::MultilineStart(depth) = ann.annotation_type {
-                if source_string.chars().take(ann.start_col - 1).all(|c| c.is_whitespace()) {
+                if source_string.chars().take(ann.start_col).all(|c| c.is_whitespace()) {
                     let style = get_underline_style(ann.is_primary);
                     buf.putc('/', style, line_offset, margin.width_offset + depth - 1);
                     return vec![(depth, style)]

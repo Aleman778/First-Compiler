@@ -18,7 +18,7 @@ pub struct Cursor<'a> {
     initial_len: usize,
     chars: Chars<'a>,
     #[cfg(debug_assertions)]
-    pub prev: char,
+    prev: char,
 }
 
 
@@ -32,6 +32,22 @@ impl<'a> Cursor<'a> {
             chars: input.chars(),
             #[cfg(debug_assertions)]
             prev: EOF_CHAR,
+        }
+    }
+
+
+    /**
+     * Returns the previously consumed character.
+     * Note: can only be used inside debug_assert!().
+     */
+    pub fn prev(&self) -> char {
+        #[cfg(debug_assertions)]
+        {
+            self.prev
+        }
+        #[cfg(not(debug_assertions))]
+        {
+            '\0'
         }
     }
 

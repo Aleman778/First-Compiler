@@ -16,7 +16,7 @@ pub fn parse_stmt(
     ctx: &mut ParseCtxt, 
     token: &Token
 ) -> Option<ast::Stmt> {
-    debug_assert!(ctx.tokens.prev == token.kind);
+    debug_assert!(ctx.tokens.prev() == token.kind);
 
     let base_pos = token.base;
     let stmt_kind = match ctx.tokens.peek().kind {
@@ -53,8 +53,8 @@ pub fn parse_stmt(
                 }
             };
 
-            let token = utils::next_token(ctx)?;
-            let init = if token.kind == Eq { 
+            let init = if ctx.tokens.peek().kind == Eq {
+                ctx.tokens.consume(1);
                 let token = utils::next_token(ctx)?;
                 Some(Box::new(expr::parse_expr(ctx, &token, 1)?))
             } else {
@@ -106,7 +106,7 @@ pub fn parse_block(
     ctx: &mut ParseCtxt, 
     token: &Token
 ) -> Option<ast::Block> {
-    debug_assert!(ctx.tokens.prev == OpenBrace);
+    debug_assert!(ctx.tokens.prev() == OpenBrace);
     debug_assert!(token.kind == OpenBrace);
     let base_pos = token.base;
 
@@ -118,7 +118,7 @@ pub fn parse_block(
     };
 
     loop {
-        let token = utils::next_non_comment_token(ctx)?;
+        let token = utils::next_token(ctx)?;
         match token.kind {
             CloseBrace => {
                 block.span = Span::new(base_pos, token.base - base_pos + token.len);

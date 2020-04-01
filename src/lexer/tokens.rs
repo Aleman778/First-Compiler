@@ -56,10 +56,12 @@ impl fmt::Display for Token {
  */
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenKind {
-    /// Single Line comment e.g. `// comment` or `/// doc-comment`
+    /// Single Line comment e.g. `// comment` or `/// doc-comment`.
     LineComment,
-    /// Block comments e.g. `/* comment /* recursive */ */` or `/** doc-comment */`
+    /// Block comments e.g. `/* comment /* recursive */ */` or `/** doc-comment */`.
     BlockComment { terminated: bool },
+    /// Any whitespace characters sequence.
+    Whitespace,
     /// Identifier e.g. `hello_word`, `MyStruct`, `x`, `let`, `while` etc.
     Ident,
     /// Raw identifiers e.g. `r#while`.
@@ -130,6 +132,7 @@ impl fmt::Display for TokenKind {
         let name = match self {
             TokenKind::LineComment => "line comment",
             TokenKind::BlockComment { terminated: _ } => "block comment",
+            TokenKind::Whitespace => "whitespace",
             TokenKind::Ident => "identifier",
             TokenKind::RawIdent => "raw identifier",
             TokenKind::Literal { kind, suffix_start: _ } => { 

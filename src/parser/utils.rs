@@ -36,6 +36,9 @@ where
         let token = next_token(ctx)?;
         if token.kind == sep {
             let token = next_token(ctx)?;
+            if token.kind == end {
+                break;
+            }
             let expr = Box::new(parser(ctx, &token)?);
             exprs.push(expr);
         } else if token.kind == end {
@@ -169,8 +172,8 @@ pub fn parse_struct_field(
     let token = next_token(ctx)?;
     let ty = Box::new(ty::parse_ty(ctx, &token)?);
        
-    let token = next_token(ctx)?;
-    let value = if token.kind == Eq {
+    let value = if ctx.tokens.peek().kind == Eq {
+        ctx.tokens.consume(1);
         let token = next_token(ctx)?;
         Some(Box::new(expr::parse_expr(ctx, &token, 1)?))
     } else {
@@ -194,9 +197,9 @@ pub fn parse_enum_field(
 ) -> Option<ast::EnumField> {
     let base_pos = token.base;
     let key = parse_identifier(ctx, &token)?;
-
-    let token = next_token(ctx)?;
-    let value = if token.kind == Eq {
+    
+    let value = if ctx.tokens.peek().kind == Eq {
+        ctx.tokens.consume(1);
         let token = next_token(ctx)?;
         Some(Box::new(expr::parse_expr(ctx, &token, 1)?))
     } else {
@@ -271,31 +274,6 @@ pub fn parse_binop(ctx: &mut ParseCtxt, peek: bool) -> Option<(ast::BinOp, usize
 
 
 /**
- * Strips the next tokens that are comments and
- * returns the next token that is not a comment.
- * Note: this function does not report errors when
- * lexer reached end of file, do manual check on 
- * option instead of try operator.
- */
-pub fn next_non_comment_token(ctx: &mut ParseCtxt) -> Option<Token> { 
-    while let Some(token) = ctx.tokens.next() {
-        match token.kind {
-            LineComment => (),
-
-            BlockComment { terminated } => {
-                if !terminated {
-                    span_err!(ctx.sess, token.to_span(), "block comment is not terminated");
-                }
-            }
-
-            _ => return Some(token),
-        }
-    }
-    None
-}
-
-
-/**
  * Returns the next token in the lexed token stream.
  * Note: this function does report error when lexer 
  * reached end of file, so using try operator is fine! 
@@ -321,9 +299,14 @@ pub fn is_expr_start(token: &Token) -> bool {
     match token.kind {
         Ident |
         RawIdent |
+        Literal { kind: _, suffix_start: _ } |
         OpenParen |
         OpenBracket |
-        OpenBrace => true,
+        OpenBrace |
+        Dot |
+        Minus |
+        Not |
+        Star => true,
 
         _ => false,
     }

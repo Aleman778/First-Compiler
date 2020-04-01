@@ -44,7 +44,7 @@ pub fn do_parse<'a>(mut ctx: ParseCtxt<'a>) -> AstMap {
     let start = Instant::now();
     let mut units = Vec::new();
     
-    while let Some(token) = utils::next_non_comment_token(&mut ctx) {
+    while let Some(token) = ctx.tokens.next() {
         let item = item::parse_item(&mut ctx, &token);
         if item.is_none() {
             info!("parsing file `{}` failed!", ctx.file.name.display());
@@ -56,7 +56,7 @@ pub fn do_parse<'a>(mut ctx: ParseCtxt<'a>) -> AstMap {
     
     let elapsed = start.elapsed();
     debug!("parsed file `{}` in {:?}", ctx.file.name.display(), elapsed);
-    println!("{:#?}", units);
+    println!("{:#?}", units[0]);
     
     ctx.ast_map
 }

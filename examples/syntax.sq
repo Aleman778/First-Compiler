@@ -104,7 +104,7 @@ if_statements :: fn () {
     x := 12;
 
     // If only one line is required you can elide brackets
-    y := if x > 10 x/2 else x*2;
+    y := if x > 10  x/2  else  x*2;
     assert_eq(y, 6);
 
     // OR
@@ -150,8 +150,8 @@ for_loops :: fn () {
     pln("For Loop:");
         
     // For loops are defined by an identifier and an iterable expression
-    pln("for a in 0..4 pln(a);\n")
-    for a in 0..4 pln(a);
+    pln("for a in 0..4 pln(a);\n");
+    for a in 0..4  pln(a);
 
     pln("---------------------");
     
@@ -171,7 +171,7 @@ while_loops :: fn () {
 
     // While loops are defined by a condition and loop expression
     i := 0;
-    while i < 10 i += 1;
+    while i < 10  i += 1;
     assert_eq(i, 10);
     
     // Of cource you can also incluide brackets around expression
@@ -209,11 +209,11 @@ arrays :: fn () {
     pln("Arrays:")
     
     // Array of fixed size 10 i32 values with default values of 0
-    x : [10] i32;
+    x: [10] i32;
     pln("x : [10] i32\n-> x = {}", x);
 
     // Arrays can also have dynamic size
-    x : [..] i32;
+    x: [..] i32;
     pln("x : [..] i32\n-> x = {}", x);
 
     // Arrays can be initialized with values

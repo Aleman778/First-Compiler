@@ -18,7 +18,7 @@ pub fn parse_ty(
     ctx: &mut ParseCtxt,
     token: &Token
 ) -> Option<ast::Ty> {
-    debug_assert!(ctx.tokens.prev == token.kind);
+    debug_assert!(ctx.tokens.prev() == token.kind);
 
     let base_pos = token.base;
     let ty_kind = match token.kind {

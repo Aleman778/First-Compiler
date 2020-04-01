@@ -35,7 +35,7 @@ fn main() {
                         // }
                    // "###.to_string(),
             // },
-        input: driver::Input::File(PathBuf::from("c:/dev/sqrrl-lang/examples/syntax.sq")),
+        input: driver::Input::File(PathBuf::from(r"c:\Dev\sqrrl-lang\examples\syntax.sq")),
         ..Default::default()
     };
 
