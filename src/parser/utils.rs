@@ -101,26 +101,21 @@ pub fn parse_identifier(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::Ident
  * Tries to parse a specific keyword and reports error if not found.
  * One token is peeked and should be consumed if needed outside of this function.
  */
-pub fn parse_keyword(ctx: &mut ParseCtxt) -> Option<Symbol> {
+pub fn parse_keyword(ctx: &mut ParseCtxt) -> Symbol {
     let token = ctx.tokens.peek();
     match token.kind {
         Ident => {
             let source = ctx.file.get_source(token.to_span());
             let symbol = ctx.sess.symbol_map.as_symbol(source);
 
-            if let kw::Invalid = symbol {
-                span_err!(ctx.sess, token.to_span(), "keyword cannot be empty");
-                None
-            } else if symbol.index() > kw::START_INDEX + 1 && symbol.index() < kw::LAST_INDEX {
-                Some(symbol)
+            if symbol.index() > kw::START_INDEX + 1 && symbol.index() < kw::LAST_INDEX {
+                symbol
             } else {
-                None
+                kw::Invalid
             }
         }
 
-        _ => {
-            None
-        }
+        _ => kw::Invalid
     }
 }
 

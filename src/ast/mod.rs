@@ -98,9 +98,9 @@ pub enum ItemKind {
     /// Foreign functions are defined only with a signature, code resides elsewhere.
     ForeignFn(FnSig),
     /// Structs are defined by a list of fields.
-    Struct(Vec<StructField>),
+    Struct(Option<Vec<Box<Field>>>, Vec<Box<StructField>>),
     /// Enums are defined by list of fields with values and common type.
-    Enum(Vec<EnumField>),
+    Enum(Option<Box<Ty>>, Vec<Box<EnumField>>),
 }
 
 

@@ -232,17 +232,16 @@ pub fn parse_if(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     let token = utils::next_token(ctx)?;
     let then_body = Box::new(parse_expr(ctx, &token, 1)?);
 
-    let else_body = if let Some(kw) = utils::parse_keyword(ctx) {
-        if kw.index() == kw::Else.index() {
-            utils::next_token(ctx)?;
-            let token = utils::next_token(ctx)?;
-            Some(Box::new(parse_expr(ctx, &token, 1)?))
-        } else {
-            unexpected_token_err!(ctx, token, ["else"]);
-            return None;
-        }
-    } else {
+    let kw = utils::parse_keyword(ctx);
+    let else_body = if kw == kw::Else {
+        utils::next_token(ctx)?;
+        let token = utils::next_token(ctx)?;
+        Some(Box::new(parse_expr(ctx, &token, 1)?))
+    } else if kw == kw::Invalid {
         None
+    } else {
+        unexpected_token_err!(ctx, token, ["else"]);
+        return None;
     };
 
     Some(ast::ExprKind::If(cond, then_body, else_body))
@@ -258,19 +257,15 @@ pub fn parse_for(ctx: &mut ParseCtxt) -> Option<ast::ExprKind> {
     let token = utils::next_token(ctx)?;
     let ident = utils::parse_identifier(ctx, &token)?;
 
-    if let Some(kw) = utils::parse_keyword(ctx) {
-        if kw.index() != kw::In.index() {
-            unexpected_token_err!(ctx, token, ["in"]);
-            return None;
-        } else {
-            utils::next_token(ctx)?;
-        }
-    } else {
+    let kw = utils::parse_keyword(ctx);
+    if kw != kw::In {
         let token = ctx.tokens.peek();
         unexpected_token_err!(ctx, token, ["in"]);
         return None;
+    } else {
+        utils::next_token(ctx)?;
     }
-
+    
     let token = utils::next_token(ctx)?;
     let iter = Box::new(parse_expr(ctx, &token, 1)?);
 
@@ -469,13 +464,11 @@ mod tests {
     use crate::lexer::tokenize;
     use crate::ast::map::AstMap;
     use crate::span::DUMMY_SPAN;
-    use crate::span::symbol::SymbolMap;
     use crate::core::session::Session;
     use crate::core::source_map::Filename;
     use crate::parser::{utils, expr};
     use crate::parser::ParseCtxt;
     use crate::ast;
-    use std::rc::Rc;
     use ast::ExprKind::*;
     use ast::LitKind::*;
     use ast::LitIntTy::*;

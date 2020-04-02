@@ -30,12 +30,12 @@ pub fn parse_item(
     }
 
     let mut viskind = ast::VisibilityKind::Visible;
-    let mut keyword = utils::parse_keyword(ctx)?;
-    ctx.tokens.consume(1);
+    let mut keyword = utils::parse_keyword(ctx);
+    let token = utils::next_token(ctx)?;
     match keyword {
         kw::Hidden => {
             viskind = ast::VisibilityKind::Hidden;
-            keyword = utils::parse_keyword(ctx)?;
+            keyword = utils::parse_keyword(ctx);
             ctx.tokens.consume(1);
         }
         _ => ()
@@ -46,7 +46,7 @@ pub fn parse_item(
         kw::Struct => parse_struct(ctx)?,
         kw::Enum => parse_enum(ctx)?,
         kw::Extern => {
-            let keyword = utils::parse_keyword(ctx)?;
+            let keyword = utils::parse_keyword(ctx);
             match keyword {
                 kw::Fn => parse_extern_fn(ctx)?,
                 _ => {
@@ -92,8 +92,9 @@ pub fn parse_fn(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
 /**
  * Parses a foreign function interface using the provided context.
  */
-pub fn parse_extern_fn(_ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
-    None
+pub fn parse_extern_fn(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
+    let fn_sig = parse_fn_sig(ctx)?;
+    Some(ast::ItemKind::ForeignFn(fn_sig))
 }
 
 
@@ -149,21 +150,50 @@ pub fn parse_arg(ctx: &mut ParseCtxt, token: &Token) -> Option<ast::FnArg> {
     let ty = Box::new(ty::parse_ty(ctx, &token)?);
 
     let span = Span::new(base_pos, ctx.tokens.cur_pos() - base_pos);
-    Some(ast::FnArg { ident, ty, span})
+    Some(ast::FnArg { ident, ty, span })
 }
 
 
 /**
  * Parses a struct item and its fields using the provided context.
  */
-pub fn parse_struct(_ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
-    None
+pub fn parse_struct(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
+    let params = if ctx.tokens.peek().kind == OpenParen {
+        ctx.tokens.consume(1);
+        Some(utils::parse_many(ctx, Comma, CloseParen, utils::parse_field)?)
+    } else {
+        None
+    };
+
+    let token = utils::next_token(ctx)?;
+    if token.kind != OpenBrace {
+        unexpected_token_err!(ctx, token, [OpenBrace]);
+        return None;
+    }
+
+    let fields = utils::parse_many(ctx, Comma, CloseBrace, utils::parse_struct_field)?;
+    Some(ast::ItemKind::Struct(params, fields))
 }
 
 
 /**
  * Parses a enum item and its fields using the provided context.
  */
-pub fn parse_enum(_ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
-    None
+pub fn parse_enum(ctx: &mut ParseCtxt) -> Option<ast::ItemKind> {
+    let enum_ty = if ctx.tokens.peek().kind == Eq {
+        ctx.tokens.consume(1);
+        let token = utils::next_token(ctx)?;
+        Some(Box::new(ty::parse_ty(ctx, &token)?))
+    } else {
+        None
+    };
+    
+    let token = utils::next_token(ctx)?;
+    if token.kind != OpenBrace {
+        unexpected_token_err!(ctx, token, [OpenBrace]);
+        return None;
+    }
+
+    let fields = utils::parse_many(ctx, Comma, CloseBrace, utils::parse_enum_field)?;
+    Some(ast::ItemKind::Enum(enum_ty, fields))
 }
