@@ -1,7 +1,6 @@
 extern crate clap;
 
 mod error;
-mod span;
 mod ast;
 mod parser;
 mod value;

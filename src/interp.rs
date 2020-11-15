@@ -1,14 +1,13 @@
 use std::fmt;
 use std::collections::HashMap;
 use crate::ast::*;
-use crate::span::Span;
 use crate::value::{Val, ValData};
 use crate::intrinsics::*;
 
 /**
  * Results used for the interpreter
  */
-pub type IResult<T> = Result<T, ErrorMessage>;
+pub type IResult<T> = Result<T, ()>;
 
 /**
  * Eval trait is used to define the evaluation
@@ -117,9 +116,9 @@ impl RuntimeEnv {
     pub fn pop_block(&mut self) -> IResult<()> {
         let len = self.call_stack.len();
         let scope = &mut self.call_stack[len - 1];
-        let popped = scope.pop(self.sess)?;
+        let popped = scope.pop(self)?;
         for addr in popped.addresses() {
-            self.memory.free(self.sess, addr)?;
+            self.memory.free(self, addr)?;
         }
         Ok(())
     }
@@ -140,7 +139,7 @@ impl RuntimeEnv {
                     return Err(self.mismatched_types_fatal_error(span, arg_ty, val_ty));
                 }
                 let id = &inputs[i].ident;
-                let addr = self.memory.alloc(self.sess, &values[i], inputs[i].mutable)?;
+                let addr = self.memory.alloc(self, &values[i], inputs[i].mutable)?;
                 new_scope.register(id, addr);
             }
             self.call_stack.push(new_scope);
@@ -319,7 +318,7 @@ impl RuntimeEnv {
     pub fn fmt_call_stack(&self, f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
         write_str(f, "\nCall Stack: {", indent)?;
         for (index, scope) in self.call_stack.iter().rev().enumerate() {
-            scope.fmt_scope(f, self.sess.source_map(), indent + 8, index)?;
+            scope.fmt_scope(f, self.file, indent + 8, index)?;
         }
         write_str(f, "\n}", indent)
     }
@@ -400,7 +399,7 @@ impl Memory {
     /**
      * Allocates value data and returns the memory address to that data.
      */
-    pub fn alloc(&mut self, sess: &mut Session, val: &Val, mutable: bool) -> IResult<usize> {
+    pub fn alloc(&mut self, env: &mut RuntimeEnv, val: &Val, mutable: bool) -> IResult<usize> {
         if self.next < self.data.capacity() {
             self.data[self.next] = MemEntry {
                 mutable,
@@ -411,23 +410,24 @@ impl Memory {
             self.find_next();
             Ok(addr)
         } else {
-            Err(self.fatal_error(sess, val.span, "out of memory error"))
+            self.fatal_error(env, val.span, "out of memory error");
+            Err(())
         }
     }
 
     /**
      * Loads a value from memory at specific address.
      */
-    pub fn load(&self, sess: &mut Session, addr: usize) -> IResult<ValData> {
+    pub fn load(&self, env: &mut RuntimeEnv, addr: usize) -> IResult<ValData> {
         if addr < self.data.capacity() {
             let entry = &self.data[addr];
             if entry.data.has_data() {
                 Ok(entry.data.clone())
             } else {
-                Err(self.fatal_error(sess, "reading unallocated memory"))
+                Err(self.fatal_error(env, "reading unallocated memory"))
             }
         } else {
-            Err(self.fatal_error(sess, "reading out of bounds"))
+            Err(self.fatal_error(env, "reading out of bounds"))
         }
     }
 
@@ -435,7 +435,7 @@ impl Memory {
      * Stores a new value at a specific memory address.
      * Note: has to be an already allocated address.
      */
-    pub fn store(&mut self, sess: &mut Session, addr: usize, val: &Val) -> IResult<()> {
+    pub fn store(&mut self, env: &mut RuntimeEnv, addr: usize, val: &Val) -> IResult<()> {
         if addr < self.data.capacity() {
             let entry = &mut self.data[addr];
             if entry.reserved || entry.data.has_data() {
@@ -443,20 +443,20 @@ impl Memory {
                     entry.data = val.data.clone();
                     Ok(())
                 } else {
-                    Err(self.fatal_error(sess, val.span, "cannot assign twice to immutable variable"))
+                    Err(self.fatal_error(env, val.span, "cannot assign twice to immutable variable"))
                 }
             } else {
-                Err(self.fatal_error(sess, val.span, "cannot update unallocated memory"))
+                Err(self.fatal_error(env, val.span, "cannot update unallocated memory"))
             }
         } else {
-            Err(self.fatal_error(sess, "writing out of bounds"))
+            Err(self.fatal_error(env, "writing out of bounds"))
         }
     }
 
     /**
      * Frees the memory at the specific memory address.
      */
-    pub fn free(&mut self, sess: &mut Session, addr: usize) -> IResult<()> {
+    pub fn free(&mut self, env: &mut RuntimeEnv, addr: usize) -> IResult<()> {
         if addr < self.data.capacity() {
             if self.is_alloc(addr) {
                 let entry = &mut self.data[addr];
@@ -467,10 +467,10 @@ impl Memory {
                 }
                 Ok(())
             } else {
-                Err(self.fatal_error(sess, "cannot free unallocated memory"))
+                Err(self.fatal_error(env, "cannot free unallocated memory"))
             }
         } else {
-            Err(self.fatal_error(sess, "cannot free out of bounds"))
+            Err(self.fatal_error(env, "cannot free out of bounds"))
         }
     }
 
@@ -579,21 +579,21 @@ impl Scope {
      * Returns the address of a given variable identifier.
      * If backtracking is enabled than this will also search child scopes.
      */
-    pub fn address_of(&self, id: &ExprIdent, sess: &mut Session, backtrack: bool) -> IResult<usize> {
+    pub fn address_of(&self, id: &ExprIdent, env: &mut RuntimeEnv, backtrack: bool) -> IResult<usize> {
         match &*self.child {
             Some(child) => {
-                match child.address_of(id, sess, backtrack) {
+                match child.address_of(id, env, backtrack) {
                     Ok(addr) => Ok(addr),
                     Err(e) => {
                         if backtrack {
-                            self.find_mem(id, sess)
+                            self.find_mem(id, env)
                         } else {
                             Err(e)
                         }
                     }
                 }
             },
-            None => self.find_mem(id, sess),
+            None => self.find_mem(id, env),
         }
     }
 
@@ -647,11 +647,11 @@ impl Scope {
     /**
      * Pops the outer most scope. Returns the popped scope.
      */
-    pub fn pop(&mut self, sess: &mut Session) -> IResult<Scope> {
+    pub fn pop(&mut self, env: &mut RuntimeEnv) -> IResult<Scope> {
         let (opt, _) = self.pop_impl();
         match opt {
             Some(scope) => Ok(scope.clone()),
-            None => Err(self.fatal_error(sess, "cannot pop the function scope")),
+            None => Err(self.fatal_error(env, "cannot pop the function scope")),
         }
     }
 
@@ -677,10 +677,10 @@ impl Scope {
      * Find an address in the memory using the provided identifier.
      * Returns memory error if not found in this scope.
      */
-    fn find_mem(&self, ident: &ExprIdent, sess: &mut Session) -> IResult<usize> {
+    fn find_mem(&self, ident: &ExprIdent, env: &mut RuntimeEnv) -> IResult<usize> {
         match self.symbols.get(&ident.to_string) {
             Some(addr) => Ok(*addr),
-            None => Err(self.fatal_error(sess, ident.span, "not found in this scope")),
+            None => Err(self.fatal_error(env, ident.span, "not found in this scope")),
         }
     }
 
@@ -766,11 +766,11 @@ impl File {
         match env.load_main() {
             Ok(func) => {
                 if let Err(diagnostic) = func.eval(Vec::new(), env) {
-                    env.sess.emit(&diagnostic);
+                    env.env.emit(&diagnostic);
                     return;
                 }
             },
-            Err(diagnostic) => env.sess.emit(&diagnostic),
+            Err(diagnostic) => env.env.emit(&diagnostic),
         };
     }
 }
@@ -789,7 +789,7 @@ impl Item {
             _ => {
                 let ident = self.get_ident();
                 let mut err = self.fatal_error(
-                    env.sess,
+                    env.env,
                     ident.span,
                     "cannot find function `{}` in this scope",
                     ident.to_string
@@ -812,7 +812,7 @@ impl FnItem {
         env.pop_func()?;
         match val.data {
             ValData::Continue |
-            ValData::Break => Err(self.fatal_error(env.sess, val.span, "cannot break outside loop")),
+            ValData::Break => Err(self.fatal_error(env.env, val.span, "cannot break outside loop")),
             _ => Ok(val),
         }
     }
@@ -830,47 +830,47 @@ impl ForeignFnItem {
             "print_int" => {
                 match values[0].get_i32() {
                     Some(arg) => print_int(arg),
-                    None => return Err(mismatched_types_self.fatal_error(
-                        env.sess, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
+                    None => return Err(mismatched_types_fatal_error(
+                        env.env, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
                 };
             },
             "print_bool" => {
                 match values[0].get_bool() {
                     Some(arg) => print_bool(arg),
-                    None => return Err(mismatched_types_self.fatal_error(
-                        env.sess, values[0].span, TyKind::Bool, values[0].get_type())),
+                    None => return Err(mismatched_types_fatal_error(
+                        env.env, values[0].span, TyKind::Bool, values[0].get_type())),
                 };
             },
             "assert" => {
                 match values[0].get_bool() {
                     Some(arg) => assert(arg),
                     None => return Err(mismatched_types_self.fatal_error(
-                        env.sess, values[0].span, TyKind::Bool, values[0].get_type())),
+                        env.env, values[0].span, TyKind::Bool, values[0].get_type())),
                 };
             },
             "assert_eq_int" => {
                 match values[0].get_i32() {
                     Some(arg0) => match values[1].get_i32() {
                         Some(arg1) => assert_eq_int(arg0, arg1),
-                        None => return Err(mismatched_types_self.fatal_error(
-                            env.sess, values[1].span, TyKind::Int(IntTy::I32), values[1].get_type()))
+                        None => return Err(mismatched_types_fatal_error(
+                            env.env, values[1].span, TyKind::Int(IntTy::I32), values[1].get_type()))
                     }
                     None => return Err(mismatched_types_self.fatal_error(
-                        env.sess, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
+                        env.env, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
                 };
             },
             "assert_eq_bool" => {
                 match values[0].get_bool() {
                     Some(arg0) => match values[1].get_bool() {
                         Some(arg1) => assert_eq_bool(arg0, arg1),
-                        None => return Err(mismatched_types_self.fatal_error(
-                            env.sess, values[1].span, TyKind::Bool, values[1].get_type()))
+                        None => return Err(mismatched_types_fatal_error(
+                            env.env, values[1].span, TyKind::Bool, values[1].get_type()))
                     }
-                    None => return Err(mismatched_types_self.fatal_error(
-                        env.sess, values[0].span, TyKind::Bool, values[0].get_type()))
+                    None => return Err(mismatched_types_fatal_error(
+                        env.env, values[0].span, TyKind::Bool, values[0].get_type()))
                 };
             },
-            _ => return Err(self.fatal_error(env.sess, "is not a debug function")),
+            _ => return Err(self.fatal_error(env.env, "is not a debug function")),
         };
         Ok(Val::new())
     }
@@ -910,7 +910,7 @@ impl Eval for Stmt {
     fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
         match self {
             Stmt::Local(local) => local.eval(env),
-            Stmt::Item(_item) => Err(self.fatal_error(env.sess, "items in functions are not supported by the interpreter")),
+            Stmt::Item(_item) => Err(self.fatal_error(env.env, "items in functions are not supported by the interpreter")),
             Stmt::Semi(expr) => {
                 let ret_val = expr.eval(env)?;
                 // Only perform explicit returns e.g. return expression.
@@ -936,7 +936,7 @@ impl Eval for Local {
                 let val = init.eval(env)?;
                 let val_ty = val.get_type();
                 if val_ty != self.ty {
-                    return Err(mismatched_types_self.fatal_error(env.sess, val.span, self.ty, val_ty));
+                    return Err(mismatched_types_fatal_error(env.env, val.span, self.ty, val_ty));
                 }
                 val
             }
@@ -975,7 +975,7 @@ impl BinOp {
             Some(val) => Ok(val),
             None => {
                 let mut err = self.fatal_error(
-                    env.sess,
+                    env.env,
                     *span,
                     "cannot {} `{}` to `{}`",
                     self,
@@ -1008,7 +1008,7 @@ impl UnOp {
             Some(val) => Ok(val),
             None => {
                 let mut err = self.fatal_error(
-                    env.sess,
+                    env.env,
                     *span,
                     "type `{}` cannot be {}",
                     right_type,
@@ -1067,7 +1067,7 @@ impl Expr {
                                     Ok(r.addr)
                                 } else {
                                     let mut err = self.fatal_error(
-                                        env.sess,
+                                        env.env,
                                         self.get_span(),
                                         "cannot assign to variable using immutable reference");
                                     err.span_label(r.ref_ty.span, "help: consider changing this to be a mutable reference");
@@ -1075,13 +1075,13 @@ impl Expr {
                                     Err(err)
                                 }
                             }
-                            _ => Err(self.fatal_error(env.sess, "invalid expression")),
+                            _ => Err(self.fatal_error(env.env, "invalid expression")),
                         }
                     },
-                    _ => Err(self.fatal_error(env.sess, "invalid expression")),
+                    _ => Err(self.fatal_error(env.env, "invalid expression")),
                 }
             },
-            _ => Err(self.fatal_error(env.sess, "invalid expression")),
+            _ => Err(self.fatal_error(env.env, "invalid expression")),
         }
     }
 }
@@ -1212,7 +1212,7 @@ impl Eval for ExprIf {
                     }
                 }
             },
-            None => Err(mismatched_types_self.fatal_error(env.sess, value.span, TyKind::Bool, value.get_type())),
+            None => Err(mismatched_types_fatal_error(env.env, value.span, TyKind::Bool, value.get_type())),
         }
     }
 }
@@ -1313,7 +1313,7 @@ impl Eval for ExprWhile {
                     }
                 },
                 None => {
-                    return Err(mismatched_types_self.fatal_error(env.sess, value.span, TyKind::Bool, value.get_type()));
+                    return Err(mismatched_types_fatal_error(env.env, value.span, TyKind::Bool, value.get_type()));
                 },
             };
         }
@@ -1329,9 +1329,8 @@ impl Eval for Lit {
         match self {
             Lit::Int(literal) => literal.eval(env),
             Lit::Bool(literal) => literal.eval(env),
-            Lit::Str(literal)  => Err(self.fatal_error(env.sess,
-                                                         literal.span,
-                                                         "unsupported literal type by the interpreter")),
+            Lit::Str(literal)  => Err(self.fatal_error(
+                env, literal.span, "unsupported literal type by the interpreter")),
         }
     }
 }

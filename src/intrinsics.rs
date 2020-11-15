@@ -1,9 +1,7 @@
-use std::collections::HashMap;
 use crate::ast::*;
-use crate::span::Span;
 use crate::interp::RuntimeEnv;
 
-pub fn get_intrinsic_ast_items() -> Vec<Item> {
+pub fn get_intrinsic_ast_items() -> Item {
     Item::ForeignMod(
         ForeignModItem {
             abi: Some(

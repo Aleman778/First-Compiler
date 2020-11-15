@@ -11,21 +11,35 @@ use nom::{
 };
 use nom_locate::LocatedSpanEx;
 use std::collections::HashMap;
-use crate::error::{ErrorMessage, ErrorKind, convert_error};
+use crate::error::*;
 use crate::ast::*;
-use crate::span::*;
 
 /**
  * Type alias of LocatedSpanEx for convenience.
  * First string is the input string, other string is
  * the filename that is being parsed.
  */
-pub type ParseSpan<'a> = LocatedSpanEx<&'a str, usize>;
+pub type ParseSpan<'a> = LocatedSpanEx<&'a str, u16>;
 
 /**
  * Type aliased IResult from std::Result.
  */
-type IResult<I, O, E = ErrorMessage> = Result<(I, O), Err<E>>;
+type IResult<I, O> = Result<(I, O), Err<ParseError>>;
+
+/**
+ * Parse error struct holds information about the error and location
+ */
+struct ParseError {
+    errors: Vec<Verbose>,
+}
+
+/**
+ * Gives context to an error e.g. location, kind, file etc.
+ */
+struct Verbose {
+    span: Span,
+    kind: ErrorKind,
+}
 
 /**
  * Parser trait defines a generic parser that should
@@ -39,23 +53,7 @@ pub trait Parser: Sized {
  * Parse a source file containing items such as functions.
  */
 pub fn parse_file(source: String, filename: String) -> File {
-    let input = ParseSpan::new_extra(&source, 0);
-    let mut output = multispace_comment0(input).unwrap().0;
-    let mut items = Vec::new();
-    while output.fragment.len() > 0 {
-        match Item::parse(output) {
-            Ok((input, item)) => {
-                items.push(item);
-                output = multispace_comment0(input).unwrap().0;
-            },
-            Err(Err::Error(e)) => {
-                eprintln!("{}", convert_error(&input, e));
-                break;
-            },
-            _ => break,
-        };
-    }
-
+    // Calculate the byte position of each line in the source.
     let end_pos = source.len() as u32;
     let mut curr_pos = 0;
     let mut lines = vec![0];
@@ -75,12 +73,29 @@ pub fn parse_file(source: String, filename: String) -> File {
         lines.push(source.len() as u32);
     }
 
+    // Parse the source file
+    let input = ParseSpan::new(&source);
+    let mut output = multispace_comment0(input).unwrap().0;
+    let mut items = Vec::new();
+    while output.fragment.len() > 0 {
+        match Item::parse(output) {
+            Ok((input, item)) => {
+                items.push(item);
+                output = multispace_comment0(input).unwrap().0;
+            },
+            Err(Err::Error(error)) => {
+                eprintln!("{}", convert_error(error, &source, &lines));
+                break;
+            },
+            _ => break,
+        };
+    }
+
     let span = Span::new(input, 0);
     let imported_files = HashMap::new();
 
     File { source, filename, items, span, lines, imported_files }
 }
-
 
 /**
  * Parse an item can atm only be a function.
@@ -111,14 +126,13 @@ impl Parser for FnItem {
                 Block::parse,
             )),
                 |(start, id, decl, block)| {
-                    let block_clone = block.clone();
                     FnItem {
                         ident: id,
                         decl: decl,
                         block: block,
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            block_clone.span.end, input.extra
+                        span: Span::combine(
+                            Span::from_parse_span(start),
+                            Span::from_parse_span(block),
                         ),
                     }
                 }
@@ -141,10 +155,10 @@ impl Parser for ForeignFnItem {
                     ForeignFnItem {
                         ident: id,
                         decl: decl,
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            LineColumn::new(semi.line, semi.get_column()),
-                            input.extra),
+                        span: Span::combine(
+                            Span::from_parse_span(start),
+                            Span::from_parse_span(semi),
+                        ),
                     }
                 }
             )
@@ -167,10 +181,10 @@ impl Parser for ForeignModItem {
                     ForeignModItem {
                         abi,
                         items,
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            LineColumn::new(end.line, end.get_column()),
-                            input.extra),
+                        span: Span::combine(
+                            Span::from_parse_span(start),
+                            Span::from_parse_span(end),
+                        ),
                     }
                 }
             )
@@ -208,16 +222,16 @@ impl Parser for FnDecl {
                         },
                         None => {
                             output = Ty::new();
-                            end_span = LineColumn::new(end.line, end.get_column() + 1);
+                            end_span = Span::from_parse_span(end);
                             output.span = Span::from_bounds(end_span, end_span, input.extra);
                         },
                     };
                     FnDecl {
                         inputs: args,
                         output: output,
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            end_span, input.extra
+                        span: Span::combine(
+                            Span::from_parse_span(start),
+                            Span::from_parse_span(end_span),
                         ),
                     }
                 }
@@ -241,7 +255,7 @@ impl Parser for Argument {
             )),
                 |(mut_token, id, _, ty)| {
                     let start_lc = match mut_token {
-                        Some(mutable) => LineColumn::new(mutable.line, mutable.get_column()),
+                        Some(mutable) => Span::from_parse_span(mutable),
                         None => id.span.start,
                     };
                     let end_lc = ty.span.end;
@@ -272,10 +286,9 @@ impl Parser for Block {
                 |(start, stmts, end)| {
                     Block {
                         stmts: stmts,
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            LineColumn::new(end.line, end.get_column() + 1),
-                            input.extra
+                        span: Span::combine(
+                            Span::from_parse_span(start),
+                            Span::from_parse_span(end),
                         ),
                     }
                 }
@@ -331,10 +344,9 @@ impl Parser for Local {
                         ident: ident,
                         ty: ty,
                         init: Box::new(init),
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            LineColumn::new(end.line, end.get_column() + 1),
-                            input.extra
+                        span: Span::combine(
+                            Span::from_parse_span(start),
+                            Span::from_parse_span(end),
                         ),
                     }
                 }
@@ -381,7 +393,9 @@ impl TypeRef {
                 |(amp, mut_token, elem)| {
                     let elem_span = elem.span;
                     (TypeRef{mutable: mut_token.is_some(), elem: Box::new(elem)},
-                     Span::from_bounds(LineColumn::new(amp.line, amp.get_column()), elem_span.end, input.extra))
+                     Span::combine(Span::from_parse_span(amp),
+                                   Span::from_parse_span(elem_span))
+                    )
                 }
             )
         )(input)
@@ -502,10 +516,9 @@ impl Parser for ExprAssign {
                         ExprAssign {
                             left: Box::new(left),
                             right: Box::new(right),
-                            span: Span::from_bounds(
-                                left_span.start,
-                                LineColumn::new(end.line, end.get_column() + 1),
-                                input.extra
+                            span: Span::combine(
+                                Span::from_parse_span(left_span),
+                                Span::from_parse_span(end),
                             ),
                         }
                     }
@@ -550,10 +563,9 @@ impl ExprBinary {
                         left: Box::new(expr_lhs),
                         op: operator,
                         right: Box::new(expr_rhs),
-                        span: Span::from_bounds(
-                            LineColumn::new(input.line, input.get_column()),
-                            LineColumn::new(output.line, output.get_column()),
-                            input.extra
+                        span: Span::combine(
+                            Span::from_parse_span(input),
+                            Span::from_parse_span(output),
                         ),
                     });
                 },
@@ -590,10 +602,9 @@ impl Parser for ExprBreak {
                 preceded(multispace0, peek(tag(";")))
             ),
                 |(start, end) : (ParseSpan, ParseSpan)| ExprBreak {
-                    span: Span::from_bounds(
-                        LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1),
-                        input.extra
+                    span: Span::combine(
+                        Span::from_parse_span(start),
+                        Span::from_parse_span(end),
                     ),
                 }
             )
@@ -612,7 +623,7 @@ impl Parser for ExprCall {
             preceded(multispace0, peek(tag(";")))
         ),
             |(mut call, end)| {
-                call.span.end = LineColumn::new(end.line, end.get_column() + 1);
+                call.span.end = Span::from_parse_span(end);
                 call
             }
         )(input)
@@ -638,10 +649,9 @@ impl ExprCall {
                     ExprCall {
                         ident: id,
                         args: args,
-                        span: Span::from_bounds(
-                            rid.span.start,
-                            LineColumn::new(end.line, end.get_column() + 1),
-                            input.extra
+                        span: Span::combine(
+                            Span::from_parse_span(rid.span.start),
+                            Span::from_parse_span(end),
                         ),
                     }
                 }
@@ -663,10 +673,9 @@ impl Parser for ExprContinue {
                 preceded(multispace0, peek(tag(";")))
             ),
                 |(start, end) : (ParseSpan, ParseSpan)| ExprContinue {
-                    span: Span::from_bounds(
-                        LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1),
-                        input.extra
+                    span: Span::combine(
+                        Span::from_parse_span(start),
+                        Span::from_parse_span(end)
                     ),
                 }
             )
@@ -718,9 +727,9 @@ impl Parser for ExprIf  {
                         cond: Box::new(cond),
                         then_block: then_block,
                         else_block: else_block,
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            end.span.end, input.extra
+                        span: Span::combine(
+                            Span::from_parse_span(start),
+                            end.span
                         ),
                     }
                 }
@@ -762,10 +771,9 @@ impl Parser for ExprParen {
         )),
             |(start, expr, end)| ExprParen {
                 expr: Box::new(expr),
-                span: Span::from_bounds(
-                    LineColumn::new(start.line, start.get_column()),
-                    LineColumn::new(end.line, end.get_column() + 1),
-                    input.extra
+                span: Span::combine(
+                    Span::from_parse_span(start),
+                    Span::from_parse_span(end)
                 ),
             }
         )(input)
@@ -785,9 +793,9 @@ impl Parser for ExprReference {
             |(amp, mut_token, expr)| ExprReference {
                 mutable: mut_token.is_some(),
                 expr: Box::new(expr),
-                span: Span::from_bounds(
-                    LineColumn::new(amp.line, amp.get_column()),
-                    LineColumn::new(input.line, input.get_column()), input.extra
+                span: Span::combine(
+                    Span::from_parse_span(amp),
+                    Span::from_parse_span(expr)
                 ),
             }
         )(input)
@@ -808,10 +816,9 @@ impl Parser for ExprReturn {
             )),
                 |(start, expr, end)| ExprReturn {
                     expr: Box::new(expr),
-                    span: Span::from_bounds(
-                        LineColumn::new(start.line, start.get_column()),
-                        LineColumn::new(end.line, end.get_column() + 1),
-                        input.extra
+                    span: Span::combine(
+                        Span::from_parse_span(start),
+                        Span::from_parse_span(end)
                     ),
                 }
             )
@@ -830,10 +837,9 @@ impl Parser for ExprUnary {
         Ok((span, ExprUnary {
             op: op,
             right: Box::new(expr),
-            span: Span::from_bounds(
-                LineColumn::new(input.line, input.get_column()),
-                LineColumn::new(span.line, span.get_column()),
-                input.extra
+            span: Span::combine(
+                Span::from_parse_span(input),
+                Span::from_parse_span(span)
             ),
         }))
     }
@@ -852,13 +858,12 @@ impl Parser for ExprWhile {
                 preceded(multispace0, Block::parse)
             )),
                 |(start, cond, block)| {
-                    let rblock = block.clone();
                     ExprWhile {
                         cond: Box::new(cond),
                         block: block,
-                        span: Span::from_bounds(
-                            LineColumn::new(start.line, start.get_column()),
-                            rblock.span.end, input.extra
+                        span: Span::combine(
+                            Span::from_parse_span(start),
+                            Span::from_parse_span(block)
                         ),
                     }
                 }
@@ -878,7 +883,7 @@ impl Parser for LitInt {
                 value: n,
                 span: Span::new(digits, input.extra),
             })),
-            Err(e) => Err(Err::Error(ErrorMessage::new(digits, ErrorKind::ParseIntError(e)))),
+            Err(e) => Err(Err::Error(ParseError::new(digits, ErrorKind::ParseIntError(e)))),
         }
     }
 }
@@ -907,10 +912,10 @@ impl Parser for LitStr {
         )), |(left, s, right): (ParseSpan, ParseSpan, ParseSpan)| {
             LitStr {
                 value: s.fragment.to_string(),
-                span: Span::from_bounds(
-                    LineColumn::new(left.line, left.get_column()),
-                    LineColumn::new(right.line, right.get_column()),
-                    input.extra),
+                span: Span::combine(
+                    Span::from_parse_span(left),
+                    Span::from_parse_span(right)
+                ),
             }
         }))(input)
     }
@@ -961,7 +966,7 @@ fn block_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
         let next: IResult<ParseSpan, ParseSpan> = take(1usize)(input);
         match next {
             Ok((inpt, _)) => input = inpt,
-            Err(_) => return Err(Err::Error(ErrorMessage::new(
+            Err(_) => return Err(Err::Error(ParseError::new(
                 input, ErrorKind::Context("unterminated block comment")))),
         };
         let new: IResult<ParseSpan, ParseSpan> = tag("/*")(input);
@@ -993,7 +998,7 @@ fn block_doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
         let next: IResult<ParseSpan, ParseSpan> = take_until("\n")(input);
         match next {
             Ok((inpt, _)) => input = inpt,
-            Err(_) => return Err(Err::Error(ErrorMessage::new(
+            Err(_) => return Err(Err::Error(ParseError::new(
                 input, ErrorKind::Context("unterminated block doc-comment")))),
         };
         input = multispace0(input)?.0;
@@ -1010,3 +1015,135 @@ fn block_doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     }
 }
 
+impl<'a> ParseError {
+    pub fn new(input: ParseSpan<'a>, kind: ErrorKind) -> Self {
+        ParseError{
+            errors: vec![Verbose{
+                span: Span::new(input, input.extra),
+                kind: kind,
+            }],
+        }
+    }
+
+    pub fn append(input: ParseSpan<'a>, kind: ErrorKind, mut other: Self) -> Self {
+        other.errors.push(Verbose {
+            span: Span::new(input, input.extra),
+            kind: kind,
+        });
+        other
+    }
+
+    fn is_important(&self) -> bool {
+        match self.errors.last() {
+            Some(verbose) => {
+                match verbose.kind {
+                    ErrorKind::ParseIntError(_) => true,
+                    _ => false,
+                }
+
+            },
+            None => false,
+        }
+    }
+}
+
+/**
+ * Implementation of nom ParseErrors for my custom ParseError
+ */
+impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
+    fn from_error_kind(input: ParseSpan<'a>, kind: nom::error::ErrorKind) -> Self {
+        ParseError{
+            errors: vec![Verbose{
+                span: Span::new(input, input.extra),
+                kind: ErrorKind::Nom(kind),
+            }],
+        }
+    }
+
+    fn append(input: ParseSpan<'a>, kind: nom::error::ErrorKind, mut other: Self) -> Self {
+        other.errors.push(Verbose{
+            span: Span::new(input, input.extra),
+            kind: ErrorKind::Nom(kind),
+        });
+        other
+    }
+
+    fn from_char(input: ParseSpan<'a>, c: char) -> Self {
+        ParseError{
+            errors: vec![Verbose{
+                span: Span::new(input, input.extra),
+                kind: ErrorKind::Char(c),
+            }],
+        }
+    }
+
+    fn or(self, other: Self) -> Self {
+        let sim = self.is_important();
+        let oim = other.is_important();
+        if sim && !oim {
+            self
+        } else if !sim && oim {
+            other
+        } else if self.errors.len() > other.errors.len() {
+            self
+        } else {
+            other
+        }
+    }
+
+    fn add_context(input: ParseSpan<'a>, ctx: &'static str, mut other: Self) -> Self {
+        other.errors.push(Verbose{
+            span: Span::new(input, input.extra),
+            kind: ErrorKind::Context(ctx),
+        });
+        other
+    }
+}
+
+fn convert_error<'a>(error: ParseError, source: &str, filename: &str, lines: &Vec<u32>) -> String {
+    let result = String::new();
+    for e in error {
+        append_error_level(&mut result, Error_Level::Error);
+        match &e.kind {
+            ErrorKind::ParseIntError(e) => result.push_str(&e.to_string()),
+            ErrorKind::Nom(e) => result.push_str((*e).description()),
+            ErrorKind::Char(e) => result.push(*e),
+            ErrorKind::Context(e) => {
+                result.push_str("expected ");
+                result.push_str(e);
+                result.push_str(" got ");
+                result.push_str(source[e.span.base..e.span.base + e.span.len])
+            },
+        };
+        let line_number = match lines.binary_search(e.span.base) {
+            Ok(line) => line,
+            Err(line) => line,
+        };
+        let line_start = lines[line_number];
+        let line_end = lines[line_number];
+        let column_number = e.span.base - line_start;
+        result.push('\n');
+        append_error_location(&mut result, filename, line_number, column_number);
+        append_annotated_code(&mut result,
+                              source[line_start..line_end],
+                              line_number,
+                              column_number,
+                              "");
+    }
+    return result;
+}
+
+/**
+ * Error kind enum defines different types of parse errors.
+ */
+#[derive(Debug)]
+pub enum ErrorKind {
+    /// Failed to parse an int e.g. overflow.
+    ParseIntError(std::num::ParseIntError),
+    /// Error kind given by various nom parsers.
+    Nom(nom::error::ErrorKind),
+    /// Indicates which character was expected by the char function
+    Char(char),
+    /// Static string added by the `context` function
+    Context(&'static str),
+}

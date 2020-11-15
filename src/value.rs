@@ -1,7 +1,6 @@
 use std::fmt;
 use std::cmp;
 use crate::ast::*;
-use crate::span::Span;
 use crate::interp::{RuntimeEnv, IResult};
 
 /**
@@ -50,7 +49,6 @@ pub enum ValData {
  * Implementation of the value enum
  */
 impl Val {
-
     /**
      * Create a new empty value containing no data and no span info.
      */

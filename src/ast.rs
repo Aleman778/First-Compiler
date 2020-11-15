@@ -1,6 +1,6 @@
 use std::{fmt, cmp};
 use std::collections::HashMap;
-use crate::span::Span;
+use crate::parser::ParseSpan;
 
 /**
  * File struct is the root of the AST in a source file.
@@ -55,7 +55,7 @@ impl Item {
             Item::ForeignFn(func) => func.ident.clone(),
             Item::ForeignMod(_) => ExprIdent{
                 to_string: String::new(),
-                span: Span::new_empty()
+                span: Span::new()
             }
         }
     }
@@ -218,7 +218,7 @@ impl Ty {
      * Creates an empty type with kind `TyKind::None` and empty span.
      */
     pub fn new() -> Self {
-        Ty{kind: TyKind::None, span: Span::new_empty()}
+        Ty{kind: TyKind::None, span: Span::new()}
     }
 
     /**
@@ -605,7 +605,7 @@ impl Expr {
             Expr::Return(expr)    => expr.span,
             Expr::Unary(expr)     => expr.span,
             Expr::While(expr)     => expr.span,
-            _ => Span::new_empty(),
+            _ => Span::new(),
         }
     }
 }
@@ -787,4 +787,63 @@ pub struct LitBool {
 pub struct LitStr {
     pub value: String,
     pub span: Span,
+}
+
+/**
+ * Custom span struct only includes lines and columns from the start to
+ * the end of the span location. The location is a pointer to a source file in the source mapper.
+ */
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Span {
+    pub base: u32,
+    pub len: u16,
+    pub ctx: u16,
+}
+
+/**
+ * Implementation of span.
+ */
+impl Span {
+    /**
+     * Constructs an empty span.
+     */
+    pub fn new() -> Self {
+        Span {
+            base: 0,
+            len: 0,
+            ctx: 0,
+        }
+    }
+
+
+    /**
+     * Constructs a new span from a parse span.
+     */
+    pub fn from_parse_span(s: ParseSpan) -> Self {
+        Span {
+            base: s.offset as u32,
+            len: s.fragment.len(),
+            ctx: s.extra,
+        }
+    }
+
+    /**
+     * Returns two spans combined into one,
+     */
+    pub fn combine(s1: Span, s2: Span) {
+        assert!(s1.ctx == s2.ctx);
+        if s1.base < s2.base {
+            Span {
+                base: s1.base,
+                len: s2.base - s1.base + s2.len,
+                ctx: s1.ctx,
+            }
+        } else {
+            Span {
+                base: s1.base,
+                len: s2.base - s1.base + s2.len,
+                ctx: s1.ctx,
+            }
+        }
+    }
 }
