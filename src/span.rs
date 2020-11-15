@@ -1,13 +1,5 @@
-#![allow(dead_code)]
-
-/***************************************************************************
- * Span information for storing location data used for debugging
- ***************************************************************************/
-
-
 use std::fmt;
-use crate::sqrrlc_parser::ParseSpan;
-
+use crate::parser::ParseSpan;
 
 /**
  * Contains line and column numbers.
@@ -17,7 +9,6 @@ pub struct LineColumn {
     pub line: u32,
     pub column: usize,
 }
-
 
 /**
  * Implementation of line column struct.
@@ -33,7 +24,6 @@ impl LineColumn {
         }
     }
 }
-    
 
 /**
  * Display for lines and columns
@@ -44,7 +34,6 @@ impl fmt::Display for LineColumn {
     }
 }
 
-
 /**
  * Debug print for line column.
  */
@@ -53,7 +42,6 @@ impl fmt::Debug for LineColumn {
         write!(f, "{{ line: {}, col: {} }}", self.line, self.column)
     }
 }
-
 
 /**
  * Custom span struct only includes lines and columns from the start to
@@ -65,7 +53,6 @@ pub struct Span {
     pub end: LineColumn,
     pub loc: usize,
 }
-
 
 /**
  * Implementation of span.
@@ -88,7 +75,6 @@ impl Span {
         }
     }
 
-
     /**
      * Constructs an empty span.
      */
@@ -100,7 +86,6 @@ impl Span {
         }
     }
 
-
     /**
      * Construcst a new span from a starting and end position.
      */
@@ -111,8 +96,7 @@ impl Span {
             loc: file_id,
         }
     }
-    
-        
+
     /**
      * Get the fragment of this span.
      */
@@ -129,7 +113,7 @@ impl Span {
                     let fragment = lines[(line - 1) as usize];
                     result.push_str(&fragment[..(self.end.column-1)]);
                 } else {
-                    result.push_str(&lines[(line - 1) as usize]);    
+                    result.push_str(&lines[(line - 1) as usize]);
                 }
             }
         } else {
@@ -139,7 +123,6 @@ impl Span {
         result
     }
 
-
     /**
      * Get the offset to the start of the span.
      */
@@ -147,14 +130,12 @@ impl Span {
         self.start.column
     }
 
-
     /**
      * Check if the span includes more than one line.
      */
     pub fn is_multiline(&self) -> bool {
         self.end.line > self.start.line
     }
-
 
     /**
      * Check if the given span is an empty span,
@@ -164,7 +145,6 @@ impl Span {
         return self.start.line == 0 && self.end.line == 0 &&
             self.start.column == 0 && self.end.column == 0;
     }
-
 
     /**
      * Check if two spans are located in the exact same location.
@@ -188,7 +168,6 @@ impl Span {
     }
 }
 
-
 impl fmt::Debug for Span {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Span {{ line: {}-{}, col: {}-{} }}", self.start.line,
@@ -196,12 +175,9 @@ impl fmt::Debug for Span {
     }
 }
 
-
-
 /***************************************************************************
  * Helper methods for calculating the ending lines and columns
  ***************************************************************************/
-
 
 /**
  * Get the end line.
@@ -209,7 +185,6 @@ impl fmt::Debug for Span {
 fn get_end_line(s: &ParseSpan) -> u32 {
     s.line + (s.fragment.matches("\n").count() as u32)
 }
-
 
 /**
  * Get the end column.
