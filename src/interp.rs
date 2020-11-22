@@ -3,28 +3,20 @@ use std::collections::HashMap;
 use crate::ast::*;
 use crate::value::{Val, ValData};
 use crate::intrinsics::*;
+use crate::error::{ErrorLevel, ErrorMsg};
 
 /**
  * Results used for the interpreter
  */
-pub type IResult<T> = Result<T, ()>;
+type IResult<T> = Result<T, ErrorMsg>;
 
 /**
- * Eval trait is used to define the evaluation
- * function for each AST node.
+ * This represents the current state of the interpreter running
+ * the program described in the file field.
  */
-pub trait Eval {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val>;
-}
-
-/**
- * The environment used when interpreting a program.
- * Environment stores runtime information such as
- * the memory, call stack and item signatures etc.
- */
-pub struct RuntimeEnv {
+pub struct InterpContext<'a> {
     /// The current ast file being interpreted.
-    file: File,
+    file: &'a File,
 
     /// Stores item signatures, maps strings to items.
     signatures: HashMap<String, Item>,
@@ -34,6 +26,28 @@ pub struct RuntimeEnv {
 
     /// The stack storage, stores local variables.
     memory: Memory,
+
+    /// Pointer to the base of the current stack frame stored in memory
+    base_pointer: usize,
+}
+
+/**
+ * Scope represents either some function scope, or sub block expression.
+ * It is used to hold variables and memory addresses to locals to this scope.
+ */
+#[derive(Clone)]
+pub struct Scope {
+    /// The child scope, used for sub-block expressions.
+    child: Box<Option<Scope>>,
+
+    /// Variable memory mapper, maps strings to memory addresses.
+    symbols: HashMap<String, usize>,
+
+    /// Address to values stored in this scope, used to free memory later.
+    values: Vec<usize>,
+
+    /// The location in code where this scope was created from.
+    pub span: Span,
 }
 
 /**
@@ -64,35 +78,15 @@ struct MemEntry {
 }
 
 /**
- * The scope is used to handle the memory inside a particular scope.
- * For nested blocks this scope acts as an item in a linked list.
- * The outer block is always defined inside the call stack for
- * the environment.
+ * Implementation of the interpreter context.
  */
-#[derive(Clone)]
-pub struct Scope {
-    /// The child scope, used for sub-block expressions.
-    child: Box<Option<Scope>>,
-
-    /// Variable memory mapper, maps strings to memory addresses.
-    symbols: HashMap<String, usize>,
-
-    /// Address to values stored in this scope, used to free memory later.
-    values: Vec<usize>,
-
-    /// The location in code where this scope was created from.
-    pub span: Span,
-}
-
-/**
- * Implementation of the runtime environment.
- */
-impl RuntimeEnv {
+impl InterpContext<'a> {
     /**
-     * Constructs an empty environment.
+     * Constructs a new that will execute the provided ast file.
      */
     pub fn new() -> Self {
-        RuntimeEnv {
+        InterpContext {
+            file: None,
             signatures: HashMap::new(),
             call_stack: Vec::new(),
             memory: Memory::new(),
@@ -127,7 +121,7 @@ impl RuntimeEnv {
      * Push a function call scope on the call stack from the given id and with
      * specific argument values. The arguments are stored in the new scope.
      */
-    pub fn push_func(&mut self, func: &FnItem, values: Vec<Val>) -> IResult<()> {
+    pub fn push_function(&mut self, func: &FnItem, values: Vec<Val>) -> IResult<()> {
         let mut new_scope = Scope::new(func.span);
         let inputs = &func.decl.inputs;
         if inputs.len() == values.len() {
@@ -146,9 +140,10 @@ impl RuntimeEnv {
             Ok(())
         } else {
             let mut err = self.fatal_error(
-                "this function takes {} parameters but {} parameters were supplied",
-                inputs.len(),
-                values.len()
+                format!("this function takes {} parameters but {} parameters were supplied",
+                        inputs.len(),
+                        values.len()),
+                ""
             );
             let mut span = Span::from_bounds(
                 func.span.start, func.block.span.start, func.span.loc
@@ -160,26 +155,9 @@ impl RuntimeEnv {
     }
 
     /**
-     * Push the main function scope on the call stack.
-     */
-    pub fn load_main(&mut self) -> IResult<FnItem> {
-        match self.signatures.get("main") {
-            Some(item) => {
-                match item {
-                    Item::Fn(func) => {
-                        Ok(func.clone())
-                    },
-                    _ => Err(self.fatal_error("main exists but is not a valid function")),
-                }
-            }
-            None => Err(self.fatal_error("there is no main function")),
-        }
-    }
-
-    /**
      * Pops and removes the the latest function call scope of the call stack
      */
-    pub fn pop_func(&mut self) -> IResult<()> {
+    pub fn pop_function(&mut self) -> IResult<()> {
         match self.call_stack.pop() {
             Some(scope) => {
                 for addr in scope.addresses() {
@@ -187,7 +165,7 @@ impl RuntimeEnv {
                 }
                 Ok(())
             },
-            None => Err(self.fatal_error("cannot pop an empty call stack")),
+            None => Err(self.fatal_error("cannot pop an empty call stack", "")),
         }
     }
 
@@ -208,12 +186,12 @@ impl RuntimeEnv {
         match self.signatures.get(&ident.to_string) {
             Some(item) => Ok(item.clone()), // FIXME(alexander): this is presumably really inefficient!
             None => {
-                let mut err = self.fatal_error(
+                self.fatal_error(
                     ident.span,
-                    format!("cannot find function `{}` in this scope", ident.to_string)
+                    format!("cannot find function `{}` in this scope", ident.to_string),
+                    ""
                 );
-                err.span_label(ident.span, "not found in this scope");
-                Err(err)
+                Err(())
             }
         }
     }
@@ -323,12 +301,31 @@ impl RuntimeEnv {
         write_str(f, "\n}", indent)
     }
 
-    pub fn fatal_error(&self, span: Span, ) {
-
+    /**
+     * Creates a fatal error, convenience function.
+     */
+    pub fn fatal_error(&self, span: Span, message: &str, label: &str) -> ErrorMsg {
+        ErrorMsg::from_span(
+            ErrorLevel::Fatal,
+            self.file.lines,
+            span,
+            &self.file.filename,
+            &self.file.source,
+            message,
+            label
+        );
     }
 
-    pub fn mismatched_types_fatal_error() {
-
+    pub fn mismatched_types_fatal_error(&self, span: Span, expected: TyKind, found: Ty) -> ErrorMsg {
+        ErrorMsg::from_span(
+            ErrorLevel::Fatal,
+            self.file.lines,
+            span,
+            &self.file.filename,
+            &self.file.source,
+            format!("expected `{}`, found `{}`", expected, found),
+            ""
+        )
     }
 }
 
@@ -360,9 +357,9 @@ pub fn write_str(buf: &mut fmt::Formatter<'_>, mut s: &str, indent: usize) -> fm
 }
 
 /**
- * Formatting tracing of the runtime environment.
+ * Formatting tracing of the context.
  */
-impl<'a> fmt::Debug for RuntimeEnv {
+impl<'a> fmt::Debug for InterpContext {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write_str(f, "Trace:", 0)?;
         self.fmt_signatures(f, 4)?;
@@ -399,7 +396,7 @@ impl Memory {
     /**
      * Allocates value data and returns the memory address to that data.
      */
-    pub fn alloc(&mut self, env: &mut RuntimeEnv, val: &Val, mutable: bool) -> IResult<usize> {
+    pub fn alloc(&mut self, ic: &mut InterpContext, val: &Val, mutable: bool) -> IResult<usize> {
         if self.next < self.data.capacity() {
             self.data[self.next] = MemEntry {
                 mutable,
@@ -410,7 +407,7 @@ impl Memory {
             self.find_next();
             Ok(addr)
         } else {
-            self.fatal_error(env, val.span, "out of memory error");
+            self.fatal_error(ic, val.span, "out of memory error");
             Err(())
         }
     }
@@ -418,16 +415,16 @@ impl Memory {
     /**
      * Loads a value from memory at specific address.
      */
-    pub fn load(&self, env: &mut RuntimeEnv, addr: usize) -> IResult<ValData> {
+    pub fn load(&self, ic: &mut InterpContext, addr: usize) -> IResult<ValData> {
         if addr < self.data.capacity() {
             let entry = &self.data[addr];
             if entry.data.has_data() {
                 Ok(entry.data.clone())
             } else {
-                Err(self.fatal_error(env, "reading unallocated memory"))
+                Err(self.fatal_error(ic, "reading unallocated memory"))
             }
         } else {
-            Err(self.fatal_error(env, "reading out of bounds"))
+            Err(self.fatal_error(ic, "reading out of bounds"))
         }
     }
 
@@ -435,7 +432,7 @@ impl Memory {
      * Stores a new value at a specific memory address.
      * Note: has to be an already allocated address.
      */
-    pub fn store(&mut self, env: &mut RuntimeEnv, addr: usize, val: &Val) -> IResult<()> {
+    pub fn store(&mut self, ic: &mut InterpContext, addr: usize, val: &Val) -> IResult<()> {
         if addr < self.data.capacity() {
             let entry = &mut self.data[addr];
             if entry.reserved || entry.data.has_data() {
@@ -443,20 +440,20 @@ impl Memory {
                     entry.data = val.data.clone();
                     Ok(())
                 } else {
-                    Err(self.fatal_error(env, val.span, "cannot assign twice to immutable variable"))
+                    Err(self.fatal_error(ic, val.span, "cannot assign twice to immutable variable"))
                 }
             } else {
-                Err(self.fatal_error(env, val.span, "cannot update unallocated memory"))
+                Err(self.fatal_error(ic, val.span, "cannot update unallocated memory"))
             }
         } else {
-            Err(self.fatal_error(env, "writing out of bounds"))
+            Err(self.fatal_error(ic, "writing out of bounds"))
         }
     }
 
     /**
      * Frees the memory at the specific memory address.
      */
-    pub fn free(&mut self, env: &mut RuntimeEnv, addr: usize) -> IResult<()> {
+    pub fn free(&mut self, ic: &mut InterpContext, addr: usize) -> IResult<()> {
         if addr < self.data.capacity() {
             if self.is_alloc(addr) {
                 let entry = &mut self.data[addr];
@@ -467,10 +464,10 @@ impl Memory {
                 }
                 Ok(())
             } else {
-                Err(self.fatal_error(env, "cannot free unallocated memory"))
+                Err(self.fatal_error(ic, "cannot free unallocated memory"))
             }
         } else {
-            Err(self.fatal_error(env, "cannot free out of bounds"))
+            Err(self.fatal_error(ic, "cannot free out of bounds"))
         }
     }
 
@@ -579,21 +576,21 @@ impl Scope {
      * Returns the address of a given variable identifier.
      * If backtracking is enabled than this will also search child scopes.
      */
-    pub fn address_of(&self, id: &ExprIdent, env: &mut RuntimeEnv, backtrack: bool) -> IResult<usize> {
+    pub fn address_of(&self, id: &ExprIdent, ic: &mut InterpContext, backtrack: bool) -> IResult<usize> {
         match &*self.child {
             Some(child) => {
-                match child.address_of(id, env, backtrack) {
+                match child.address_of(id, ic, backtrack) {
                     Ok(addr) => Ok(addr),
                     Err(e) => {
                         if backtrack {
-                            self.find_mem(id, env)
+                            self.find_mem(id, ic)
                         } else {
                             Err(e)
                         }
                     }
                 }
             },
-            None => self.find_mem(id, env),
+            None => self.find_mem(id, ic),
         }
     }
 
@@ -647,11 +644,11 @@ impl Scope {
     /**
      * Pops the outer most scope. Returns the popped scope.
      */
-    pub fn pop(&mut self, env: &mut RuntimeEnv) -> IResult<Scope> {
+    pub fn pop(&mut self, ic: &mut InterpContext) -> IResult<Scope> {
         let (opt, _) = self.pop_impl();
         match opt {
             Some(scope) => Ok(scope.clone()),
-            None => Err(self.fatal_error(env, "cannot pop the function scope")),
+            None => Err(self.fatal_error(ic, "cannot pop the function scope")),
         }
     }
 
@@ -677,10 +674,10 @@ impl Scope {
      * Find an address in the memory using the provided identifier.
      * Returns memory error if not found in this scope.
      */
-    fn find_mem(&self, ident: &ExprIdent, env: &mut RuntimeEnv) -> IResult<usize> {
+    fn find_mem(&self, ident: &ExprIdent, ic: &mut InterpContext) -> IResult<usize> {
         match self.symbols.get(&ident.to_string) {
             Some(addr) => Ok(*addr),
-            None => Err(self.fatal_error(env, ident.span, "not found in this scope")),
+            None => Err(self.fatal_error(ic, ident.span, "not found in this scope")),
         }
     }
 
@@ -754,272 +751,276 @@ impl Scope {
 /**
  * Evaluates a source file and executes the main method.
  */
-impl File {
-    pub fn eval<'a>(&self, env: &mut RuntimeEnv) {
-        for item in &self.items {
-            match item {
-                Item::Fn(_) => env.store_item(item.clone()),
-                Item::ForeignMod(module) => module.eval(env),
-                _ => { },
-            }
-        }
-        match env.load_main() {
-            Ok(func) => {
-                if let Err(diagnostic) = func.eval(Vec::new(), env) {
-                    env.env.emit(&diagnostic);
-                    return;
-                }
-            },
-            Err(diagnostic) => env.env.emit(&diagnostic),
-        };
+pub fn interp_file<'a>(ic: &mut InterpContext<'a>, file: &'a File) {
+    ic.file = Some(file);
+    for item in &file.items {
+        interp_item(ic, &item);
     }
 }
 
 /**
- * Implementation of item.
+ * Interpret an item, this does not call the function items, use
+ * interp call to actually execute the fuction.
  */
-impl Item {
-    /**
-     * Evaluates a function item.
-     */
-    pub fn eval_func<'a>(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
-        match self {
-            Item::Fn(func) => func.eval(values, env),
-            Item::ForeignFn(func) => func.eval(values, env),
-            _ => {
-                let ident = self.get_ident();
-                let mut err = self.fatal_error(
-                    env.env,
-                    ident.span,
-                    "cannot find function `{}` in this scope",
-                    ident.to_string
-                );
-                err.span_label(ident.span, "not found in this scope");
-                Err(err)
-            },
+pub fn interp_item<'a>(ic: &mut InterpContext<'a>, item: &Item) {
+    match item {
+        Item::Fn(_) => ic.store_item(item.clone()),
+        Item::ForeignMod(module) => {
+            for foreign_item in &module.items {
+                interp_item(ic, foreign_item);
+            }
         }
+        _ => { },
     }
 }
+
+/**
+ * Interpret the entry point, i.e. the `main` function is executed.
+ */
+pub fn interp_entry_point<'a>(ic: &mut InterpContext<'a>) -> IResult<i32> {
+    let main_function = match ic.signatures.get("main") {
+        Some(item) => {
+            match item {
+                Item::Fn(func) => func,
+                _ => return Err(ic.fatal_error("main exists but is not a valid function", "")),
+            }
+        }
+        None => return Err(ic.fatal_error("there is no main function", "")),
+    };
+
+    ic.push_function(&main_function, vec![])?;
+    let val = interp_block(ic, main_function.block)?;
+    ic.pop_function()?;
+    match val.data {
+        ValData::Continue |
+        ValData::Break => Err(ic.fatal_error(ic.ic, val.span, "cannot break outside loop")),
+        _ => Ok(val),
+    }
+
+}
+
+// impl Item {
+//     pub fn eval_func<'a>(&self, values: Vec<Val>, ic: &mut InterpContext) -> IResult<Val> {
+//         match self {
+//             Item::Fn(func) => func.eval(values, ic),
+//             Item::ForeignFn(func) => func.eval(values, ic),
+//             _ => {
+//                 let ident = self.get_ident();
+//                 let mut err = self.fatal_error(
+//                     ic.ic,
+//                     ident.span,
+//                     "cannot find function `{}` in this scope",
+//                     ident.to_string
+//                 );
+//                 err.span_label(ident.span, "not found in this scope");
+//                 Err(err)
+//             },
+//         }
+//     }
+// }
 
 /**
  * Evaluates a function item.
  */
-
-impl FnItem {
-    fn eval<'a>(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
-        env.push_func(&self, values)?;
-        let val = self.block.eval(env)?;
-        env.pop_func()?;
-        match val.data {
-            ValData::Continue |
-            ValData::Break => Err(self.fatal_error(env.env, val.span, "cannot break outside loop")),
-            _ => Ok(val),
-        }
-    }
-}
+// impl FnItem {
+    // fn eval<'a>(&self, values: Vec<Val>, ic: &mut InterpContext) -> IResult<Val> {
+        // ic.push_function(&self, values)?;
+        // let val = self.block.eval(ic)?;
+        // ic.pop_function()?;
+        // match val.data {
+            // ValData::Continue |
+            // ValData::Break => Err(ic.fatal_error(ic.ic, val.span, "cannot break outside loop")),
+            // _ => Ok(val),
+        // }
+    // }
+// }
 
 /**
- * Evaluates a foreign function item.
+ * Interpret foreign function call given array of argument values.
  */
-impl ForeignFnItem {
-    fn eval(&self, values: Vec<Val>, env: &mut RuntimeEnv) -> IResult<Val> {
-        match self.ident.to_string.as_str() {
-            "trace" => {
-                trace(env);
-            },
-            "print_int" => {
-                match values[0].get_i32() {
-                    Some(arg) => print_int(arg),
-                    None => return Err(mismatched_types_fatal_error(
-                        env.env, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
-                };
-            },
-            "print_bool" => {
-                match values[0].get_bool() {
-                    Some(arg) => print_bool(arg),
-                    None => return Err(mismatched_types_fatal_error(
-                        env.env, values[0].span, TyKind::Bool, values[0].get_type())),
-                };
-            },
-            "assert" => {
-                match values[0].get_bool() {
-                    Some(arg) => assert(arg),
-                    None => return Err(mismatched_types_self.fatal_error(
-                        env.env, values[0].span, TyKind::Bool, values[0].get_type())),
-                };
-            },
-            "assert_eq_int" => {
-                match values[0].get_i32() {
-                    Some(arg0) => match values[1].get_i32() {
-                        Some(arg1) => assert_eq_int(arg0, arg1),
-                        None => return Err(mismatched_types_fatal_error(
-                            env.env, values[1].span, TyKind::Int(IntTy::I32), values[1].get_type()))
-                    }
-                    None => return Err(mismatched_types_self.fatal_error(
-                        env.env, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
-                };
-            },
-            "assert_eq_bool" => {
-                match values[0].get_bool() {
-                    Some(arg0) => match values[1].get_bool() {
-                        Some(arg1) => assert_eq_bool(arg0, arg1),
-                        None => return Err(mismatched_types_fatal_error(
-                            env.env, values[1].span, TyKind::Bool, values[1].get_type()))
-                    }
-                    None => return Err(mismatched_types_fatal_error(
-                        env.env, values[0].span, TyKind::Bool, values[0].get_type()))
-                };
-            },
-            _ => return Err(self.fatal_error(env.env, "is not a debug function")),
-        };
-        Ok(Val::new())
-    }
-}
-
-impl ForeignModItem {
-    fn eval(&self, env: &mut RuntimeEnv) {
-        for item in &self.items {
-            env.store_item(Item::ForeignFn(item.clone()));
-        }
-    }
+fn interp_intrinsics<'a>(ic: &mut InterpContext<'a>, item: &ForeignFnItem, values: Vec<Val>) -> IResult<Val> {
+    match item.ident.to_string.as_str() {
+        "trace" => {
+            trace(ic);
+        },
+        "print_int" => {
+            match values[0].get_i32() {
+                Some(arg) => print_int(arg),
+                None => return Err(ic.mismatched_types_fatal_error(
+                    ic.ic, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
+            };
+        },
+        "print_bool" => {
+            match values[0].get_bool() {
+                Some(arg) => print_bool(arg),
+                None => return Err(ic.mismatched_types_fatal_error(
+                    ic.ic, values[0].span, TyKind::Bool, values[0].get_type())),
+            };
+        },
+        "assert" => {
+            match values[0].get_bool() {
+                Some(arg) => assert(arg),
+                None => return Err(ic.mismatched_types_self.fatal_error(
+                    ic.ic, values[0].span, TyKind::Bool, values[0].get_type())),
+            };
+        },
+        "assert_eq_int" => {
+            match values[0].get_i32() {
+                Some(arg0) => match values[1].get_i32() {
+                    Some(arg1) => assert_eq_int(arg0, arg1),
+                    None => return Err(ic.mismatched_types_fatal_error(
+                        ic.ic, values[1].span, TyKind::Int(IntTy::I32), values[1].get_type()))
+                }
+                None => return Err(ic.mismatched_types_self.fatal_error(
+                    ic.ic, values[0].span, TyKind::Int(IntTy::I32), values[0].get_type()))
+            };
+        },
+        "assert_eq_bool" => {
+            match values[0].get_bool() {
+                Some(arg0) => match values[1].get_bool() {
+                    Some(arg1) => assert_eq_bool(arg0, arg1),
+                    None => return Err(ic.mismatched_types_fatal_error(
+                        ic.ic, values[1].span, TyKind::Bool, values[1].get_type()))
+                }
+                None => return Err(ic.mismatched_types_fatal_error(
+                    ic.ic, values[0].span, TyKind::Bool, values[0].get_type()))
+            };
+        },
+        _ => return Err(ic.fatal_error(Span::new(), format!("`{}` is not a valid intrinsic function",
+                                                            item.ident.to_string()))),
+    };
+    Ok(Val::new())
 }
 
 /**
- * Evaluates the block expression with the given runtime env
+ * Interprets the block expression with the given interp context
  * and pushes the new block if the given new_scope is true.
  */
-impl Eval for Block {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let mut ret_val = Val::new();
-        for stmt in &self.stmts {
-            let val = stmt.eval(env)?;
-            match val.data {
-                ValData::None => continue,
-                _ => ret_val = val,
-            };
-            break;
-        }
-        Ok(ret_val)
+fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block) -> IResult<Val> {
+    let mut ret_val = Val::new();
+    for stmt in &block.stmts {
+        let val = interp_stmt(ic, stmt)?;
+        match val.data {
+            ValData::None => continue,
+            _ => ret_val = val,
+        };
+        break;
     }
+    Ok(ret_val)
 }
 
 /**
  * Evaluates an statement
  */
-impl Eval for Stmt {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        match self {
-            Stmt::Local(local) => local.eval(env),
-            Stmt::Item(_item) => Err(self.fatal_error(env.env, "items in functions are not supported by the interpreter")),
-            Stmt::Semi(expr) => {
-                let ret_val = expr.eval(env)?;
-                // Only perform explicit returns e.g. return expression.
-                Ok(match expr {
-                    Expr::Return(_) => ret_val,
-                    Expr::Continue(_) => ret_val,
-                    Expr::Break(_) => ret_val,
-                    _ => Val::new(),
-                })
-            },
-            Stmt::Expr(expr) => expr.eval(env),
+fn interp_stmt<'a>(ic: &mut InterpContext<'a>, stmt: &Stmt) -> IResult<Val> {
+    match stmt {
+        Stmt::Local(local) => {
+            let val = match &*local.init {
+                Some(init) => {
+                    let val = init.eval(ic)?;
+                    let val_ty = val.get_type();
+                    if val_ty != local.ty {
+                        return Err(ic.mismatched_types_fatal_error(ic.ic, val.span, local.ty, val_ty));
+                    }
+                    val
+                }
+                None => Val::new(),
+            };
+            ic.store_var(&local.ident, local.mutable, &val)?;
+            Ok(Val::new())
         }
+        
+        Stmt::Semi(expr) => {
+            let ret_val = expr.eval(ic)?;
+            // Only perform explicit returns e.g. return expression.
+            Ok(match expr {
+                Expr::Return(_) => ret_val,
+                Expr::Continue(_) => ret_val,
+                Expr::Break(_) => ret_val,
+                _ => Val::new(),
+            })
+        },
+        
+        Stmt::Expr(expr) => interp_expr(ic),
+        
+        Stmt::Item(_item) => Err(ic.fatal_error(stmt.span, "items in functions are not supported by the interpreter")),
     }
 }
 
 /**
  * Evaluates a local variable assignment.
  */
-impl Eval for Local {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let val = match &*self.init {
-            Some(init) => {
-                let val = init.eval(env)?;
-                let val_ty = val.get_type();
-                if val_ty != self.ty {
-                    return Err(mismatched_types_fatal_error(env.env, val.span, self.ty, val_ty));
-                }
-                val
-            }
-            None => Val::new(),
-        };
-        env.store_var(&self.ident, self.mutable, &val)?;
-        Ok(Val::new())
-    }
+fn interp_local_stmt<'a>(ic: &mut InterpContext<'a>, local: &Local) -> IResult<Val> {
+    
 }
 
 /**
  * Implementation of binary operator for evaluating binary expressions.
  */
-impl BinOp {
-    pub fn eval<'a>(&self, env: &mut RuntimeEnv, left: Val, right: Val, combined_span: Span) -> IResult<Val> {
-        let left_type = left.get_type();
-        let right_type = right.get_type();
-        let (span, result) = match self {
-            BinOp::Add{span} => (span, left.add(right, combined_span)),
-            BinOp::Sub{span} => (span, left.sub(right, combined_span)),
-            BinOp::Div{span} => (span, left.div(right, combined_span)),
-            BinOp::Mul{span} => (span, left.mul(right, combined_span)),
-            BinOp::Pow{span} => (span, left.pow(right, combined_span)),
-            BinOp::Mod{span} => (span, left.r#mod(right, combined_span)),
-            BinOp::And{span} => (span, left.and(right, combined_span)),
-            BinOp::Or{span}  => (span, left.or(right, combined_span)),
-            BinOp::Eq{span}  => (span, left.eq(right, combined_span)),
-            BinOp::Ne{span}  => (span, left.ne(right, combined_span)),
-            BinOp::Lt{span}  => (span, left.lt(right, combined_span)),
-            BinOp::Le{span}  => (span, left.le(right, combined_span)),
-            BinOp::Gt{span}  => (span, left.gt(right, combined_span)),
-            BinOp::Ge{span}  => (span, left.ge(right, combined_span)),
-        };
+pub fn interp_binary_expr<'a>(
+    ic: &mut InterpContext<'a>,
+    op: BinOp,
+    left: Val,
+    right: Val,
+    combined_span: Span
+) -> IResult<Val> {
+    
+    let left_type = left.get_type();
+    let right_type = right.get_type();
+    let (span, result) = match op {
+        BinOp::Add{span} => (span, left.add  (right, combined_span)),
+        BinOp::Sub{span} => (span, left.sub  (right, combined_span)),
+        BinOp::Div{span} => (span, left.div  (right, combined_span)),
+        BinOp::Mul{span} => (span, left.mul  (right, combined_span)),
+        BinOp::Pow{span} => (span, left.pow  (right, combined_span)),
+        BinOp::Mod{span} => (span, left.r#mod(right, combined_span)),
+        BinOp::And{span} => (span, left.and  (right, combined_span)),
+        BinOp::Or {span} => (span, left.or   (right, combined_span)),
+        BinOp::Eq {span} => (span, left.eq   (right, combined_span)),
+        BinOp::Ne {span} => (span, left.ne   (right, combined_span)),
+        BinOp::Lt {span} => (span, left.lt   (right, combined_span)),
+        BinOp::Le {span} => (span, left.le   (right, combined_span)),
+        BinOp::Gt {span} => (span, left.gt   (right, combined_span)),
+        BinOp::Ge {span} => (span, left.ge   (right, combined_span)),
+    };
 
-        match result {
-            Some(val) => Ok(val),
-            None => {
-                let mut err = self.fatal_error(
-                    env.env,
-                    *span,
-                    "cannot {} `{}` to `{}`",
-                    self,
-                    left_type,
-                    right_type
-                );
-                err.span_label(
-                    *span,
-                    &format!("no implementation for `{} {} {}`", left_type, self.token(), right_type)
-                );
-                Err(err)
-            },
-        }
+    match result {
+        Some(val) => Ok(val),
+        None => {
+            Err(ic.fatal_error(
+                *span,
+                &format!("cannot {} `{}` to `{}`", op, left_type, right_type),
+                &format!("no implementation for `{} {} {}`", left_type, op.token(), right_type)))
+        },
     }
 }
 
 /**
  * Implementation of unary oprator for evaluating unary expressions.
  */
-impl UnOp {
-    pub fn eval<'a>(&self, env: &mut RuntimeEnv, right: Val, combined_span: Span) -> IResult<Val> {
-        let right_type = right.get_type();
-        let (span, result) = match self {
-            UnOp::Neg{span}   => (span, right.neg(combined_span)),
-            UnOp::Not{span}   => (span, right.not(combined_span)),
-            UnOp::Deref{span} => (span, right.deref(combined_span, env)?),
-        };
+pub fn interp_unary_expr<'a>(ic: &mut InterpContext, val: Val, combined_span: Span) -> IResult<Val> {
+    let val_type = val.get_type();
+    let (span, result) = match self {
+        UnOp::Neg{span}   => (span, val.neg(combined_span)),
+        UnOp::Not{span}   => (span, val.not(combined_span)),
+        UnOp::Deref{span} => (span, val.deref(combined_span, ic)?),
+    };
 
-        match result {
-            Some(val) => Ok(val),
-            None => {
-                let mut err = self.fatal_error(
-                    env.env,
-                    *span,
-                    "type `{}` cannot be {}",
-                    right_type,
-                    self,
-                );
-                err.span_label(
-                    *span,
-                    &format!("no implementation for `{}{}`", self.token(), right_type)
-                );
-                Err(err)
-            }
+    match result {
+        Some(val) => Ok(val),
+        None => {
+            let mut err = self.fatal_error(
+                ic.ic,
+                *span,
+                "type `{}` cannot be {}",
+                val_type,
+                self,
+            );
+            err.span_label(
+                *span,
+                &format!("no implementation for `{}{}`", self.token(), val_type)
+            );
+            Err(err)
         }
     }
 }
@@ -1027,47 +1028,45 @@ impl UnOp {
 /**
  * Evaluate an expression.
  */
-impl Eval for Expr {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        match self {
-            Expr::Assign(expr)    => expr.eval(env),
-            Expr::Binary(expr)    => expr.eval(env),
-            Expr::Block(expr)     => expr.eval(env),
-            Expr::Break(expr)     => expr.eval(env),
-            Expr::Call(expr)      => expr.eval(env),
-            Expr::Continue(expr)  => expr.eval(env),
-            Expr::Ident(expr)     => expr.eval(env),
-            Expr::If(expr)        => expr.eval(env),
-            Expr::Lit(expr)       => expr.eval(env),
-            Expr::Paren(expr)     => expr.eval(env),
-            Expr::Reference(expr) => expr.eval(env),
-            Expr::Return(expr)    => expr.eval(env),
-            Expr::Unary(expr)     => expr.eval(env),
-            Expr::While(expr)     => expr.eval(env),
+
+    fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<Val> {
+        match expr {
+            Expr::Assign    (e) => e.eval(ic),
+            Expr::Binary    (e) => e.eval(ic),
+            Expr::Block     (e) => e.eval(ic),
+            Expr::Break     (e) => e.eval(ic),
+            Expr::Call      (e) => e.eval(ic),
+            Expr::Continue  (e) => e.eval(ic),
+            Expr::Ident     (e) => e.eval(ic),
+            Expr::If        (e) => e.eval(ic),
+            Expr::Lit       (e) => e.eval(ic),
+            Expr::Paren     (e) => e.eval(ic),
+            Expr::Reference (e) => e.eval(ic),
+            Expr::Return    (e) => e.eval(ic),
+            Expr::Unary     (e) => e.eval(ic),
+            Expr::While     (e) => e.eval(ic),
         }
     }
-}
 
-impl Expr {
     /**
      * Evaluates the memory address of a given expression.
      */
-    fn eval_addr(&self, env: &mut RuntimeEnv) -> IResult<usize> {
+    fn interp_addr_of_expr(&self, ic: &mut InterpContext) -> IResult<usize> {
         match self {
             Expr::Ident(ident) => {
-                env.address_of(&ident, true)
+                ic.address_of(&ident, true)
             },
             Expr::Unary(unary) => {
                 match unary.op {
                     UnOp::Deref{span: _} => {
-                        let addr = (*unary.right).eval_addr(env)?;
-                        match env.load_val(addr)? {
+                        let addr = (*unary.right).eval_addr(ic)?;
+                        match ic.load_val(addr)? {
                             ValData::Ref(r) => {
                                 if r.mutable {
                                     Ok(r.addr)
                                 } else {
                                     let mut err = self.fatal_error(
-                                        env.env,
+                                        ic.ic,
                                         self.get_span(),
                                         "cannot assign to variable using immutable reference");
                                     err.span_label(r.ref_ty.span, "help: consider changing this to be a mutable reference");
@@ -1075,13 +1074,13 @@ impl Expr {
                                     Err(err)
                                 }
                             }
-                            _ => Err(self.fatal_error(env.env, "invalid expression")),
+                            _ => Err(self.fatal_error(ic.ic, "invalid expression")),
                         }
                     },
-                    _ => Err(self.fatal_error(env.env, "invalid expression")),
+                    _ => Err(self.fatal_error(ic.ic, "invalid expression")),
                 }
             },
-            _ => Err(self.fatal_error(env.env, "invalid expression")),
+            _ => Err(self.fatal_error(ic.ic, "invalid expression")),
         }
     }
 }
@@ -1090,8 +1089,8 @@ impl Expr {
  * Evaluates an assignment expresson
  */
 impl Eval for ExprAssign {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let addr = match (*self.left).eval_addr(env) {
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        let addr = match (*self.left).eval_addr(ic) {
             Ok(addr) => addr,
             Err(mut err) => {
                 if err.message[0].text == "invalid expression" {
@@ -1102,8 +1101,8 @@ impl Eval for ExprAssign {
                 return Err(err);
             }
         };
-        let val = (*self.right).eval(env)?;
-        env.assign_var(addr, &val)?;
+        let val = (*self.right).eval(ic)?;
+        ic.assign_var(addr, &val)?;
         Ok(Val::new())
     }
 }
@@ -1112,10 +1111,10 @@ impl Eval for ExprAssign {
  * Evaluates a binary expression.
  */
 impl Eval for ExprBinary {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let left = self.left.eval(env)?;
-        let right = self.right.eval(env)?;
-        self.op.eval(env, left, right, self.span)
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        let left = self.left.eval(ic)?;
+        let right = self.right.eval(ic)?;
+        self.op.eval(ic, left, right, self.span)
     }
 }
 
@@ -1123,10 +1122,10 @@ impl Eval for ExprBinary {
  * Evaluates a block expression.
  */
 impl Eval for ExprBlock {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        env.push_block(Scope::new(self.span))?;
-        let ret_val = self.block.eval(env)?;
-        env.pop_block()?;
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        ic.push_block(Scope::new(self.span))?;
+        let ret_val = self.block.eval(ic)?;
+        ic.pop_block()?;
         Ok(ret_val)
     }
 }
@@ -1135,7 +1134,7 @@ impl Eval for ExprBlock {
  * Evaluates break expression.
  */
 impl Eval for ExprBreak {
-    fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval(&self, _ic: &mut InterpContext) -> IResult<Val> {
         Ok(Val::from_data(ValData::Break, None, self.span))
     }
 }
@@ -1144,14 +1143,14 @@ impl Eval for ExprBreak {
  * Evaluates a function call.
  */
 impl Eval for ExprCall {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
         let mut values = Vec::new();
         for arg in &self.args {
-            let val = arg.eval(env)?;
+            let val = arg.eval(ic)?;
             values.push(val);
         }
-        let item = env.load_item(&self.ident)?;
-        match item.eval_func(values, env) {
+        let item = ic.load_item(&self.ident)?;
+        match item.eval_func(values, ic) {
             Ok(val) => Ok(val),
             Err(mut err) => {
                 let len = match item {
@@ -1173,7 +1172,7 @@ impl Eval for ExprCall {
  * Evaluates continue expression.
  */
 impl Eval for ExprContinue {
-    fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval(&self, _ic: &mut InterpContext) -> IResult<Val> {
         Ok(Val::from_data(ValData::Continue, None, self.span))
     }
 }
@@ -1182,8 +1181,8 @@ impl Eval for ExprContinue {
  * Evaluates to value by loading from memory using this identifier.
  */
 impl Eval for ExprIdent {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        env.load_var(&self)
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        ic.load_var(&self)
     }
 }
 
@@ -1191,28 +1190,28 @@ impl Eval for ExprIdent {
  * Evaluates an if statement.
  */
 impl Eval for ExprIf {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let value = (*self.cond).eval(env)?;
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        let value = (*self.cond).eval(ic)?;
         match value.get_bool() {
             Some(cond) => {
                 if cond {
-                    env.push_block(Scope::new(self.span))?;
-                    let result = self.then_block.eval(env);
-                    env.pop_block()?;
+                    ic.push_block(Scope::new(self.span))?;
+                    let result = self.then_block.eval(ic);
+                    ic.pop_block()?;
                     result
                 } else {
                     match self.else_block.clone() {
                         Some(block) => {
-                            env.push_block(Scope::new(self.span))?;
-                            let result = block.eval(env);
-                            env.pop_block()?;
+                            ic.push_block(Scope::new(self.span))?;
+                            let result = block.eval(ic);
+                            ic.pop_block()?;
                             result
                         },
                         None => Ok(Val::new()),
                     }
                 }
             },
-            None => Err(mismatched_types_fatal_error(env.env, value.span, TyKind::Bool, value.get_type())),
+            None => Err(ic.mismatched_types_fatal_error(ic.ic, value.span, TyKind::Bool, value.get_type())),
         }
     }
 }
@@ -1221,8 +1220,8 @@ impl Eval for ExprIf {
  * Evaluates a literal expression.
  */
 impl Eval for ExprLit {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        self.lit.eval(env)
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        self.lit.eval(ic)
     }
 }
 
@@ -1230,8 +1229,8 @@ impl Eval for ExprLit {
  * Evaluates a parenthesized expression.
  */
 impl Eval for ExprParen {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        (*self.expr).eval(env)
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        (*self.expr).eval(ic)
     }
 }
 
@@ -1239,8 +1238,8 @@ impl Eval for ExprParen {
  * Evaluates a reference expression.
  */
 impl Eval for ExprReference {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let val = (*self.expr).eval(env)?;
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        let val = (*self.expr).eval(ic)?;
         if !val.has_data() {
             Ok(val)
         } else {
@@ -1252,13 +1251,13 @@ impl Eval for ExprReference {
                         to_string: name,
                         span: val.span,
                     };
-                    let addr = env.address_of(&ident, true)?;
+                    let addr = ic.address_of(&ident, true)?;
                     let new_val = Val::from_ref(addr, ref_ty, self.mutable, self.span);
                     Ok(new_val)
                 },
                 None => {
                     // Reference to a new variable without identifier.
-                    let addr = env.store_val(&val)?;
+                    let addr = ic.store_val(&val)?;
                     let new_val = Val::from_ref(addr, ref_ty, self.mutable, self.span);
                     Ok(new_val)
                 },
@@ -1271,9 +1270,9 @@ impl Eval for ExprReference {
  * Evaluates a return statement.
  */
 impl Eval for ExprReturn {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
         match &*self.expr {
-            Some(expr) => expr.eval(env),
+            Some(expr) => expr.eval(ic),
             None => Ok(Val::from_data(ValData::Void, None, self.span)),
         }
     }
@@ -1283,9 +1282,9 @@ impl Eval for ExprReturn {
  * Evaluates a unary expression.
  */
 impl Eval for ExprUnary {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
-        let right = self.right.eval(env)?;
-        self.op.eval(env, right, self.span)
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
+        let right = self.right.eval(ic)?;
+        self.op.eval(ic, right, self.span)
     }
 }
 
@@ -1293,15 +1292,15 @@ impl Eval for ExprUnary {
  * Evaluates a while loop.
  */
 impl Eval for ExprWhile {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
         loop {
-            let value = (*self.cond).eval(env)?;
+            let value = (*self.cond).eval(ic)?;
             match value.get_bool() {
                 Some(cond) => {
                     if cond {
-                        env.push_block(Scope::new(self.span))?;
-                        let val = self.block.eval(env)?;
-                        env.pop_block()?;
+                        ic.push_block(Scope::new(self.span))?;
+                        let val = self.block.eval(ic)?;
+                        ic.pop_block()?;
                         match val.data {
                             ValData::Continue => continue,
                             ValData::Break => break,
@@ -1313,7 +1312,7 @@ impl Eval for ExprWhile {
                     }
                 },
                 None => {
-                    return Err(mismatched_types_fatal_error(env.env, value.span, TyKind::Bool, value.get_type()));
+                    return Err(ic.mismatched_types_fatal_error(ic.ic, value.span, TyKind::Bool, value.get_type()));
                 },
             };
         }
@@ -1325,12 +1324,12 @@ impl Eval for ExprWhile {
  * Evaluates a literal.
  */
 impl Eval for Lit {
-    fn eval(&self, env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval(&self, ic: &mut InterpContext) -> IResult<Val> {
         match self {
-            Lit::Int(literal) => literal.eval(env),
-            Lit::Bool(literal) => literal.eval(env),
+            Lit::Int(literal) => literal.eval(ic),
+            Lit::Bool(literal) => literal.eval(ic),
             Lit::Str(literal)  => Err(self.fatal_error(
-                env, literal.span, "unsupported literal type by the interpreter")),
+                ic, literal.span, "unsupported literal type by the interpreter")),
         }
     }
 }
@@ -1339,7 +1338,7 @@ impl Eval for Lit {
  * Evaluates an int literal.
  */
 impl Eval for LitInt {
-    fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval(&self, _ic: &mut InterpContext) -> IResult<Val> {
         Ok(Val::from_i32(self.value, self.span))
     }
 }
@@ -1348,7 +1347,7 @@ impl Eval for LitInt {
  * Evaluates a boolean literal.
  */
 impl Eval for LitBool {
-    fn eval(&self, _env: &mut RuntimeEnv) -> IResult<Val> {
+    fn eval(&self, _ic: &mut InterpContext) -> IResult<Val> {
         Ok(Val::from_bool(self.value, self.span))
     }
 }

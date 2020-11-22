@@ -1,3 +1,6 @@
+use crate::ast::Span;
+use std::io::Write;
+use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 pub enum ErrorLevel {
     Fatal,
@@ -9,123 +12,156 @@ pub enum ErrorLevel {
     Cancelled
 }
 
-pub fn append_error_level(buf: &mut String, level: ErrorLevel) {
-    match level {
-        Error_Level::Fatal => {
-            buf.push_str(escape_color_serious);
-            buf.push_str("fatal");
-        }
-        Error_Level::Error => {
-            buf.push_str(escape_color_bright_red);
-            buf.push_str("error");
-        }
-        Error_Level::Warn => {
-            buf.push_str(escape_color_bright_yellow);
-            buf.push_str("warn");
-        }   
-        Error_Level::Info => {
-            buf.push_str(escape_color_bright_blue);
-            buf.push_str("info");
-        }
-        Error_Level::Note => {
-            buf.push_str(escape_color_bright_blue);
-            buf.push_str("note");
-        }
-        Error_Level::Help => {
-            buf.push_str(escape_color_bright_blue);
-            buf.push_str("help");
-        }
-        Error_Level::Cancelled => return
-    }
-    buf.push_str(escape_color_reset);
-    buf.push(' ');
+pub struct ErrorMsg {
+    level: ErrorLevel,
+    line_number: u32,
+    column_number: u32,
+    path: String,
+    msg: String,
+    source: String,
+    label: String,
+    next: Option<Box<ErrorMsg>>
 }
 
-pub fn append_error_location(buf: &mut String, filepath: &str, line_number: usize, column_number: usize) {
-    buf.push_str(filepath);
-    buf.push(':');
-    buf.push_str(line_number);
-    buf.push(':');
-    buf.push_str(column_number);
-    buf.push(':');
-    buf.push(' ');
+impl ErrorMsg {
+    pub fn from_span(
+        level: ErrorLevel,
+        lines: &Vec<u32>,
+        span: Span,
+        filename: &str,
+        source: &str,
+        msg: &str,
+        label: &str,
+    ) -> Self {
+
+        let line_number = match lines.binary_search(&span.base) {
+            Ok(line) => line,
+            Err(line) => line,
+        };
+        let line_start = lines[line_number];
+        let line_end = lines[line_number];
+        let column_number = span.base - line_start;
+
+        ErrorMsg {
+            level: level,
+            line_number: line_number as u32,
+            column_number: column_number as u32,
+            path: filename.to_string(),
+            msg: msg.to_string(),
+            source: source[line_start as usize..line_end as usize].to_string(),
+            label: label.to_string(),
+            next: None,
+        }
+    }
+
+    pub fn print(&self) -> std::io::Result<()> {
+        let mut stderr = StandardStream::stderr(ColorChoice::Always);
+        let mut color = ColorSpec::new();
+
+        // Print Location
+        writeln!(&mut stderr, "{}:{}:{}: ", self.path, self.line_number, self.column_number)?;
+
+        // Print error level
+        color.set_intense(true);
+        match self.level {
+            ErrorLevel::Fatal => {
+                color.set_fg(Some(Color::White));
+                color.set_bg(Some(Color::Red));
+                stderr.set_color(&color);
+                writeln!(&mut stderr, "fatal:")?;
+            }
+            ErrorLevel::Error => {
+                color.set_bg(Some(Color::Red));
+                stderr.set_color(&color);
+                writeln!(&mut stderr, "error:")?;
+            }
+            ErrorLevel::Warn => {
+                color.set_bg(Some(Color::Red));
+                stderr.set_color(&color);
+                writeln!(&mut stderr, "error:")?;
+            }   
+            ErrorLevel::Info => {
+                color.set_bg(Some(Color::Blue));
+                stderr.set_color(&color);
+                writeln!(&mut stderr, "info:")?;
+            }
+            ErrorLevel::Note => {
+                color.set_bg(Some(Color::Blue));
+                stderr.set_color(&color);
+                writeln!(&mut stderr, "note:")?;
+            }
+            ErrorLevel::Help => {
+                color.set_bg(Some(Color::Blue));
+                stderr.set_color(&color);
+                writeln!(&mut stderr, "help:")?;
+            }
+            ErrorLevel::Cancelled => return Ok(())
+        }
+        color.clear();
+        stderr.set_color(&color);
+        writeln!(&mut stderr, " ");
+
+        color.set_intense(true);
+        stderr.set_color(&color);
+        writeln!(&mut stderr, "{}", self.msg);
+            
+        color.clear();
+        stderr.set_color(&color);
+
+        let d = (((self.line_number as f32).log10()).floor() as u32) + 1;
+        for i in 0..=d {
+            writeln!(&mut stderr, " ");
+        }
+        
+        color.set_bg(Some(Color::Blue));
+        stderr.set_color(&color);
+        write!(&mut stderr, "|");
+        
+        color.clear();
+        stderr.set_color(&color);
+        write!(&mut stderr, "\n");
+
+        write!(&mut stderr, "{}", self.line_number);
+        write!(&mut stderr, " ");
+        
+        color.set_bg(Some(Color::Blue));
+        stderr.set_color(&color);
+        write!(&mut stderr, "|");
+        
+        color.clear();
+        stderr.set_color(&color);
+        write!(&mut stderr, " ");
+        write!(&mut stderr, "{}", self.source);
+        if self.source.len() == 0 || self.source.as_bytes()[self.source.len() - 1] != b'\n' {
+            write!(&mut stderr, "\n");
+        }
+
+        for i in 0..=d {
+            write!(&mut stderr, " ");
+        }
+        
+        color.set_bg(Some(Color::Blue));
+        stderr.set_color(&color);
+        write!(&mut stderr, "|");
+        
+        color.clear();
+        stderr.set_color(&color);
+        for i in 0..=self.column_number {
+            write!(&mut stderr, " ");
+        }
+        
+        color.set_bg(Some(Color::Red));
+        stderr.set_color(&color);
+        write!(&mut stderr, "^");
+        for i in 0..=self.label.len() {
+            writeln!(&mut stderr, "~");
+        }
+        write!(&mut stderr, " ");
+        write!(&mut stderr, "{}", self.label);
+        
+        color.clear();
+        stderr.set_color(&color);
+        write!(&mut stderr, "\n");
+        Ok(())
+    }
 }
-
-pub fn append_annotated_code(
-    buf: &mut String,
-    source: &str,
-    line_number: usize,
-    column_number: isize,
-    annotation_length: isize,
-    label: &str
-) {
-    let d = line_number.log10().floor() + 1;
-    for i in 0..=d {
-        buf.push_str(' ');
-    }
-    buf.push_str(escape_color_blue);
-    buf.push('|');
-    buf.push_str(escape_color_reset);
-    buf.push('\n');
-
-    buf.push_str(line_number);
-    buf.push(' ');
-    buf.push_str(escape_color_blue);
-    buf.push('|');
-    buf.push_str(escape_color_reset);
-    buf.push(' ');
-    buf.push_str(source);
-    if source.length == 0 || source[source.length - 1] != '\n' {
-        buf.push('\n');
-    }
-
-    for i in 0..=d {
-        buf.push(' ');
-    }
-    buf.push_str(escape_color_blue);
-    buf.push('|');
-    buf.push_str(escape_color_reset);
-    for i in 0..=column_number {
-        buf.push(' ');
-    }
-    buf.push_str(escape_color_red);
-    buf.push('^');
-    for i in 0..=annotation_length {
-        buf.push('~');
-    }
-    buf.push(' ');
-    buf.push_str(label);
-    buf.push_str(escape_color_reset);
-    buf.push('\n');
-}
-
-static escape_color_reset:          &'static str = "\033[0m";
-static escape_color_bold:           &'static str = "\033[1m";
-static escape_color_faint:          &'static str = "\033[2m";
-static escape_color_italic:         &'static str = "\033[3m";
-static escape_color_underline:      &'static str = "\033[4m";
-static escape_color_black:          &'static str = "\033[30m";
-static escape_color_red:            &'static str = "\033[31m";
-static escape_color_green:          &'static str = "\033[32m";
-static escape_color_yellow:         &'static str = "\033[33m";
-static escape_color_blue:           &'static str = "\033[34m";
-static escape_color_magenta:        &'static str = "\033[35m";
-static escape_color_cyan:           &'static str = "\033[36m";
-static escape_color_white:          &'static str = "\033[37m";
-static escape_color_bg_black:       &'static str = "\033[40m";
-static escape_color_bg_red:         &'static str = "\033[41m";
-static escape_color_bg_green:       &'static str = "\033[42m";
-static escape_color_bg_yellow:      &'static str = "\033[43m";
-static escape_color_bg_blue:        &'static str = "\033[44m";
-static escape_color_bg_magenta:     &'static str = "\033[45m";
-static escape_color_bg_cyan:        &'static str = "\033[46m";
-static escape_color_bg_white:       &'static str = "\033[47m";
-static escape_color_bright_black:   &'static str = "\033[30;1m";
-static escape_color_bright_red:     &'static str = "\033[31;1m";
-static escape_color_bright_green:   &'static str = "\033[32;1m";
-static escape_color_bright_yellow:  &'static str = "\033[33;1m";
-static escape_color_bright_blue:    &'static str = "\033[34;1m";
-static escape_color_bright_magenta: &'static str = "\033[35;1m";
-static escape_color_bright_cyan:    &'static str = "\033[36;1m";
-static escape_color_bright_white:   &'static str = "\033[37;1m";
-static escape_color_serious:        &'static str = "\033[37;1m\033[41m";

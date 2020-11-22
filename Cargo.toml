@@ -9,11 +9,8 @@ publish = false
 
 [dependencies]
 nom = "5"
+termcolor = "1"
 nom_locate = "1"
 simple_logger = "1.4.0"
 clap = "2.33.0"
 log = "0.4"
-
-# [dev-dependencies]
-# unit_test = { path = "./tools/unit_test" }
-# compile_test = { path = "./tools/compile_test" }

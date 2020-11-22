@@ -14,7 +14,7 @@ use clap::{App, Arg, AppSettings};
 use crate::ast::File;
 use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
-// use crate::interp::RuntimeEnv;
+use crate::interp::{InterpContext, interp_file, interp_entry_point};
 // use crate::typeck::{TypeChecker, TyCtxt};
 
 struct Config {
@@ -136,9 +136,13 @@ fn run_compiler(config: Config) {
     let ast = ast_file.unwrap();
     let intrinsic_mod = get_intrinsic_ast_items();
     ast.items.push(intrinsic_mod);
-    
-    
-    // ast.extend(parse_stdlib_basic(sess.source_map()));
+
+    if config.interpret {
+        let mut ic = InterpContext::new();
+        interp_file(&mut ic, &ast);
+        interp_entry_point();
+    }
+
     // let mut sym_table = gen_sym_table(&ast);
     // let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);
     // ast.check_type(&mut ty_ctxt);

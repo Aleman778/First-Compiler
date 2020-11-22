@@ -1,5 +1,5 @@
 use crate::ast::*;
-use crate::interp::RuntimeEnv;
+use crate::interp::InterpContext;
 
 pub fn get_intrinsic_ast_items() -> Item {
     Item::ForeignMod(
@@ -7,29 +7,29 @@ pub fn get_intrinsic_ast_items() -> Item {
             abi: Some(
                 LitStr {
                     value: "intrinsic".to_string(),
-                    span: Span::new_empty(),
+                    span: Span::new(),
                 },
             ),
             items: vec![
                 ForeignFnItem {
                     ident: ExprIdent {
                         to_string: "trace".to_string(),
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
                     decl: FnDecl {
                         inputs: vec![],
                         output: Ty {
                             kind: TyKind::None,
-                            span: Span::new_empty(),
+                            span: Span::new(),
                         },
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
-                    span: Span::new_empty(),
+                    span: Span::new(),
                 },
                 ForeignFnItem {
                     ident: ExprIdent {
                         to_string: "print_int".to_string(),
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
                     decl: FnDecl {
                         inputs: vec![
@@ -37,29 +37,29 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 mutable: false,
                                 ident: ExprIdent {
                                     to_string: "val".to_string(),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
                                 ty: Ty {
                                     kind: TyKind::Int(
                                         IntTy::I32,
                                     ),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
-                                span: Span::new_empty(),
+                                span: Span::new(),
                             },
                         ],
                         output: Ty {
                             kind: TyKind::None,
-                            span: Span::new_empty(),
+                            span: Span::new(),
                         },
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
-                    span: Span::new_empty(),
+                    span: Span::new(),
                 },
                 ForeignFnItem {
                     ident: ExprIdent {
                         to_string: "print_bool".to_string(),
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
                     decl: FnDecl {
                         inputs: vec![
@@ -67,27 +67,27 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 mutable: false,
                                 ident: ExprIdent {
                                     to_string: "val".to_string(),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
                                 ty: Ty {
                                     kind: TyKind::Bool,
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
-                                span: Span::new_empty(),
+                                span: Span::new(),
                             },
                         ],
                         output: Ty {
                             kind: TyKind::None,
-                            span: Span::new_empty(),
+                            span: Span::new(),
                         },
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
-                    span: Span::new_empty(),
+                    span: Span::new(),
                 },
                 ForeignFnItem {
                     ident: ExprIdent {
                         to_string: "assert".to_string(),
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
                     decl: FnDecl {
                         inputs: vec![
@@ -95,27 +95,27 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 mutable: false,
                                 ident: ExprIdent {
                                     to_string: "val".to_string(),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
                                 ty: Ty {
                                     kind: TyKind::Bool,
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
-                                span: Span::new_empty(),
+                                span: Span::new(),
                             },
                         ],
                         output: Ty {
                             kind: TyKind::None,
-                            span: Span::new_empty(),
+                            span: Span::new(),
                         },
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
-                    span: Span::new_empty(),
+                    span: Span::new(),
                 },
                 ForeignFnItem {
                     ident: ExprIdent {
                         to_string: "assert_eq_int".to_string(),
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
                     decl: FnDecl {
                         inputs: vec![
@@ -123,43 +123,43 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 mutable: false,
                                 ident: ExprIdent {
                                     to_string: "left".to_string(),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
                                 ty: Ty {
                                     kind: TyKind::Int(
                                         IntTy::I32,
                                     ),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
-                                span: Span::new_empty(),
+                                span: Span::new(),
                             },
                             Argument {
                                 mutable: false,
                                 ident: ExprIdent {
                                     to_string: "right".to_string(),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
                                 ty: Ty {
                                     kind: TyKind::Int(
                                         IntTy::I32,
                                     ),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
-                                span: Span::new_empty(),
+                                span: Span::new(),
                             },
                         ],
                         output: Ty {
                             kind: TyKind::None,
-                            span: Span::new_empty(),
+                            span: Span::new(),
                         },
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
-                    span: Span::new_empty(),
+                    span: Span::new(),
                 },
                 ForeignFnItem {
                     ident: ExprIdent {
                         to_string: "assert_eq_bool".to_string(),
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
                     decl: FnDecl {
                         inputs: vec![
@@ -167,37 +167,37 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 mutable: false,
                                 ident: ExprIdent {
                                     to_string: "left".to_string(),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
                                 ty: Ty {
                                     kind: TyKind::Bool,
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
-                                span: Span::new_empty(),
+                                span: Span::new(),
                             },
                             Argument {
                                 mutable: false,
                                 ident: ExprIdent {
                                     to_string: "right".to_string(),
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
                                 ty: Ty {
                                     kind: TyKind::Bool,
-                                    span: Span::new_empty(),
+                                    span: Span::new(),
                                 },
-                                span: Span::new_empty(),
+                                span: Span::new(),
                             },
                         ],
                         output: Ty {
                             kind: TyKind::None,
-                            span: Span::new_empty(),
+                            span: Span::new(),
                         },
-                        span: Span::new_empty(),
+                        span: Span::new(),
                     },
-                    span: Span::new_empty(),
+                    span: Span::new(),
                 },
             ],
-            span: Span::new_empty(),
+            span: Span::new(),
         },
     )
 }
@@ -205,8 +205,8 @@ pub fn get_intrinsic_ast_items() -> Item {
 /**
  * Prints the environment
  */
-pub fn trace(env: &mut RuntimeEnv) {
-    println!("{:#?}", env);
+pub fn trace(ic: &mut InterpContext) {
+    println!("{:#?}", ic);
 }
 
 /**

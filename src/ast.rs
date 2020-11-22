@@ -596,7 +596,9 @@ impl Expr {
             Expr::Assign(expr)    => expr.span,
             Expr::Binary(expr)    => expr.span,
             Expr::Block(expr)     => expr.span,
+            Expr::Break(expr)     => expr.span,
             Expr::Call(expr)      => expr.span,
+            Expr::Continue(expr)  => expr.span,
             Expr::Ident(expr)     => expr.span,
             Expr::If(expr)        => expr.span,
             Expr::Lit(expr)       => expr.span,
@@ -822,7 +824,7 @@ impl Span {
     pub fn from_parse_span(s: ParseSpan) -> Self {
         Span {
             base: s.offset as u32,
-            len: s.fragment.len(),
+            len: s.fragment.len() as u16,
             ctx: s.extra,
         }
     }
@@ -830,18 +832,18 @@ impl Span {
     /**
      * Returns two spans combined into one,
      */
-    pub fn combine(s1: Span, s2: Span) {
+    pub fn combine(s1: Span, s2: Span) -> Self {
         assert!(s1.ctx == s2.ctx);
         if s1.base < s2.base {
             Span {
                 base: s1.base,
-                len: s2.base - s1.base + s2.len,
+                len: (s2.base - s1.base) as u16 + s2.len,
                 ctx: s1.ctx,
             }
         } else {
             Span {
-                base: s1.base,
-                len: s2.base - s1.base + s2.len,
+                base: s2.base,
+                len: (s1.base - s2.base) as u16 + s1.len,
                 ctx: s1.ctx,
             }
         }

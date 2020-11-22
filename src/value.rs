@@ -1,7 +1,7 @@
 use std::fmt;
 use std::cmp;
 use crate::ast::*;
-use crate::interp::{RuntimeEnv, IResult};
+use crate::interp::{InterpContext, IResult};
 
 /**
  * The value returned from evaluating an AST Node.
@@ -53,7 +53,7 @@ impl Val {
      * Create a new empty value containing no data and no span info.
      */
     pub fn new() -> Self {
-        Val{data: ValData::None, ident: None, span: Span::new_empty()}
+        Val{data: ValData::None, ident: None, span: Span::new()}
     }
 
     /**
@@ -285,9 +285,9 @@ impl Val {
     /**
      * Perform the dereferencing unary operation.
      */
-    pub fn deref(self, span: Span, env: &mut RuntimeEnv) -> IResult<Option<Self>> {
+    pub fn deref(self, span: Span, ic: &mut InterpContext) -> IResult<Option<Self>> {
         match self.data {
-            ValData::Ref(r) => Ok(Some(r.deref(span, env)?)),
+            ValData::Ref(r) => Ok(Some(r.deref(span, ic)?)),
             _ => Ok(None),
         }
     }
@@ -813,21 +813,23 @@ impl RefVal {
     /**
      * Dereferencing unary operator.
      */
-    pub fn deref(self, span: Span, env: &mut RuntimeEnv) -> IResult<Val> {
-        match env.load_val(self.addr) {
+    pub fn deref(self, span: Span, ic: &mut InterpContext) -> IResult<Val> {
+        match ic.load_val(self.addr) {
             Ok(val_data) => {
                 let val = Val::from_data(val_data, None, span);
                 let val_ty = val.get_type();
                 if val_ty != self.ref_ty {
-                    let mut err = env.fatal_error(span, "mismatched type reference");
-                    err.span_label(span, &format!("referenced type is {}, but it was actually {}", self.ref_ty, val_ty));
+                    let mut err = ic.fatal_error(
+                        span,
+                        "mismatched type reference",
+                        &format!("referenced type is {}, but it was actually {}", self.ref_ty, val_ty));
                     Err(err)
                 } else {
                     Ok(val)
                 }
             },
             Err(mut err) => {
-                err.primary_span(span);
+                err.span = span;
                 Err(err)
             },
         }
