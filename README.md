@@ -1,12 +1,15 @@
-# The Sqrrl Programming Language
-
 ![logo](https://raw.githubusercontent.com/Aleman778/sqrrl-lang/dev/0.1.0/logo.png)
 
-Let's make a compiler in Rust called Sqrrl. This is my project in the course Compiler construction and formal languages \(D7050E\) at LuleÃ¥ University of Technology.
+# The Sqrrl Programming Language
+
+Let's make a compiler in Rust called Sqrrl. This is my project in the course Compiler construction and formal languages \(D7050E\) at Luleå University of Technology.
 
 ## Course Aim \(from the course contents\)
 
-## Draft outline
+Fundamental theories about computation and different models of computation. Construction of compilers. Lexical analysis, syntax analysis, and translation into abstract syntax. Regular expressions and grammars, context-free languages and grammars, lexer and parser generators. Identifier handling and symbol table organization. Type-checking, logical inference systems. Intermediate representations and transformations for different languages. Code optimization and register allocation. Machine code generation for common architectures.
+In the course you will learn and develop your skills through hands on implementation work building your own complier from scratch. In this way theoretical aspects such as formal grammars, Structural Operational Semantics (SOS), and type rule formalisations becomes tangible. We will even touch upon memory safety and how guarantees can be achieved through static (compile time) borrow checking. Compiler backend (code optimization etc.) will be discussed in context of LLVM, which you will optionally interface as a library for code generation.
+
+## Draft outline \(from the course contents\)
 
 ### W1 The big picture, parsing, semantic analysis, code generation.
 
@@ -99,29 +102,6 @@ Practical assignment
 ### W8 Home Exam
 
 You will get the home exam to work on the last weeks of the course. This may imply further theoretical exercises and experiments on your compiler.
-
-### Examination
-
-You will each be scheduled 30 minutes to present Your home exam to Jingsen and me, based on which Your grade will be determined. Schudule will be agreed on later using Doodle.
-
-## Files
-
-In this repo you find some examples using `nom` to parse expressions.
-
-- main.rs
-
-Simple recursive decent parsing.
-
-- main*
-
-Shows different approaches to introduce location information and custom error types.
-
-- examples/aron.rs
-- examples/climb.rs
-
-Shows two approches to do precedence climbing.
-
----
 
 ## Your parser
 
