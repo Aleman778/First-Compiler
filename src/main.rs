@@ -3,7 +3,6 @@ extern crate clap;
 mod error;
 mod ast;
 mod parser;
-mod value;
 mod interp;
 mod intrinsics;
 
@@ -14,7 +13,7 @@ use clap::{App, Arg, AppSettings};
 use crate::ast::File;
 use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
-use crate::interp::{InterpContext, interp_file, interp_entry_point};
+use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 // use crate::typeck::{TypeChecker, TyCtxt};
 
 struct Config {
@@ -133,14 +132,14 @@ fn run_compiler(config: Config) {
         return;
     }
 
-    let ast = ast_file.unwrap();
+    let mut ast = ast_file.unwrap();
     let intrinsic_mod = get_intrinsic_ast_items();
     ast.items.push(intrinsic_mod);
 
     if config.interpret {
-        let mut ic = InterpContext::new();
+        let mut ic = create_interp_context();
         interp_file(&mut ic, &ast);
-        interp_entry_point();
+        interp_entry_point(&mut ic);
     }
 
     // let mut sym_table = gen_sym_table(&ast);

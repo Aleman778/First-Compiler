@@ -54,7 +54,6 @@ pub trait Parser: Sized {
  */
 pub fn parse_file(source: String, filename: String) -> File {
     // Calculate the byte position of each line in the source.
-    let end_pos = source.len() as u32;
     let mut curr_pos = 0;
     let mut lines = vec![0];
     let mut remaining: &str = &source;
@@ -77,6 +76,7 @@ pub fn parse_file(source: String, filename: String) -> File {
     let input = ParseSpan::new_extra(&source, 0); // TODO(alexander): temporary 0 should be some file id maybe.
     let mut output = match multispace_comment0(input) {
         Ok((out, _)) => out,
+        _ => input,
     };
     let mut items = Vec::new();
     while output.fragment.len() > 0 {
@@ -85,6 +85,7 @@ pub fn parse_file(source: String, filename: String) -> File {
                 items.push(item);
                 output = match multispace_comment0(input) {
                     Ok((out, _)) => out,
+                    _ => output,
                 };
             },
             Err(Err::Error(error)) => {
@@ -130,13 +131,14 @@ impl Parser for FnItem {
                 Block::parse,
             )),
                 |(start, id, decl, block)| {
+                    let block_span = block.span;
                     FnItem {
                         ident: id,
                         decl: decl,
                         block: block,
                         span: Span::combine(
                             Span::from_parse_span(start),
-                            block.span,
+                            block_span,
                         ),
                     }
                 }
@@ -178,7 +180,7 @@ impl Parser for ForeignModItem {
                 preceded(multispace0, tag("extern")),
                 opt(preceded(multispace0, LitStr::parse)),
                 preceded(multispace0, tag("{")),
-                many0(preceded(multispace_comment0, ForeignFnItem::parse)),
+                many0(preceded(multispace_comment0, Item::parse)),
                 preceded(multispace0, tag("}")),
             )),
                 |(start, abi, _, items, end)| {
@@ -371,8 +373,7 @@ impl Parser for Ty {
 impl TyKind {
     fn parse(input: ParseSpan) -> IResult<ParseSpan, (Self, Span)> {
         alt((
-            map(preceded(multispace0, tag("i32")), |s| (TyKind::Int(IntTy::I32), Span::from_parse_span(s))),
-            map(preceded(multispace0, tag("i64")), |s| (TyKind::Int(IntTy::I64), Span::from_parse_span(s))),
+            map(preceded(multispace0, tag("i32")), |s| (TyKind::Int, Span::from_parse_span(s))),
             map(preceded(multispace0, tag("bool")), |s| (TyKind::Bool, Span::from_parse_span(s))),
             map(preceded(multispace0, TypeRef::parse), |r| (TyKind::Ref(r.0), r.1)),
         ))(input)
@@ -409,20 +410,20 @@ impl Parser for BinOp {
         context(
             "operator",
             preceded(multispace0, alt((
-                map(tag("+"),  |s| BinOp::Add{span: Span::from_parse_span(s)}),
-                map(tag("-"),  |s| BinOp::Sub{span: Span::from_parse_span(s)}),
-                map(tag("**"), |s| BinOp::Pow{span: Span::from_parse_span(s)}),
-                map(tag("*"),  |s| BinOp::Mul{span: Span::from_parse_span(s)}),
-                map(tag("/"),  |s| BinOp::Div{span: Span::from_parse_span(s)}),
-                map(tag("%"),  |s| BinOp::Mod{span: Span::from_parse_span(s)}),
-                map(tag("&&"), |s| BinOp::And{span: Span::from_parse_span(s)}),
-                map(tag("||"), |s| BinOp::Or {span: Span::from_parse_span(s)}),
-                map(tag("=="), |s| BinOp::Eq {span: Span::from_parse_span(s)}),
-                map(tag("!="), |s| BinOp::Ne {span: Span::from_parse_span(s)}),
-                map(tag("<="), |s| BinOp::Le {span: Span::from_parse_span(s)}),
-                map(tag(">="), |s| BinOp::Ge {span: Span::from_parse_span(s)}),
-                map(tag("<"),  |s| BinOp::Lt {span: Span::from_parse_span(s)}),
-                map(tag(">"),  |s| BinOp::Gt {span: Span::from_parse_span(s)}),
+                map(tag("+"),  |_| BinOp::Add),
+                map(tag("-"),  |_| BinOp::Sub),
+                map(tag("**"), |_| BinOp::Pow),
+                map(tag("*"),  |_| BinOp::Mul),
+                map(tag("/"),  |_| BinOp::Div),
+                map(tag("%"),  |_| BinOp::Mod),
+                map(tag("&&"), |_| BinOp::And),
+                map(tag("||"), |_| BinOp::Or),
+                map(tag("=="), |_| BinOp::Eq),
+                map(tag("!="), |_| BinOp::Ne),
+                map(tag("<="), |_| BinOp::Le),
+                map(tag(">="), |_| BinOp::Ge),
+                map(tag("<"),  |_| BinOp::Lt),
+                map(tag(">"),  |_| BinOp::Gt),
             )))
         )(input)
     }
@@ -433,9 +434,9 @@ impl Parser for UnOp {
         context(
             "operator",
             preceded(multispace0, alt((
-                map(tag("-"),  |s| UnOp::Neg  {span: Span::from_parse_span(s)}),
-                map(tag("!"),  |s| UnOp::Not  {span: Span::from_parse_span(s)}),
-                map(tag("*"),  |s| UnOp::Deref{span: Span::from_parse_span(s)}),
+                map(tag("-"),  |s| UnOp::Neg),
+                map(tag("!"),  |s| UnOp::Not),
+                map(tag("*"),  |s| UnOp::Deref),
             )))
         )(input)
     }
@@ -786,13 +787,13 @@ impl Parser for ExprReference {
             opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
             preceded(multispace0, Expr::parse_atom),
         )),
-            |(amp, mut_token, expr)| ExprReference {
-                mutable: mut_token.is_some(),
-                expr: Box::new(expr),
-                span: Span::combine(
-                    Span::from_parse_span(amp),
-                    expr.get_span(),
-                ),
+            |(amp, mut_token, expr)| {
+                let expr_span = expr.get_span();
+                ExprReference {
+                    mutable: mut_token.is_some(),
+                    expr: Box::new(expr),
+                    span: Span::combine(Span::from_parse_span(amp), expr_span),
+                }
             }
         )(input)
     }
@@ -832,7 +833,7 @@ impl Parser for ExprUnary {
         let (span, expr) = ExprBinary::climb(span, op.get_prec().0)?;
         Ok((span, ExprUnary {
             op: op,
-            right: Box::new(expr),
+            expr: Box::new(expr),
             span: Span::combine(Span::from_parse_span(input), Span::from_parse_span(span)),
         }))
     }
@@ -851,10 +852,11 @@ impl Parser for ExprWhile {
                 preceded(multispace0, Block::parse)
             )),
                 |(start, cond, block)| {
+                    let block_span = block.span;
                     ExprWhile {
                         cond: Box::new(cond),
                         block: block,
-                        span: Span::combine(Span::from_parse_span(start), block.span),
+                        span: Span::combine(Span::from_parse_span(start), block_span),
                     }
                 }
             )
@@ -1094,16 +1096,15 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
  * Prints the given errors from the parser using the source, current filename and line number byte offsets.
  */
 fn parse_error<'a>(error: ParseError, source: &str, filename: &str, lines: &Vec<u32>) {
-    let result = String::new();
     for err in error.errors {
         let error_msg = match &err.kind {
-            ErrorKind::ParseIntError(e) => &e.to_string(),
-            ErrorKind::Nom(e) => (*e).description(),
-            ErrorKind::Char(e) => &format!("{}", *e),
+            ErrorKind::ParseIntError(e) => e.to_string(),
+            ErrorKind::Nom(e) => (*e).description().to_string(),
+            ErrorKind::Char(e) => format!("{}", *e),
             ErrorKind::Context(e) => {
                 let beg = err.span.base as usize;
                 let end = err.span.base as usize + err.span.len as usize;
-                &format!("expected `{}`, found `{}`", e, &source[beg..end])
+                format!("expected `{}`, found `{}`", e, &source[beg..end])
             },
         };
         ErrorMsg::from_span(ErrorLevel::Error, lines, err.span, filename, source, &error_msg, "").print();

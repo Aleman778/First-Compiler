@@ -18,6 +18,24 @@ pub struct File {
     pub imported_files: HashMap<String, Box<File>>,
 }
 
+impl File {
+    pub fn get_location(&self, span: Span) -> (usize, usize, usize, usize) {
+        let line_number = match self.lines.binary_search(&span.base) {
+            Ok(line) => line,
+            Err(line) => line,
+        };
+        let end_byte_pos = span.base + span.len as u32;
+        let end_line_number = match self.lines.binary_search(&end_byte_pos) {
+            Ok(line) => line + 1,
+            Err(line) => line + 1,
+        };
+        let line_start = self.lines[line_number] as usize;
+        let line_end = self.lines[end_line_number] as usize;
+        let column_number = span.base as usize - line_start;
+        (line_number, column_number, line_start, line_end)
+    }
+}
+
 /**
  * Items enum contains all types of items that appear in a file.
  * This currently only supports item functions.
@@ -58,7 +76,7 @@ impl Item {
                 span: Span::new()
             }
         }
-    }
+    }  
 }
 
 /**
@@ -91,7 +109,7 @@ pub struct ForeignFnItem {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForeignModItem {
     pub abi: Option<LitStr>,
-    pub items: Vec<ForeignFnItem>,
+    pub items: Vec<Item>,
     pub span: Span,
 }
 
@@ -173,31 +191,11 @@ pub struct Ty {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub enum TyKind {
-    /// Different kinds of integer types e.g. `i32`.
-    Int(IntTy),
-
-    /// Boolean type defined by `bool`.
+    Int,
     Bool,
-
-    /// Type reference is defined by `&` and another type.
     Ref(TypeRef),
-
-    /// Infer means that no specific type was given and should infer to something.
     Infer,
-
-    /// This type has no type, used for functions that does not return anything.
     None,
-}
-
-/**
- * The different kinds of integer types.
- * The number defines the number of bits.
- * Default inferred type is `i32`.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub enum IntTy {
-    I32,
-    I64,
 }
 
 /**
@@ -224,27 +222,9 @@ impl Ty {
     /**
      * Returns true if type is i32.
      */
-    pub fn is_i32(&self) -> bool {
+    pub fn is_int(&self) -> bool {
         match &self.kind {
-            TyKind::Int(int) =>
-                match int {
-                    IntTy::I32 => true,
-                    _ => false,
-                },
-            _ => false,
-        }
-    }
-
-    /**
-     * Returns true if type is i64.
-     */
-    pub fn is_i64(&self) -> bool {
-        match &self.kind {
-            TyKind::Int(int) =>
-                match int {
-                    IntTy::I64 => true,
-                    _ => false,
-                },
+            TyKind::Int => true,
             _ => false,
         }
     }
@@ -305,23 +285,11 @@ impl fmt::Display for Ty {
 impl fmt::Display for TyKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TyKind::Int(int) => write!(f, "{}", int),
+            TyKind::Int => write!(f, "i32"),
             TyKind::Bool => write!(f, "bool"),
             TyKind::Ref(r) => write!(f, "{}", r),
             TyKind::Infer => write!(f, "infer"),
             TyKind::None => write!(f, "()")
-        }
-    }
-}
-
-/**
- * Display formatting for integer types.
- */
-impl fmt::Display for IntTy {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            IntTy::I32 => f.write_str("i32"),
-            IntTy::I64 => f.write_str("i64"),
         }
     }
 }
@@ -363,56 +331,34 @@ impl cmp::PartialEq for TypeRef {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum BinOp {
     /// The `+` operator (addition)
-    Add{span: Span},
+    Add,
     /// The `-` binary operator (subtraction)
-    Sub{span: Span},
+    Sub,
     /// The `*` operator (multiplication)
-    Mul{span: Span},
+    Mul,
     /// The `/` operator (division)
-    Div{span: Span},
+    Div,
     /// The `**` operator (power)
-    Pow{span: Span},
+    Pow,
     /// The `%` operator (modulus)
-    Mod{span: Span},
+    Mod,
     /// The `&&` operator (logical and)
-    And{span: Span},
+    And,
     /// The `||` operator (logical or)
-    Or{span: Span},
+    Or,
     /// The `=` operator (equality)
-    Eq{span: Span},
+    Eq,
     /// The `!=` operator (not equal to)
-    Ne{span: Span},
+    Ne,
     /// The `<` operator (less than)
-    Lt{span: Span},
+    Lt,
     /// The `<=` operator (less than or equal to)
-    Le{span: Span},
+    Le,
     /// The `>` operator (greater than)
-    Gt{span: Span},
+    Gt,
     /// The `>=` operator (greater than or equal to)
-    Ge{span: Span},
+    Ge,
 }
-
-/**
- * Unary operators e.g. `-`, `!`, `*` etc.
- */
-#[derive(Debug, Copy, Clone,  PartialEq)]
-pub enum UnOp {
-    /// The `-` unary operator (negation)
-    Neg{span: Span},
-    /// The `!` operator (logical inversion)
-    Not{span: Span},
-    /// The `*` operator (dereferencing)
-    Deref{span: Span},
-}
-
-/**
- * An operator can either be left or right associative.
- */
-pub enum Assoc {
-    Left,
-    Right,
-}
-
 /**
  * Implementation of the binary operator node.
  */
@@ -424,30 +370,30 @@ impl BinOp {
     pub fn get_prec(&self) -> (u8, Assoc) {
         match self {
             // Precedence: 1, Associativity: Left-to-right
-            BinOp::And{span: _} => (1, Assoc::Left),
-            BinOp::Or{span: _}  => (1, Assoc::Left),
+            BinOp::And => (1, Assoc::Left),
+            BinOp::Or  => (1, Assoc::Left),
 
             // Precedence: 2, Associativity: Left-to-right
-            BinOp::Eq{span: _}  => (2, Assoc::Left),
-            BinOp::Ne{span: _}  => (2, Assoc::Left),
+            BinOp::Eq  => (2, Assoc::Left),
+            BinOp::Ne  => (2, Assoc::Left),
 
             // Precedence: 3, Associativity: Left-to-right
-            BinOp::Lt{span: _}  => (3, Assoc::Left),
-            BinOp::Le{span: _}  => (3, Assoc::Left),
-            BinOp::Gt{span: _}  => (3, Assoc::Left),
-            BinOp::Ge{span: _}  => (3, Assoc::Left),
+            BinOp::Lt  => (3, Assoc::Left),
+            BinOp::Le  => (3, Assoc::Left),
+            BinOp::Gt  => (3, Assoc::Left),
+            BinOp::Ge  => (3, Assoc::Left),
 
             // Precedence: 4, Associativity: Left-to-right
-            BinOp::Add{span: _} => (4, Assoc::Left),
-            BinOp::Sub{span: _} => (4, Assoc::Left),
+            BinOp::Add => (4, Assoc::Left),
+            BinOp::Sub => (4, Assoc::Left),
 
             // Precedence: 5, Associativity: Left-to-right
-            BinOp::Mul{span: _} => (5, Assoc::Left),
-            BinOp::Div{span: _} => (5, Assoc::Left),
-            BinOp::Mod{span: _} => (5, Assoc::Left),
+            BinOp::Mul => (5, Assoc::Left),
+            BinOp::Div => (5, Assoc::Left),
+            BinOp::Mod => (5, Assoc::Left),
 
             // Precedence: 6, Associativity: Right-to-left
-            BinOp::Pow{span: _} => (6, Assoc::Right),
+            BinOp::Pow => (6, Assoc::Right),
 
         }
     }
@@ -457,20 +403,20 @@ impl BinOp {
      */
     pub fn token(&self) -> &'static str {
         match self {
-            BinOp::Add{span: _} => "+",
-            BinOp::Sub{span: _} => "-",
-            BinOp::Mul{span: _} => "*",
-            BinOp::Div{span: _} => "/",
-            BinOp::Pow{span: _} => "**",
-            BinOp::Mod{span: _} => "%",
-            BinOp::And{span: _} => "&&",
-            BinOp::Or{span: _}  => "||",
-            BinOp::Eq{span: _}  => "==",
-            BinOp::Ne{span: _}  => "!=",
-            BinOp::Lt{span: _}  => "<",
-            BinOp::Le{span: _}  => "<=",
-            BinOp::Gt{span: _}  => ">",
-            BinOp::Ge{span: _}  => ">=",
+            BinOp::Add => "+",
+            BinOp::Sub => "-",
+            BinOp::Mul => "*",
+            BinOp::Div => "/",
+            BinOp::Pow => "**",
+            BinOp::Mod => "%",
+            BinOp::And => "&&",
+            BinOp::Or  => "||",
+            BinOp::Eq  => "==",
+            BinOp::Ne  => "!=",
+            BinOp::Lt  => "<",
+            BinOp::Le  => "<=",
+            BinOp::Gt  => ">",
+            BinOp::Ge  => ">=",
         }
     }
 }
@@ -481,22 +427,35 @@ impl BinOp {
 impl fmt::Display for BinOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            BinOp::Add{span: _} => write!(f, "add"),
-            BinOp::Sub{span: _} => write!(f, "subtract"),
-            BinOp::Mul{span: _} => write!(f, "multiplicate"),
-            BinOp::Div{span: _} => write!(f, "divide"),
-            BinOp::Pow{span: _} => write!(f, "power"),
-            BinOp::Mod{span: _} => write!(f, "modolu"),
-            BinOp::And{span: _} => write!(f, "logical and"),
-            BinOp::Or{span: _}  => write!(f, "logical or"),
-            BinOp::Eq{span: _}  => write!(f, "compare equal"),
-            BinOp::Ne{span: _}  => write!(f, "compare not equal"),
-            BinOp::Lt{span: _}  => write!(f, "compare less than"),
-            BinOp::Le{span: _}  => write!(f, "compare less than or equal"),
-            BinOp::Gt{span: _}  => write!(f, "compare greater than"),
-            BinOp::Ge{span: _}  => write!(f, "compare greater than or equal"),
+            BinOp::Add => write!(f, "add"),
+            BinOp::Sub => write!(f, "subtract"),
+            BinOp::Mul => write!(f, "multiplicate"),
+            BinOp::Div => write!(f, "divide"),
+            BinOp::Pow => write!(f, "power"),
+            BinOp::Mod => write!(f, "modolu"),
+            BinOp::And => write!(f, "logical and"),
+            BinOp::Or  => write!(f, "logical or"),
+            BinOp::Eq  => write!(f, "compare equal"),
+            BinOp::Ne  => write!(f, "compare not equal"),
+            BinOp::Lt  => write!(f, "compare less than"),
+            BinOp::Le  => write!(f, "compare less than or equal"),
+            BinOp::Gt  => write!(f, "compare greater than"),
+            BinOp::Ge  => write!(f, "compare greater than or equal"),
         }
     }
+}
+
+/**
+ * Unary operators e.g. `-`, `!`, `*` etc.
+ */
+#[derive(Debug, Copy, Clone,  PartialEq)]
+pub enum UnOp {
+    /// The `-` unary operator (negation)
+    Neg,
+    /// The `!` operator (logical inversion)
+    Not,
+    /// The `*` operator (dereferencing)
+    Deref,
 }
 
 /**
@@ -518,9 +477,9 @@ impl UnOp {
      */
     pub fn token(&self) -> &'static str {
         match self {
-            UnOp::Neg{span: _}   => "-",
-            UnOp::Not{span: _}   => "!",
-            UnOp::Deref{span: _} => "*",
+            UnOp::Neg   => "-",
+            UnOp::Not   => "!",
+            UnOp::Deref => "*",
         }
     }
 }
@@ -531,11 +490,19 @@ impl UnOp {
 impl fmt::Display for UnOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UnOp::Neg{span: _}   => write!(f, "negated"),
-            UnOp::Not{span: _}   => write!(f, "logical inverted"),
-            UnOp::Deref{span: _} => write!(f, "dereferenced"),
+            UnOp::Neg   => write!(f, "negated"),
+            UnOp::Not   => write!(f, "logical inverted"),
+            UnOp::Deref => write!(f, "dereferenced"),
         }
     }
+}
+
+/**
+ * An operator can either be left or right associative.
+ */
+pub enum Assoc {
+    Left,
+    Right,
 }
 
 /**
@@ -607,7 +574,6 @@ impl Expr {
             Expr::Return(expr)    => expr.span,
             Expr::Unary(expr)     => expr.span,
             Expr::While(expr)     => expr.span,
-            _ => Span::new(),
         }
     }
 }
@@ -735,7 +701,7 @@ pub struct ExprReturn {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprUnary {
     pub op: UnOp,
-    pub right: Box<Expr>,
+    pub expr: Box<Expr>,
     pub span: Span,
 }
 
@@ -757,38 +723,11 @@ pub struct ExprWhile {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lit {
     /// Literal for integers e.g. 5
-    Int(LitInt),
+    Int(i32),
     /// Literal for booleans e.g. false
-    Bool(LitBool),
+    Bool(bool),
     /// Literal for strings e.g. "hello"
-    Str(LitStr),
-}
-
-/**
- * Literal integer struct has an i32 value.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct LitInt {
-    pub value: i32,
-    pub span: Span,
-}
-
-/**
- * Literal boolean struct has a bool value.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct LitBool {
-    pub value: bool,
-    pub span: Span,
-}
-
-/**
- * Literal string struct has a str value.
- */
-#[derive(Debug, Clone, PartialEq)]
-pub struct LitStr {
-    pub value: String,
-    pub span: Span,
+    Str(String),
 }
 
 /**
@@ -816,7 +755,6 @@ impl Span {
             ctx: 0,
         }
     }
-
 
     /**
      * Constructs a new span from a parse span.

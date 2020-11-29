@@ -13,14 +13,14 @@ pub enum ErrorLevel {
 }
 
 pub struct ErrorMsg {
-    level: ErrorLevel,
-    line_number: u32,
-    column_number: u32,
-    path: String,
-    msg: String,
-    source: String,
-    label: String,
-    next: Option<Box<ErrorMsg>>
+    pub level: ErrorLevel,
+    pub line_number: u32,
+    pub column_number: u32,
+    pub path: String,
+    pub msg: String,
+    pub source: String,
+    pub label: String,
+    pub next: Option<Box<ErrorMsg>>
 }
 
 impl ErrorMsg {
@@ -109,7 +109,7 @@ impl ErrorMsg {
         stderr.set_color(&color);
 
         let d = (((self.line_number as f32).log10()).floor() as u32) + 1;
-        for i in 0..=d {
+        for _i in 0..=d {
             writeln!(&mut stderr, " ");
         }
         
@@ -136,7 +136,7 @@ impl ErrorMsg {
             write!(&mut stderr, "\n");
         }
 
-        for i in 0..=d {
+        for _i in 0..=d {
             write!(&mut stderr, " ");
         }
         
@@ -146,14 +146,14 @@ impl ErrorMsg {
         
         color.clear();
         stderr.set_color(&color);
-        for i in 0..=self.column_number {
+        for _i in 0..=self.column_number {
             write!(&mut stderr, " ");
         }
         
         color.set_bg(Some(Color::Red));
         stderr.set_color(&color);
         write!(&mut stderr, "^");
-        for i in 0..=self.label.len() {
+        for _i in 0..=self.label.len() {
             writeln!(&mut stderr, "~");
         }
         write!(&mut stderr, " ");

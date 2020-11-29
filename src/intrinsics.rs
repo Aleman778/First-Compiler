@@ -1,6 +1,7 @@
 use crate::ast::*;
 use crate::interp::InterpContext;
 
+// FIXME(alexander): everything here is temporary!!1
 pub fn get_intrinsic_ast_items() -> Item {
     Item::ForeignMod(
         ForeignModItem {
@@ -40,9 +41,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                     span: Span::new(),
                                 },
                                 ty: Ty {
-                                    kind: TyKind::Int(
-                                        IntTy::I32,
-                                    ),
+                                    kind: TyKind::Int,
                                     span: Span::new(),
                                 },
                                 span: Span::new(),
@@ -126,9 +125,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                     span: Span::new(),
                                 },
                                 ty: Ty {
-                                    kind: TyKind::Int(
-                                        IntTy::I32,
-                                    ),
+                                    kind: TyKind::Int,
                                     span: Span::new(),
                                 },
                                 span: Span::new(),
@@ -140,9 +137,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                     span: Span::new(),
                                 },
                                 ty: Ty {
-                                    kind: TyKind::Int(
-                                        IntTy::I32,
-                                    ),
+                                    kind: TyKind::Int,
                                     span: Span::new(),
                                 },
                                 span: Span::new(),
