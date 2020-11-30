@@ -47,14 +47,22 @@ fn empty_interp_value() -> InterpValue {
     create_interp_value(Value::None, Span::new(), false)
 }
 
+fn is_value_empty(value: &Value) -> bool {
+    match value {
+        Value::Void |
+        Value::None => true,
+        _ => false,
+    }
+}
+
 fn to_type_kind(value: &Value) -> TyKind {
     match value {
-        Value::Int(val) => TyKind::Int,
+        Value::Int(_) => TyKind::Int,
         Value::Bool(_) => TyKind::Bool,
-        Value::Ref(val) => TyKind::Ref(
+        Value::Ref(r) => TyKind::Ref(
             TypeRef {
-                mutable: val.mutable,
-                elem: Box::new(val.ref_ty.clone()),
+                mutable: r.mutable,
+                elem: Box::new(r.ref_ty.clone()),
             }
         ),
         _ => TyKind::None,
@@ -357,11 +365,11 @@ fn interp_intrinsics<'a>(
             match values[0].data {
                 Value::Bool(arg0) => match values[1].data {
                     Value::Bool(arg1) => assert_eq_bool(arg0, arg1),
-                    Value::None => return Err(mismatched_types_fatal_error(
+                    _ => return Err(mismatched_types_fatal_error(
                         ic, values[1].span, &TyKind::Bool, &to_type(&values[1])))
                 }
-                Value::None => return Err(mismatched_types_fatal_error(
-                    ic, values[0].span, &TyKind::Bool, &to_type(&values[0])))
+                _ => return Err(mismatched_types_fatal_error(
+                    ic, values[0].span, &TyKind::Bool, &to_type(&values[0]))),
             };
         },
 
@@ -466,18 +474,17 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
 /**
  * Interprets the memory address of a given expression.
  */
-pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<usize> {
+pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(InterpValue, usize)> {
     match expr {
-        Expr::Ident(ident) => find_local_variable(ic, ident.span, ident.to_string).map(|(_, addr)| addr),
-
+        Expr::Ident(ident) => find_local_variable(ic, ident.span, ident.to_string),
         Expr::Unary(unary) => {
             match unary.op {
                 UnOp::Deref => {
-                    let addr = interp_addr_of_expr(ic, &unary.expr)?;
-                    match ic.stack[addr].data {
+                    let (value, _) = interp_addr_of_expr(ic, &unary.expr)?;
+                    match value.data {
                         Value::Ref(r) => {
                             if r.mutable {
-                                Ok(r.addr)
+                                Ok((ic.stack[r.addr], r.addr))
                             } else {
                                 
                                 let mut err = fatal_error(
@@ -511,7 +518,7 @@ pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<usize
 
 fn interp_assign_expr(ic: &mut InterpContext, expr: &ExprAssign) -> IResult<InterpValue> {
     let addr = match interp_addr_of_expr(ic, &expr.left) {
-        Ok(addr) => addr,
+        Ok(addr) => addr.1,
         Err(mut err) => {
             if err.msg == "invalid expression" {
                 err = fatal_error(
@@ -711,64 +718,76 @@ pub fn interp_lit_expr(ic: &mut InterpContext, literal: &ExprLit) -> IResult<Int
  * Interprets a reference expression.
  */
 pub fn interp_reference_expr(ic: &mut InterpContext, ref_expr: &ExprReference) -> IResult<InterpValue> {
-    let val = interp_expr(ic, &ref_expr.expr)?;
-    if !val.has_data() {
-        Ok(val)
-    } else {
-        let ref_ty = to_type(val);
-        match val.ident {
-            Some(name) => {
-                // Reference to an already existing variable.
-                let ident = ExprIdent {
-                    to_string: name,
-                    span: val.span,
-                };
-                let addr = ic.address_of(&ident, true)?;
-                let new_val = InterpValue::from_ref(addr, ref_ty, ref_expr.mutable, ref_expr.span);
-                Ok(new_val)
-            },
-            None => {
-                // Reference to a new variable without identifier.
-                let addr = ic.store_val(&val)?;
-                let new_val = InterpValue::from_ref(addr, ref_ty, ref_expr.mutable, ref_expr.span);
-                Ok(new_val)
-            },
+    match interp_addr_of_expr(ic, &ref_expr.expr) { // TODO(alexander): this does not work for referencing constants!
+        Ok((value, addr)) => {
+            let reference = Reference {
+                addr,
+                ref_ty: to_type(&value),
+                mutable: ref_expr.mutable,
+            };
+            Ok(create_interp_value(Value::Ref(reference), ref_expr.span, ref_expr.mutable))
+        }
+        Err(mut err) => {
+            if err.msg == "invalid expression" {
+                err = fatal_error(
+                    ic,
+                    ref_expr.span,
+                    "cannot reference of ",
+                    "left-hand of expression not valid");
+            }
+            Err(err)
         }
     }
 }
-
+        
 /**
  * Interprets a return statement.
  */
 pub fn interp_return_expr(ic: &mut InterpContext, return_expr: &ExprReturn) -> IResult<InterpValue> {
-        match &*return_expr.expr {
-            Some(expr) => interp_expr(ic, expr),
-            None => Ok(InterpValue::from_data(Value::Void, None, return_expr.span)),
-        }
-    }
+    let ret = match &*return_expr.expr {
+        Some(expr) => interp_expr(ic, expr),
+        None => Ok(create_interp_value(Value::Void, return_expr.span, false)),
+    };
+    ret.map(|val| {
+        val.from_return = true;
+        val
+    })
+}
 
 /**
  * Interpret unary expression.
  */
 pub fn interp_unary_expr<'a>(ic: &mut InterpContext, unary: &ExprUnary) -> IResult<InterpValue> {
-    let val = interp_expr(ic, &unary.expr)?;
-    let val_type = val.get_type();
-    let (span, result) = match unary.op {
-        UnOp::Neg{span}   => (span, val.neg(Span::combine(span, val.span))),
-        UnOp::Not{span}   => (span, val.not(Span::combine(span, val.span))),
-        UnOp::Deref{span} => (span, val.deref(Span::combine(span, val.span), ic)?),
+    let value = interp_expr(ic, &unary.expr)?;
+    let value_type = to_type(&value);
+
+    let result = match unary.op {
+        UnOp::Neg => match value.data {
+            Value::Int(val) => Value::Int(-val),
+            _ => Value::None,
+        },
+
+        UnOp::Not => match value.data {
+            Value::Bool(val) => Value::Bool(!val),
+            _ => Value::None,
+        },
+
+        UnOp::Deref => match value.data {
+            Value::Ref(r) => ic.stack[r.addr].data,
+            _ => Value::None,
+        }
     };
 
     match result {
-        Some(val) => Ok(val),
-        None => {
+        Value::None => {
             let mut err = fatal_error(
                 ic,
-                span,
-                &format!("type `{}` cannot be {}", val_type, unary.op),
-                &format!("no implementation for `{}{}`", unary.op.token(), val_type));
+                unary.span,
+                &format!("type `{}` cannot be {}", value_type, unary.op),
+                &format!("no implementation for `{}{}`", unary.op.token(), value_type));
             Err(err)
         }
+        _ => Ok(create_interp_value(result, unary.span, false)),
     }
 }
 
@@ -778,13 +797,15 @@ pub fn interp_unary_expr<'a>(ic: &mut InterpContext, unary: &ExprUnary) -> IResu
 pub fn interp_while_expr(ic: &mut InterpContext, while_expr: &ExprWhile) -> IResult<InterpValue> {
     loop {
         let value = interp_expr(ic, &while_expr.cond)?;
-        match value.get_bool() {
-            Some(cond) => {
+        match value.data {
+            Value::Bool(cond) => {
                 if cond {
-                    ic.push_block(InterpScope::new(while_expr.span))?;
-                    let val = interp_block(ic, &while_expr.block)?;
-                    ic.pop_block()?;
-                    if val.should_continue || val.kind == Value::None {
+                    let val = interp_block(ic, &while_expr.block, true)?;
+                    if let Value::None = val.data {
+                        continue;
+                    }
+
+                    if val.should_continue {
                         continue;
                     }
 
@@ -797,10 +818,8 @@ pub fn interp_while_expr(ic: &mut InterpContext, while_expr: &ExprWhile) -> IRes
                     break;
                 }
             },
-            None => {
-                return Err(mismatched_types_fatal_error(ic, value.span, &TyKind::Bool, &value.get_type()));
-            },
+            _ => return Err(mismatched_types_fatal_error(ic, value.span, &TyKind::Bool, &to_type(&value)))
         };
     }
-    Ok(InterpValue::new())
+    Ok(empty_interp_value())
 }

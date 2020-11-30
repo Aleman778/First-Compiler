@@ -108,7 +108,7 @@ pub struct ForeignFnItem {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ForeignModItem {
-    pub abi: Option<LitStr>,
+    pub abi: Option<String>,
     pub items: Vec<Item>,
     pub span: Span,
 }

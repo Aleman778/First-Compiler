@@ -5,192 +5,204 @@ use crate::interp::InterpContext;
 pub fn get_intrinsic_ast_items() -> Item {
     Item::ForeignMod(
         ForeignModItem {
-            abi: Some(
-                LitStr {
-                    value: "intrinsic".to_string(),
-                    span: Span::new(),
-                },
-            ),
+            abi: Some("intrinsic".to_string()),
             items: vec![
-                ForeignFnItem {
-                    ident: ExprIdent {
-                        to_string: "trace".to_string(),
-                        span: Span::new(),
-                    },
-                    decl: FnDecl {
-                        inputs: vec![],
-                        output: Ty {
-                            kind: TyKind::None,
+                Item::ForeignFn(
+                    ForeignFnItem {
+                        ident: ExprIdent {
+                            to_string: "trace".to_string(),
+                            span: Span::new(),
+                        },
+                        decl: FnDecl {
+                            inputs: vec![],
+                            output: Ty {
+                                kind: TyKind::None,
+                                span: Span::new(),
+                            },
                             span: Span::new(),
                         },
                         span: Span::new(),
-                    },
-                    span: Span::new(),
-                },
-                ForeignFnItem {
-                    ident: ExprIdent {
-                        to_string: "print_int".to_string(),
-                        span: Span::new(),
-                    },
-                    decl: FnDecl {
-                        inputs: vec![
-                            Argument {
-                                mutable: false,
-                                ident: ExprIdent {
-                                    to_string: "val".to_string(),
+                    }
+                ),
+                
+                Item::ForeignFn(
+                    ForeignFnItem {
+                        ident: ExprIdent {
+                            to_string: "print_int".to_string(),
+                            span: Span::new(),
+                        },
+                        decl: FnDecl {
+                            inputs: vec![
+                                Argument {
+                                    mutable: false,
+                                    ident: ExprIdent {
+                                        to_string: "val".to_string(),
+                                        span: Span::new(),
+                                    },
+                                    ty: Ty {
+                                        kind: TyKind::Int,
+                                        span: Span::new(),
+                                    },
                                     span: Span::new(),
                                 },
-                                ty: Ty {
-                                    kind: TyKind::Int,
-                                    span: Span::new(),
-                                },
+                            ],
+                            output: Ty {
+                                kind: TyKind::None,
                                 span: Span::new(),
                             },
-                        ],
-                        output: Ty {
-                            kind: TyKind::None,
                             span: Span::new(),
                         },
                         span: Span::new(),
-                    },
-                    span: Span::new(),
-                },
-                ForeignFnItem {
-                    ident: ExprIdent {
-                        to_string: "print_bool".to_string(),
-                        span: Span::new(),
-                    },
-                    decl: FnDecl {
-                        inputs: vec![
-                            Argument {
-                                mutable: false,
-                                ident: ExprIdent {
-                                    to_string: "val".to_string(),
+                    }
+                ),
+                
+                Item::ForeignFn(
+                    ForeignFnItem {
+                        ident: ExprIdent {
+                            to_string: "print_bool".to_string(),
+                            span: Span::new(),
+                        },
+                        decl: FnDecl {
+                            inputs: vec![
+                                Argument {
+                                    mutable: false,
+                                    ident: ExprIdent {
+                                        to_string: "val".to_string(),
+                                        span: Span::new(),
+                                    },
+                                    ty: Ty {
+                                        kind: TyKind::Bool,
+                                        span: Span::new(),
+                                    },
                                     span: Span::new(),
                                 },
-                                ty: Ty {
-                                    kind: TyKind::Bool,
-                                    span: Span::new(),
-                                },
+                            ],
+                            output: Ty {
+                                kind: TyKind::None,
                                 span: Span::new(),
                             },
-                        ],
-                        output: Ty {
-                            kind: TyKind::None,
                             span: Span::new(),
                         },
                         span: Span::new(),
-                    },
-                    span: Span::new(),
-                },
-                ForeignFnItem {
-                    ident: ExprIdent {
-                        to_string: "assert".to_string(),
-                        span: Span::new(),
-                    },
-                    decl: FnDecl {
-                        inputs: vec![
-                            Argument {
-                                mutable: false,
-                                ident: ExprIdent {
-                                    to_string: "val".to_string(),
+                    }
+                ),
+                
+                Item::ForeignFn(
+                    ForeignFnItem {
+                        ident: ExprIdent {
+                            to_string: "assert".to_string(),
+                            span: Span::new(),
+                        },
+                        decl: FnDecl {
+                            inputs: vec![
+                                Argument {
+                                    mutable: false,
+                                    ident: ExprIdent {
+                                        to_string: "val".to_string(),
+                                        span: Span::new(),
+                                    },
+                                    ty: Ty {
+                                        kind: TyKind::Bool,
+                                        span: Span::new(),
+                                    },
                                     span: Span::new(),
                                 },
-                                ty: Ty {
-                                    kind: TyKind::Bool,
-                                    span: Span::new(),
-                                },
+                            ],
+                            output: Ty {
+                                kind: TyKind::None,
                                 span: Span::new(),
                             },
-                        ],
-                        output: Ty {
-                            kind: TyKind::None,
                             span: Span::new(),
                         },
                         span: Span::new(),
-                    },
-                    span: Span::new(),
-                },
-                ForeignFnItem {
-                    ident: ExprIdent {
-                        to_string: "assert_eq_int".to_string(),
-                        span: Span::new(),
-                    },
-                    decl: FnDecl {
-                        inputs: vec![
-                            Argument {
-                                mutable: false,
-                                ident: ExprIdent {
-                                    to_string: "left".to_string(),
+                    }
+                ),
+                
+                Item::ForeignFn(
+                    ForeignFnItem {
+                        ident: ExprIdent {
+                            to_string: "assert_eq_int".to_string(),
+                            span: Span::new(),
+                        },
+                        decl: FnDecl {
+                            inputs: vec![
+                                Argument {
+                                    mutable: false,
+                                    ident: ExprIdent {
+                                        to_string: "left".to_string(),
+                                        span: Span::new(),
+                                    },
+                                    ty: Ty {
+                                        kind: TyKind::Int,
+                                        span: Span::new(),
+                                    },
                                     span: Span::new(),
                                 },
-                                ty: Ty {
-                                    kind: TyKind::Int,
+                                Argument {
+                                    mutable: false,
+                                    ident: ExprIdent {
+                                        to_string: "right".to_string(),
+                                        span: Span::new(),
+                                    },
+                                    ty: Ty {
+                                        kind: TyKind::Int,
+                                        span: Span::new(),
+                                    },
                                     span: Span::new(),
                                 },
+                            ],
+                            output: Ty {
+                                kind: TyKind::None,
                                 span: Span::new(),
                             },
-                            Argument {
-                                mutable: false,
-                                ident: ExprIdent {
-                                    to_string: "right".to_string(),
-                                    span: Span::new(),
-                                },
-                                ty: Ty {
-                                    kind: TyKind::Int,
-                                    span: Span::new(),
-                                },
-                                span: Span::new(),
-                            },
-                        ],
-                        output: Ty {
-                            kind: TyKind::None,
                             span: Span::new(),
                         },
                         span: Span::new(),
-                    },
-                    span: Span::new(),
-                },
-                ForeignFnItem {
-                    ident: ExprIdent {
-                        to_string: "assert_eq_bool".to_string(),
-                        span: Span::new(),
-                    },
-                    decl: FnDecl {
-                        inputs: vec![
-                            Argument {
-                                mutable: false,
-                                ident: ExprIdent {
-                                    to_string: "left".to_string(),
+                    }
+                ),
+                
+                Item::ForeignFn(
+                    ForeignFnItem {
+                        ident: ExprIdent {
+                            to_string: "assert_eq_bool".to_string(),
+                            span: Span::new(),
+                        },
+                        decl: FnDecl {
+                            inputs: vec![
+                                Argument {
+                                    mutable: false,
+                                    ident: ExprIdent {
+                                        to_string: "left".to_string(),
+                                        span: Span::new(),
+                                    },
+                                    ty: Ty {
+                                        kind: TyKind::Bool,
+                                        span: Span::new(),
+                                    },
                                     span: Span::new(),
                                 },
-                                ty: Ty {
-                                    kind: TyKind::Bool,
+                                Argument {
+                                    mutable: false,
+                                    ident: ExprIdent {
+                                        to_string: "right".to_string(),
+                                        span: Span::new(),
+                                    },
+                                    ty: Ty {
+                                        kind: TyKind::Bool,
+                                        span: Span::new(),
+                                    },
                                     span: Span::new(),
                                 },
+                            ],
+                            output: Ty {
+                                kind: TyKind::None,
                                 span: Span::new(),
                             },
-                            Argument {
-                                mutable: false,
-                                ident: ExprIdent {
-                                    to_string: "right".to_string(),
-                                    span: Span::new(),
-                                },
-                                ty: Ty {
-                                    kind: TyKind::Bool,
-                                    span: Span::new(),
-                                },
-                                span: Span::new(),
-                            },
-                        ],
-                        output: Ty {
-                            kind: TyKind::None,
                             span: Span::new(),
                         },
                         span: Span::new(),
-                    },
-                    span: Span::new(),
-                },
+                    }
+                ),
             ],
             span: Span::new(),
         },

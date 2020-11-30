@@ -178,14 +178,14 @@ impl Parser for ForeignModItem {
             "extern",
             map(tuple((
                 preceded(multispace0, tag("extern")),
-                opt(preceded(multispace0, LitStr::parse)),
+                opt(preceded(multispace0, parse_string)),
                 preceded(multispace0, tag("{")),
                 many0(preceded(multispace_comment0, Item::parse)),
                 preceded(multispace0, tag("}")),
             )),
-                |(start, abi, _, items, end)| {
+                |(start, abi_string, _, items, end)| {
                     ForeignModItem {
-                        abi,
+                        abi: abi_string.map(|(abi, span)| abi),
                         items,
                         span: Span::combine(
                             Span::from_parse_span(start),
@@ -434,9 +434,9 @@ impl Parser for UnOp {
         context(
             "operator",
             preceded(multispace0, alt((
-                map(tag("-"),  |s| UnOp::Neg),
-                map(tag("!"),  |s| UnOp::Not),
-                map(tag("*"),  |s| UnOp::Deref),
+                map(tag("-"),  |_| UnOp::Neg),
+                map(tag("!"),  |_| UnOp::Not),
+                map(tag("*"),  |_| UnOp::Deref),
             )))
         )(input)
     }
@@ -743,14 +743,8 @@ impl Parser for ExprLit {
         context(
             "literal",
             alt((
-                map(LitInt::parse, |literal| {
-                    let lit = literal.clone();
-                    ExprLit{lit: Lit::Int(literal), span: lit.span}
-                }),
-                map(LitBool::parse, |literal| {
-                    let lit = literal.clone();
-                    ExprLit{lit: Lit::Bool(literal), span: lit.span}
-                }),
+                map(parse_int,  |(val, span)| ExprLit { lit: Lit::Int (val), span: span }),
+                map(parse_bool, |(val, span)| ExprLit { lit: Lit::Bool(val), span: span }),
             )),
         )(input)
     }
@@ -864,53 +858,31 @@ impl Parser for ExprWhile {
     }
 }
 
-/**
- * Parser implementation for 32 bit unsigned integer literals.
- */
-impl Parser for LitInt {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        let (input, digits) = preceded(multispace0, digit1)(input)?;
-        match digits.fragment.parse::<i32>() {
-            Ok(n) => Ok((input, LitInt{
-                value: n,
-                span: Span::from_parse_span(digits),
-            })),
-            Err(e) => Err(Err::Error(ParseError::new(digits, ErrorKind::ParseIntError(e)))),
-        }
+fn parse_int(input: ParseSpan) -> IResult<ParseSpan, (i32, Span)> {
+    let (input, digits) = preceded(multispace0, digit1)(input)?;
+    match digits.fragment.parse::<i32>() {
+        Ok(n) => Ok((input, (n, Span::from_parse_span(digits)))),
+        Err(e) => Err(Err::Error(ParseError::new(digits, ErrorKind::ParseIntError(e)))),
     }
 }
 
-/**
- * Parser implementation for boolean literals.
- */
-impl Parser for LitBool {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        preceded(multispace0, alt((
-            map(tag("true"),  |s| LitBool{value:true,  span: Span::from_parse_span(s)}),
-            map(tag("false"), |s| LitBool{value:false, span: Span::from_parse_span(s)}),
-        )))(input)
-    }
+fn parse_bool(input: ParseSpan) -> IResult<ParseSpan, (bool, Span)> {
+    preceded(multispace0, alt((
+        map(tag("true"),  |s| (true,  Span::from_parse_span(s))),
+        map(tag("false"), |s| (false, Span::from_parse_span(s))),
+    )))(input)
 }
 
-/**
- * Parser implementation for string literals.
- */
-impl Parser for LitStr {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        preceded(multispace0, map(tuple((
-            tag("\""),
-            take_while(|c: char| c != '"'),
-            tag("\""),
-        )), |(left, s, right): (ParseSpan, ParseSpan, ParseSpan)| {
-            LitStr {
-                value: s.fragment.to_string(),
-                span: Span::combine(
-                    Span::from_parse_span(left),
-                    Span::from_parse_span(right)
-                ),
-            }
-        }))(input)
-    }
+fn parse_string(input: ParseSpan) -> IResult<ParseSpan, (String, Span)> {
+    preceded(multispace0, map(tuple((
+        tag("\""),
+        take_while(|c: char| c != '"'),
+        tag("\""),
+    )), |(left, s, right): (ParseSpan, ParseSpan, ParseSpan)| {
+        (s.fragment.to_string(), Span::combine(
+            Span::from_parse_span(left),
+            Span::from_parse_span(right)))
+    }))(input)
 }
 
 /**
@@ -934,7 +906,7 @@ fn any_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     alt((
         doc_comment,
         block_doc_comment,
-        comment,
+        line_comment,
         block_comment,
     ))(input)
 }
@@ -942,7 +914,7 @@ fn any_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
 /**
  * Parse a singleline comment.
  */
-fn comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
+fn line_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     context(
         "comment",
         map(pair(tag("//"), take_until("\n")), |_| ())
