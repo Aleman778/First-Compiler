@@ -1,4 +1,4 @@
-![logo](https://raw.githubusercontent.com/Aleman778/sqrrl-lang/dev/0.1.0/logo.png)
+![logo](https://raw.githubusercontent.com/Aleman778/sqrrl-lang/master/logo.png)
 
 # The Sqrrl Programming Language
 
