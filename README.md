@@ -1,8 +1,9 @@
 ![logo](https://raw.githubusercontent.com/Aleman778/sqrrl-lang/master/logo.png)
 
-# The Sqrrl Programming Language
+# My first compiler project
 
-Let's make a compiler in Rust called Sqrrl. This is my project in the course Compiler construction and formal languages \(D7050E\) at Luleå University of Technology.
+Let's make a compiler in Rust called Sqrrl. This is my project in the course Compiler construction and formal languages \(D7050E\) at LuleÃ¥ University of Technology.
+This compiler is just a school project and my personal compiler has been moved to C++ and is a also fully featured language https://github.com/Aleman778/Sqrrl.
 
 ## Course Aim \(from the course contents\)
 
