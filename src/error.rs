@@ -54,6 +54,10 @@ pub fn print_error_msg(msg: &ErrorMsg) {
 }
 
 fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
+    if let ErrorLevel::Cancelled = msg.level {
+        return Ok(());
+    }
+
     let mut stderr = StandardStream::stderr(ColorChoice::Always);
     let mut color = ColorSpec::new();
 
@@ -94,7 +98,7 @@ fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
             stderr.set_color(&color)?;
             write!(&mut stderr, "help:")?;
         }
-        ErrorLevel::Cancelled => return Ok(())
+        _ => { }
     }
     color.clear();
     stderr.set_color(&color)?;

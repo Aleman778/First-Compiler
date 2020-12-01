@@ -123,8 +123,10 @@ fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symb
     } else {
         ic.stack[ic.stack_pointer] = value;
     }
+
+    let addr = ic.stack_pointer;
     ic.stack_pointer += 1;
-    return ic.stack_pointer - 1;
+    return addr;
 }
 
 fn find_local_variable<'a>(ic: &mut InterpContext<'a>, span: Span, symbol: String) -> IResult<(InterpValue, usize)> {
@@ -384,8 +386,11 @@ fn interp_intrinsics<'a>(
 }
 
 pub fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block, is_block_scope: bool) -> IResult<InterpValue> {
-    let base_pointer = ic.stack_pointer;
-    ic.call_stack.push(create_interp_scope(block.span, is_block_scope));
+    let mut base_pointer = 0usize;
+    if is_block_scope {
+        base_pointer = ic.stack_pointer;
+        ic.call_stack.push(create_interp_scope(block.span, is_block_scope));
+    }
 
     let mut ret_val = create_interp_value(Value::None, Span::new(), false);
     for stmt in &block.stmts {
@@ -397,8 +402,10 @@ pub fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block, is_block_scop
         break;
     }
 
-    ic.call_stack.pop();
-    ic.stack_pointer = base_pointer;
+    if is_block_scope {
+        ic.call_stack.pop();
+        ic.stack_pointer = base_pointer;
+    }
     Ok(ret_val)
 }
 
@@ -604,10 +611,6 @@ pub fn interp_block_expr(ic: &mut InterpContext, block: &ExprBlock) -> IResult<I
  * Interprets a function call.
  */
 pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<InterpValue> {
-    let base_pointer = ic.base_pointer;
-    let new_scope = create_interp_scope(call.span, false);
-    ic.call_stack.push(new_scope);
-
     let mut values = Vec::new();
     for arg in &call.args {
         let val = interp_expr(ic, arg)?;
@@ -623,8 +626,11 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
             ""))
     };
     
-    let result = match item {
+    match item {
         Item::Fn(func) => {
+            let base_pointer = ic.base_pointer;
+            let new_scope = create_interp_scope(call.span, false);
+            ic.call_stack.push(new_scope);
 
             let inputs = &func.decl.inputs;
             if inputs.len() == values.len() {
@@ -652,7 +658,11 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
                 return Err(err);
             }
 
-            interp_block(ic, &func.block, false)
+            let result = interp_block(ic, &func.block, false);
+            ic.stack_pointer = ic.base_pointer;
+            ic.base_pointer = base_pointer;
+            ic.call_stack.pop();
+            result
         }
 
         Item::ForeignFn(func) => {
@@ -676,13 +686,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
                 &format!("cannot find function `{}` in this scope", ident.to_string),
                 "not found in this scope"))
         }
-    };
-
-    ic.stack_pointer = ic.base_pointer;
-    ic.base_pointer = base_pointer;
-    ic.call_stack.pop();
-
-    return result;
+    }
 }
 
 /**
