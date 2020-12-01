@@ -1,4 +1,6 @@
-use crate::ast::Span;
+#![allow(dead_code)]
+
+use crate::ast::{Span, get_span_location_in_file};
 use std::io::Write;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
@@ -23,145 +25,141 @@ pub struct ErrorMsg {
     pub next: Option<Box<ErrorMsg>>
 }
 
-impl ErrorMsg {
-    pub fn from_span(
-        level: ErrorLevel,
-        lines: &Vec<u32>,
-        span: Span,
-        filename: &str,
-        source: &str,
-        msg: &str,
-        label: &str,
-    ) -> Self {
+pub fn create_error_msg_from_span(
+    level: ErrorLevel,
+    lines: &Vec<u32>,
+    span: Span,
+    filename: &str,
+    source: &str,
+    msg: &str,
+    label: &str,
+) -> ErrorMsg {
+    let (line_number, column_number, line_start, line_end) = get_span_location_in_file(lines, span);
+    ErrorMsg {
+        level: level,
+        line_number: line_number as u32,
+        column_number: column_number as u32,
+        path: filename.to_string(),
+        msg: msg.to_string(),
+        source: source[line_start as usize..line_end as usize].to_string(),
+        label: label.to_string(),
+        next: None,
+    }
+}
 
-        let line_number = match lines.binary_search(&span.base) {
-            Ok(line) => line,
-            Err(line) => line,
-        };
-        let line_start = lines[line_number];
-        let line_end = lines[line_number];
-        let column_number = span.base - line_start;
+pub fn print_error_msg(msg: &ErrorMsg) {
+    match print_error_mgs_fmt(msg) {
+        _ => { }
+    };
+}
 
-        ErrorMsg {
-            level: level,
-            line_number: line_number as u32,
-            column_number: column_number as u32,
-            path: filename.to_string(),
-            msg: msg.to_string(),
-            source: source[line_start as usize..line_end as usize].to_string(),
-            label: label.to_string(),
-            next: None,
+fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
+    let mut stderr = StandardStream::stderr(ColorChoice::Always);
+    let mut color = ColorSpec::new();
+
+    // Print Location
+    write!(&mut stderr, "{}:{}:{}: ", msg.path, msg.line_number, msg.column_number)?;
+
+    // Print error level
+    color.set_intense(true);
+    match msg.level {
+        ErrorLevel::Fatal => {
+            color.set_fg(Some(Color::White));
+            color.set_bg(Some(Color::Red));
+            stderr.set_color(&color)?;
+            write!(&mut stderr, "fatal:")?;
         }
+        ErrorLevel::Error => {
+            color.set_bg(Some(Color::Red));
+            stderr.set_color(&color)?;
+            write!(&mut stderr, "error:")?;
+        }
+        ErrorLevel::Warn => {
+            color.set_bg(Some(Color::Red));
+            stderr.set_color(&color)?;
+            write!(&mut stderr, "error:")?;
+        }
+        ErrorLevel::Info => {
+            color.set_bg(Some(Color::Blue));
+            stderr.set_color(&color)?;
+            write!(&mut stderr, "info:")?;
+        }
+        ErrorLevel::Note => {
+            color.set_bg(Some(Color::Blue));
+            stderr.set_color(&color)?;
+            write!(&mut stderr, "note:")?;
+        }
+        ErrorLevel::Help => {
+            color.set_bg(Some(Color::Blue));
+            stderr.set_color(&color)?;
+            write!(&mut stderr, "help:")?;
+        }
+        ErrorLevel::Cancelled => return Ok(())
+    }
+    color.clear();
+    stderr.set_color(&color)?;
+    write!(&mut stderr, " ")?;
+
+    color.set_intense(true);
+    stderr.set_color(&color)?;
+    write!(&mut stderr, "{}\n", msg.msg)?;
+
+    color.clear();
+    stderr.set_color(&color)?;
+
+    let d = (((msg.line_number as f32).log10()).floor() as u32) + 1;
+    for _i in 0..=d {
+        write!(&mut stderr, " ")?;
     }
 
-    pub fn print(&self) -> std::io::Result<()> {
-        let mut stderr = StandardStream::stderr(ColorChoice::Always);
-        let mut color = ColorSpec::new();
+    color.set_fg(Some(Color::Blue));
+    stderr.set_color(&color)?;
+    write!(&mut stderr, "|")?;
 
-        // Print Location
-        writeln!(&mut stderr, "{}:{}:{}: ", self.path, self.line_number, self.column_number)?;
+    color.clear();
+    stderr.set_color(&color)?;
+    write!(&mut stderr, "\n")?;
 
-        // Print error level
-        color.set_intense(true);
-        match self.level {
-            ErrorLevel::Fatal => {
-                color.set_fg(Some(Color::White));
-                color.set_bg(Some(Color::Red));
-                stderr.set_color(&color)?;
-                writeln!(&mut stderr, "fatal:")?;
-            }
-            ErrorLevel::Error => {
-                color.set_bg(Some(Color::Red));
-                stderr.set_color(&color)?;
-                writeln!(&mut stderr, "error:")?;
-            }
-            ErrorLevel::Warn => {
-                color.set_bg(Some(Color::Red));
-                stderr.set_color(&color)?;
-                writeln!(&mut stderr, "error:")?;
-            }   
-            ErrorLevel::Info => {
-                color.set_bg(Some(Color::Blue));
-                stderr.set_color(&color)?;
-                writeln!(&mut stderr, "info:")?;
-            }
-            ErrorLevel::Note => {
-                color.set_bg(Some(Color::Blue));
-                stderr.set_color(&color)?;
-                writeln!(&mut stderr, "note:")?;
-            }
-            ErrorLevel::Help => {
-                color.set_bg(Some(Color::Blue));
-                stderr.set_color(&color)?;
-                writeln!(&mut stderr, "help:")?;
-            }
-            ErrorLevel::Cancelled => return Ok(())
-        }
-        color.clear();
-        stderr.set_color(&color)?;
-        writeln!(&mut stderr, " ")?;
+    write!(&mut stderr, "{}", msg.line_number)?;
+    write!(&mut stderr, " ")?;
 
-        color.set_intense(true);
-        stderr.set_color(&color)?;
-        writeln!(&mut stderr, "{}", self.msg)?;
-            
-        color.clear();
-        stderr.set_color(&color)?;
+    color.set_fg(Some(Color::Blue));
+    stderr.set_color(&color)?;
+    write!(&mut stderr, "|")?;
 
-        let d = (((self.line_number as f32).log10()).floor() as u32) + 1;
-        for _i in 0..=d {
-            writeln!(&mut stderr, " ")?;
-        }
-        
-        color.set_bg(Some(Color::Blue));
-        stderr.set_color(&color)?;
-        write!(&mut stderr, "|")?;
-        
-        color.clear();
-        stderr.set_color(&color)?;
+    color.clear();
+    stderr.set_color(&color)?;
+    write!(&mut stderr, " ")?;
+    write!(&mut stderr, "{}", msg.source)?;
+    if msg.source.len() == 0 || msg.source.as_bytes()[msg.source.len() - 1] != b'\n' {
         write!(&mut stderr, "\n")?;
-
-        write!(&mut stderr, "{}", self.line_number)?;
-        write!(&mut stderr, " ")?;
-        
-        color.set_bg(Some(Color::Blue));
-        stderr.set_color(&color)?;
-        write!(&mut stderr, "|")?;
-        
-        color.clear();
-        stderr.set_color(&color)?;
-        write!(&mut stderr, " ")?;
-        write!(&mut stderr, "{}", self.source)?;
-        if self.source.len() == 0 || self.source.as_bytes()[self.source.len() - 1] != b'\n' {
-            write!(&mut stderr, "\n")?;
-        }
-
-        for _i in 0..=d {
-            write!(&mut stderr, " ")?;
-        }
-        
-        color.set_bg(Some(Color::Blue));
-        stderr.set_color(&color)?;
-        write!(&mut stderr, "|")?;
-        
-        color.clear();
-        stderr.set_color(&color)?;
-        for _i in 0..=self.column_number {
-            write!(&mut stderr, " ")?;
-        }
-        
-        color.set_bg(Some(Color::Red));
-        stderr.set_color(&color)?;
-        write!(&mut stderr, "^")?;
-        for _i in 0..=self.label.len() {
-            writeln!(&mut stderr, "~")?;
-        }
-        write!(&mut stderr, " ")?;
-        write!(&mut stderr, "{}", self.label)?;
-        
-        color.clear();
-        stderr.set_color(&color)?;
-        write!(&mut stderr, "\n")?;
-        Ok(())
     }
+
+    for _i in 0..=d {
+        write!(&mut stderr, " ")?;
+    }
+
+    color.set_fg(Some(Color::Blue));
+    stderr.set_color(&color)?;
+    write!(&mut stderr, "|")?;
+
+    color.clear();
+    stderr.set_color(&color)?;
+    for _i in 0..msg.column_number {
+        write!(&mut stderr, " ")?;
+    }
+
+    color.set_fg(Some(Color::Red));
+    stderr.set_color(&color)?;
+    write!(&mut stderr, "^")?;
+    for _i in 0..=msg.label.len() {
+        write!(&mut stderr, "~")?;
+    }
+    write!(&mut stderr, " ")?;
+    write!(&mut stderr, "{}", msg.label)?;
+
+    color.clear();
+    stderr.set_color(&color)?;
+    write!(&mut stderr, "\n")?;
+    Ok(())
 }

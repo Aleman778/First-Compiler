@@ -1,8 +1,10 @@
+#![allow(dead_code)]
+
 use std::fmt;
 use std::collections::HashMap;
 use crate::ast::*;
 use crate::intrinsics::*;
-use crate::error::{ErrorLevel, ErrorMsg};
+use crate::error::*;
 
 pub type IResult<T> = Result<T, ErrorMsg>;
 
@@ -45,7 +47,7 @@ pub fn create_interp_value(data: Value, span: Span, mutable: bool) -> InterpValu
 
 pub fn empty_interp_value() -> InterpValue {
     create_interp_value(Value::None, Span::new(), false)
-}
+} 
 
 pub fn is_value_empty(value: &Value) -> bool {
     match value {
@@ -149,15 +151,14 @@ fn create_error_msg<'a>(
     label: &str
 ) -> ErrorMsg {
     match ic.file {
-        Some(file) => ErrorMsg::from_span(
-            level,
-            &file.lines,
-            span,
-            &file.filename,
-            &file.source,
-            message,
-            label),
-
+        Some(file) => create_error_msg_from_span(level,
+                                                 &file.lines,
+                                                 span,
+                                                 &file.filename,
+                                                 &file.source,
+                                                 message,
+                                                 label),
+        
         None => ErrorMsg {
             level: level,
             line_number: 0,
@@ -230,14 +231,14 @@ impl<'a> fmt::Debug for InterpContext<'a> {
             write_str(f, "\n", indent)?;
         }
         indent -= 4;
-        write_str(f, "]", indent);
+        write_str(f, "]", indent)?;
         indent += 4;
 
         write_str(f, "\nCall Stack: {", indent)?;
         for (index, scope) in self.call_stack.iter().rev().enumerate() {
             fmt_interp_scope(scope, f, self.file.unwrap(), indent + 8, index)?;
         }
-        write_str(f, "\n}", indent);
+        write_str(f, "\n}", indent)?;
         write_str(f, &format!("\nStack: {:#?}", self.stack), 4)
     }
 }
@@ -250,7 +251,7 @@ pub fn fmt_interp_scope(
     index: usize
 ) -> fmt::Result {
     write_str(f, &format!("\n{}: ", index), indent - 4)?;
-    let (line, _, line_beg, line_end) = file.get_location(scope.span);
+    let (line, _, line_beg, line_end) = get_span_location_in_file(&file.lines, scope.span);
     let source_line = &file.source[line_beg..line_end];
     if line > 0 {
         write_str(f, source_line.trim(), indent)?;
@@ -293,13 +294,13 @@ pub fn interp_entry_point<'a>(ic: &mut InterpContext<'a>) -> i32 {
             match item {
                 Item::Fn(func) => func,
                 _ => {
-                    fatal_error(ic, Span::new(), "main exists but is not a valid function", "").print();
+                    print_error_msg(&fatal_error(ic, Span::new(), "main exists but is not a valid function", ""));
                     return 1;
                 }
             }
         }
         None => {
-            fatal_error(ic, Span::new(), "there is no main function", "").print();
+            print_error_msg(&fatal_error(ic, Span::new(), "there is no main function", ""));
             return 1;
         }
     };
@@ -309,7 +310,7 @@ pub fn interp_entry_point<'a>(ic: &mut InterpContext<'a>) -> i32 {
             _ => 0, // TODO(alexander): should this be a type error maybe?
         }
         Err(err) => {
-            err.print();
+            print_error_msg(&err);
             1
         }
     }
@@ -452,7 +453,7 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
         Expr::Call      (e) => interp_call_expr(ic, e),
         Expr::Ident     (e) => find_local_variable(ic, e.span, e.to_string.clone()).map(|(v, _)| v),
         Expr::If        (e) => interp_if_expr(ic, e),
-        Expr::Lit       (e) => interp_lit_expr(ic, e),
+        Expr::Lit       (e) => interp_lit_expr(e),
         Expr::Paren     (e) => interp_expr(ic, &e.expr),
         Expr::Reference (e) => interp_reference_expr(ic, e),
         Expr::Return    (e) => interp_return_expr(ic, e),
@@ -709,11 +710,10 @@ pub fn interp_if_expr(ic: &mut InterpContext, if_expr: &ExprIf) -> IResult<Inter
 /**
  * Interprets a literal.
  */
-pub fn interp_lit_expr(ic: &mut InterpContext, literal: &ExprLit) -> IResult<InterpValue> {
+pub fn interp_lit_expr(literal: &ExprLit) -> IResult<InterpValue> {
     match literal.lit {
         Lit::Int(val)  => Ok(create_interp_value(Value::Int(val), literal.span, false)),
         Lit::Bool(val) => Ok(create_interp_value(Value::Bool(val), literal.span, false)),
-        Lit::Str(_)    => Err(fatal_error(ic, literal.span, "unsupported literal type by the interpreter", "")),
     }
 }
 

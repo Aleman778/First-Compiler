@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use nom::{
     character::is_alphanumeric,
     character::complete::{alpha1, digit1, multispace0, multispace1},
@@ -29,14 +31,14 @@ pub type IResult<I, O> = Result<(I, O), Err<ParseError>>;
 /**
  * Parse error struct holds information about the error and location
  */
-struct ParseError {
+pub struct ParseError {
     errors: Vec<Verbose>,
 }
 
 /**
  * Gives context to an error e.g. location, kind, file etc.
  */
-struct Verbose {
+pub struct Verbose {
     span: Span,
     kind: ErrorKind,
 }
@@ -891,7 +893,14 @@ fn parse_error<'a>(error: ParseError, source: &str, filename: &str, lines: &Vec<
                 format!("expected `{}`, found `{}`", e, &source[beg..end])
             },
         };
-        ErrorMsg::from_span(ErrorLevel::Error, lines, err.span, filename, source, &error_msg, "").print();
+        
+        print_error_msg(&create_error_msg_from_span(ErrorLevel::Error,
+                                                   lines,
+                                                   err.span,
+                                                   filename,
+                                                   source,
+                                                   &error_msg,
+                                                   ""))
     }
 }
 

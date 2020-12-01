@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::{fmt, cmp};
 use std::collections::HashMap;
 use crate::parser::ParseSpan;
@@ -18,22 +20,20 @@ pub struct File {
     pub imported_files: HashMap<String, Box<File>>,
 }
 
-impl File {
-    pub fn get_location(&self, span: Span) -> (usize, usize, usize, usize) {
-        let line_number = match self.lines.binary_search(&span.base) {
-            Ok(line) => line,
-            Err(line) => line,
-        };
-        let end_byte_pos = span.base + span.len as u32;
-        let end_line_number = match self.lines.binary_search(&end_byte_pos) {
-            Ok(line) => line + 1,
-            Err(line) => line + 1,
-        };
-        let line_start = self.lines[line_number] as usize;
-        let line_end = self.lines[end_line_number] as usize;
-        let column_number = span.base as usize - line_start;
-        (line_number, column_number, line_start, line_end)
-    }
+pub fn get_span_location_in_file(lines: &Vec<u32>, span: Span) -> (usize, usize, usize, usize) {
+    let line_number = match lines.binary_search(&span.base) {
+        Ok(line) => line - 1,
+        Err(line) => line - 1,
+    };
+    let end_byte_pos = span.base + span.len as u32;
+    let end_line_number = match lines.binary_search(&end_byte_pos) {
+        Ok(line) => line,
+        Err(line) => line,
+    };
+    let line_start = lines[line_number] as usize;
+    let line_end = lines[end_line_number] as usize;
+    let column_number = (span.base as usize).saturating_sub(line_start);
+    (line_number + 1, column_number, line_start, line_end)
 }
 
 /**
@@ -50,33 +50,6 @@ pub enum Item {
 
     /// Extern module e.g. `extern { }`
     ForeignMod(ForeignModItem),
-}
-
-/**
- * Implementation of item.
- */
-impl Item {
-    /**
-     * Returns the identifier string of the given item.
-     */
-    pub fn get_id(&self) -> String {
-        match self {
-            Item::Fn(func) => func.ident.to_string.clone(),
-            Item::ForeignFn(func) => func.ident.to_string.clone(),
-            Item::ForeignMod(_) => String::new(),
-        }
-    }
-
-    pub fn get_ident(&self) -> ExprIdent {
-        match self {
-            Item::Fn(func) => func.ident.clone(),
-            Item::ForeignFn(func) => func.ident.clone(),
-            Item::ForeignMod(_) => ExprIdent{
-                to_string: String::new(),
-                span: Span::new()
-            }
-        }
-    }  
 }
 
 /**
@@ -726,8 +699,6 @@ pub enum Lit {
     Int(i32),
     /// Literal for booleans e.g. false
     Bool(bool),
-    /// Literal for strings e.g. "hello"
-    Str(String),
 }
 
 /**
