@@ -44,14 +44,6 @@ pub struct Verbose {
 }
 
 /**
- * Parser trait defines a generic parser that should
- * be implemented by each structure of the AST.
- */
-pub trait Parser: Sized {
-    fn parse<'a>(input: ParseSpan) -> IResult<ParseSpan, Self>;
-}
-
-/**
  * Parse a source file containing items such as functions.
  */
 pub fn parse_file(source: String, filename: String) -> File {

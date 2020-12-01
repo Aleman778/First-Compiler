@@ -1,4 +1,16 @@
 use crate::ast::*;
+use std::collections::HashMap;
+
+
+pub struct TypeTable<'a> {
+    pub types: HashMap<&'a str, &'a Ty>,
+}
+
+pub struct TypeContext<'a> {
+    pub file: Option<&'a File>,
+    
+    pub 
+}
 
 /**
  * Type context is used to hold information used by the type cheker.
@@ -546,4 +558,43 @@ impl TypeChecker for LitBool {
             span: self.span,
         }
     }
+}
+
+fn create_error_msg<'a>(
+    tc: &TypeContext<'a>,
+    level: ErrorLevel,
+    span: Span,
+    message: &str,
+    label: &str
+) -> ErrorMsg {
+    match tc.file {
+        Some(file) => create_error_msg_from_span(level,
+                                                 &file.lines,
+                                                 span,
+                                                 &file.filename,
+                                                 &file.source,
+                                                 message,
+                                                 label),
+
+        None => ErrorMsg {
+            level: level,
+            line_number: 0,
+            column_number: 0,
+            path: "".to_string(),
+            msg: message.to_string(),
+            source: "".to_string(),
+            label: label.to_string(),
+            next: None,
+        },
+    }
+}
+
+fn mismatched_types_error<'a>(tc: &TypeContext<'a>, span: Span, expected: &TyKind, found: &Ty) -> ErrorMsg {
+    create_error_msg(
+        tc,
+        ErrorLevel::Error,
+        span,
+        &format!("expected `{}`, found `{}`", expected, found),
+        ""
+    )
 }

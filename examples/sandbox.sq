@@ -2,7 +2,7 @@ fn main() {
     let mut x: i32 = 5;
     let y: &mut i32 = &mut x;
     let z: &i32 = &x;
-    *y = 10;
+    *y = 10 + false;
     
     print_int(x);
     print_int(*y);   

@@ -6,6 +6,7 @@ mod error;
 mod ast;
 mod parser;
 mod interp;
+mod typeck;
 mod intrinsics;
 
 use log::info;
@@ -16,7 +17,7 @@ use crate::ast::File;
 use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
-// use crate::typeck::{TypeChecker, TyCtxt};
+use crate::typeck::{TypeChecker, TyCtxt};
 
 struct Config {
     input: Option<String>,

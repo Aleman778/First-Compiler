@@ -8,6 +8,32 @@ use crate::error::*;
 
 pub type IResult<T> = Result<T, ErrorMsg>;
 
+pub struct InterpContext<'a> {
+    pub file:          Option<&'a File>,
+    pub signatures:    HashMap<String, &'a Item>,
+    pub call_stack:    Vec<InterpScope>,
+    pub stack:         Vec<InterpValue>,
+    pub stack_pointer: usize,
+    pub base_pointer:  usize,
+}
+
+#[derive(Clone)]
+pub struct InterpScope {
+    pub entities: HashMap<String, usize>,
+    pub span: Span,
+    pub is_block_scope: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct InterpValue {
+    pub data: Value,
+    pub span: Span,
+    pub mutable: bool,
+    pub from_return: bool,
+    pub should_continue: bool,
+    pub should_break: bool,
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Int(i32),
@@ -24,16 +50,6 @@ pub struct Reference {
     pub mutable: bool,
 }
 
-#[derive(Debug, Clone)]
-pub struct InterpValue {
-    pub data: Value,
-    pub span: Span,
-    pub mutable: bool,
-    pub from_return: bool,
-    pub should_continue: bool,
-    pub should_break: bool,
-}
-
 pub fn create_interp_value(data: Value, span: Span, mutable: bool) -> InterpValue {
     InterpValue {
         data,
@@ -47,7 +63,7 @@ pub fn create_interp_value(data: Value, span: Span, mutable: bool) -> InterpValu
 
 pub fn empty_interp_value() -> InterpValue {
     create_interp_value(Value::None, Span::new(), false)
-} 
+}
 
 pub fn is_value_empty(value: &Value) -> bool {
     match value {
@@ -76,28 +92,12 @@ pub fn to_type(value: &InterpValue) -> Ty {
     Ty { kind: ty_kind, span: value.span }
 }
 
-#[derive(Clone)]
-pub struct InterpScope {
-    pub entities: HashMap<String, usize>,
-    pub span: Span,
-    pub is_block_scope: bool,
-}
-
 pub fn create_interp_scope(span: Span, is_block_scope: bool) -> InterpScope {
     InterpScope {
         entities: HashMap::new(),
         span,
         is_block_scope,
     }
-}
-
-pub struct InterpContext<'a> {
-    pub file:          Option<&'a File>,
-    pub signatures:    HashMap<String, &'a Item>,
-    pub call_stack:    Vec<InterpScope>,
-    pub stack:         Vec<InterpValue>,
-    pub stack_pointer: usize,
-    pub base_pointer:  usize,
 }
 
 pub fn create_interp_context<'a>() -> InterpContext<'a> {
@@ -143,49 +143,6 @@ fn find_local_variable<'a>(ic: &mut InterpContext<'a>, span: Span, symbol: Strin
         }
     }
     Err(fatal_error(ic, span, &format!("cannot find value `{}` in this scope", symbol), ""))
-}
-
-fn create_error_msg<'a>(
-    ic: &InterpContext<'a>,
-    level: ErrorLevel,
-    span: Span,
-    message: &str,
-    label: &str
-) -> ErrorMsg {
-    match ic.file {
-        Some(file) => create_error_msg_from_span(level,
-                                                 &file.lines,
-                                                 span,
-                                                 &file.filename,
-                                                 &file.source,
-                                                 message,
-                                                 label),
-        
-        None => ErrorMsg {
-            level: level,
-            line_number: 0,
-            column_number: 0,
-            path: "".to_string(),
-            msg: message.to_string(),
-            source: "".to_string(),
-            label: label.to_string(),
-            next: None,
-        },
-    }
-}
-
-fn fatal_error<'a>(ic: &InterpContext<'a>, span: Span, message: &str, label: &str) -> ErrorMsg {
-    create_error_msg(ic, ErrorLevel::Fatal, span, message, label)
-}
-
-fn mismatched_types_fatal_error<'a>(ic: &InterpContext<'a>, span: Span, expected: &TyKind, found: &Ty) -> ErrorMsg {
-    create_error_msg(
-        ic,
-        ErrorLevel::Fatal,
-        span,
-        &format!("expected `{}`, found `{}`", expected, found),
-        ""
-    )
 }
 
 fn write_str(buf: &mut fmt::Formatter<'_>, mut s: &str, indent: usize) -> fmt::Result {
@@ -496,7 +453,7 @@ pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(Inte
                             if r.mutable {
                                 Ok((ic.stack[r.addr].clone(), r.addr))
                             } else {
-                                
+
                                 let mut err = fatal_error(
                                     ic,
                                     expr.get_span(),
@@ -509,19 +466,19 @@ pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(Inte
                                     "",
                                     "help: consider changing this to be a mutable reference"
                                 )));
-                                
+
                                 Err(err)
                             }
                         },
-                        
+
                         _ => Err(fatal_error(ic, Span::new(), "invalid expression", "")),
                     }
                 },
-                
+
                 _ => Err(fatal_error(ic, Span::new(), "invalid expression", "")),
             }
         },
-        
+
         _ => Err(fatal_error(ic, Span::new(), "invalid expression", "")),
     }
 }
@@ -584,7 +541,7 @@ pub fn interp_binary_expr<'a>(ic: &mut InterpContext<'a>, expr: &ExprBinary) -> 
                 _ => Value::None,
             }
         },
-        
+
         _ => Value::None,
     };
 
@@ -625,7 +582,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
             &format!("cannot find function `{}` in this scope", call.ident.to_string),
             ""))
     };
-    
+
     match item {
         Item::Fn(func) => {
             let base_pointer = ic.base_pointer;
@@ -746,7 +703,7 @@ pub fn interp_reference_expr(ic: &mut InterpContext, ref_expr: &ExprReference) -
         }
     }
 }
-        
+
 /**
  * Interprets a return statement.
  */
@@ -829,4 +786,47 @@ pub fn interp_while_expr(ic: &mut InterpContext, while_expr: &ExprWhile) -> IRes
         };
     }
     Ok(empty_interp_value())
+}
+
+fn create_error_msg<'a>(
+    ic: &InterpContext<'a>,
+    level: ErrorLevel,
+    span: Span,
+    message: &str,
+    label: &str
+) -> ErrorMsg {
+    match ic.file {
+        Some(file) => create_error_msg_from_span(level,
+                                                 &file.lines,
+                                                 span,
+                                                 &file.filename,
+                                                 &file.source,
+                                                 message,
+                                                 label),
+
+        None => ErrorMsg {
+            level: level,
+            line_number: 0,
+            column_number: 0,
+            path: "".to_string(),
+            msg: message.to_string(),
+            source: "".to_string(),
+            label: label.to_string(),
+            next: None,
+        },
+    }
+}
+
+fn fatal_error<'a>(ic: &InterpContext<'a>, span: Span, message: &str, label: &str) -> ErrorMsg {
+    create_error_msg(ic, ErrorLevel::Fatal, span, message, label)
+}
+
+fn mismatched_types_fatal_error<'a>(ic: &InterpContext<'a>, span: Span, expected: &TyKind, found: &Ty) -> ErrorMsg {
+    create_error_msg(
+        ic,
+        ErrorLevel::Fatal,
+        span,
+        &format!("expected `{}`, found `{}`", expected, found),
+        ""
+    )
 }
