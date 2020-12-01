@@ -67,101 +67,101 @@ impl ErrorMsg {
             ErrorLevel::Fatal => {
                 color.set_fg(Some(Color::White));
                 color.set_bg(Some(Color::Red));
-                stderr.set_color(&color);
+                stderr.set_color(&color)?;
                 writeln!(&mut stderr, "fatal:")?;
             }
             ErrorLevel::Error => {
                 color.set_bg(Some(Color::Red));
-                stderr.set_color(&color);
+                stderr.set_color(&color)?;
                 writeln!(&mut stderr, "error:")?;
             }
             ErrorLevel::Warn => {
                 color.set_bg(Some(Color::Red));
-                stderr.set_color(&color);
+                stderr.set_color(&color)?;
                 writeln!(&mut stderr, "error:")?;
             }   
             ErrorLevel::Info => {
                 color.set_bg(Some(Color::Blue));
-                stderr.set_color(&color);
+                stderr.set_color(&color)?;
                 writeln!(&mut stderr, "info:")?;
             }
             ErrorLevel::Note => {
                 color.set_bg(Some(Color::Blue));
-                stderr.set_color(&color);
+                stderr.set_color(&color)?;
                 writeln!(&mut stderr, "note:")?;
             }
             ErrorLevel::Help => {
                 color.set_bg(Some(Color::Blue));
-                stderr.set_color(&color);
+                stderr.set_color(&color)?;
                 writeln!(&mut stderr, "help:")?;
             }
             ErrorLevel::Cancelled => return Ok(())
         }
         color.clear();
-        stderr.set_color(&color);
-        writeln!(&mut stderr, " ");
+        stderr.set_color(&color)?;
+        writeln!(&mut stderr, " ")?;
 
         color.set_intense(true);
-        stderr.set_color(&color);
-        writeln!(&mut stderr, "{}", self.msg);
+        stderr.set_color(&color)?;
+        writeln!(&mut stderr, "{}", self.msg)?;
             
         color.clear();
-        stderr.set_color(&color);
+        stderr.set_color(&color)?;
 
         let d = (((self.line_number as f32).log10()).floor() as u32) + 1;
         for _i in 0..=d {
-            writeln!(&mut stderr, " ");
+            writeln!(&mut stderr, " ")?;
         }
         
         color.set_bg(Some(Color::Blue));
-        stderr.set_color(&color);
-        write!(&mut stderr, "|");
+        stderr.set_color(&color)?;
+        write!(&mut stderr, "|")?;
         
         color.clear();
-        stderr.set_color(&color);
-        write!(&mut stderr, "\n");
+        stderr.set_color(&color)?;
+        write!(&mut stderr, "\n")?;
 
-        write!(&mut stderr, "{}", self.line_number);
-        write!(&mut stderr, " ");
+        write!(&mut stderr, "{}", self.line_number)?;
+        write!(&mut stderr, " ")?;
         
         color.set_bg(Some(Color::Blue));
-        stderr.set_color(&color);
-        write!(&mut stderr, "|");
+        stderr.set_color(&color)?;
+        write!(&mut stderr, "|")?;
         
         color.clear();
-        stderr.set_color(&color);
-        write!(&mut stderr, " ");
-        write!(&mut stderr, "{}", self.source);
+        stderr.set_color(&color)?;
+        write!(&mut stderr, " ")?;
+        write!(&mut stderr, "{}", self.source)?;
         if self.source.len() == 0 || self.source.as_bytes()[self.source.len() - 1] != b'\n' {
-            write!(&mut stderr, "\n");
+            write!(&mut stderr, "\n")?;
         }
 
         for _i in 0..=d {
-            write!(&mut stderr, " ");
+            write!(&mut stderr, " ")?;
         }
         
         color.set_bg(Some(Color::Blue));
-        stderr.set_color(&color);
-        write!(&mut stderr, "|");
+        stderr.set_color(&color)?;
+        write!(&mut stderr, "|")?;
         
         color.clear();
-        stderr.set_color(&color);
+        stderr.set_color(&color)?;
         for _i in 0..=self.column_number {
-            write!(&mut stderr, " ");
+            write!(&mut stderr, " ")?;
         }
         
         color.set_bg(Some(Color::Red));
-        stderr.set_color(&color);
-        write!(&mut stderr, "^");
+        stderr.set_color(&color)?;
+        write!(&mut stderr, "^")?;
         for _i in 0..=self.label.len() {
-            writeln!(&mut stderr, "~");
+            writeln!(&mut stderr, "~")?;
         }
-        write!(&mut stderr, " ");
-        write!(&mut stderr, "{}", self.label);
+        write!(&mut stderr, " ")?;
+        write!(&mut stderr, "{}", self.label)?;
         
         color.clear();
-        stderr.set_color(&color);
-        write!(&mut stderr, "\n");
+        stderr.set_color(&color)?;
+        write!(&mut stderr, "\n")?;
         Ok(())
     }
 }

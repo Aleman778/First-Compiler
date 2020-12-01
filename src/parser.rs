@@ -24,7 +24,7 @@ pub type ParseSpan<'a> = LocatedSpanEx<&'a str, u16>;
 /**
  * Type aliased IResult from std::Result.
  */
-type IResult<I, O> = Result<(I, O), Err<ParseError>>;
+pub type IResult<I, O> = Result<(I, O), Err<ParseError>>;
 
 /**
  * Parse error struct holds information about the error and location
@@ -80,7 +80,7 @@ pub fn parse_file(source: String, filename: String) -> File {
     };
     let mut items = Vec::new();
     while output.fragment.len() > 0 {
-        match Item::parse(output) {
+        match parse_item(output) {
             Ok((input, item)) => {
                 items.push(item);
                 output = match multispace_comment0(input) {
@@ -102,763 +102,593 @@ pub fn parse_file(source: String, filename: String) -> File {
     File { source, filename, items, span, lines, imported_files }
 }
 
-/**
- * Parse an item can atm only be a function.
- */
-impl Parser for Item {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "item",
-            alt((
-                map(FnItem::parse, |func| Item::Fn(func)),
-                map(ForeignModItem::parse, |module| Item::ForeignMod(module)),
-            ))
-        )(input)
-    }
-}
-
-/**
- * Parse a function.
- */
-impl Parser for FnItem {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "function",
-            map(tuple((
-                preceded(multispace0, tag("fn")),
-                preceded(multispace1, ExprIdent::parse),
-                FnDecl::parse,
-                Block::parse,
-            )),
-                |(start, id, decl, block)| {
-                    let block_span = block.span;
-                    FnItem {
-                        ident: id,
-                        decl: decl,
-                        block: block,
-                        span: Span::combine(
-                            Span::from_parse_span(start),
-                            block_span,
-                        ),
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-impl Parser for ForeignFnItem {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "foreign function",
-            map(tuple((
-                preceded(multispace0, tag("fn")),
-                preceded(multispace1, ExprIdent::parse),
-                FnDecl::parse,
-                preceded(multispace0, tag(";")),
-            )),
-                |(start, id, decl, semi)| {
-                    ForeignFnItem {
-                        ident: id,
-                        decl: decl,
-                        span: Span::combine(
-                            Span::from_parse_span(start),
-                            Span::from_parse_span(semi),
-                        ),
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-impl Parser for ForeignModItem {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "extern",
-            map(tuple((
-                preceded(multispace0, tag("extern")),
-                opt(preceded(multispace0, parse_string)),
-                preceded(multispace0, tag("{")),
-                many0(preceded(multispace_comment0, Item::parse)),
-                preceded(multispace0, tag("}")),
-            )),
-                |(start, abi_string, _, items, end)| {
-                    ForeignModItem {
-                        abi: abi_string.map(|(abi, span)| abi),
-                        items,
-                        span: Span::combine(
-                            Span::from_parse_span(start),
-                            Span::from_parse_span(end),
-                        ),
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse a function delcaration, this includes
- * the input arguments and optionally output type.
- */
-impl Parser for FnDecl {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "function declaration",
-            map(tuple((
-                preceded(multispace0, tag("(")),
-                separated_list(
-                    preceded(multispace0, tag(",")),
-                    Argument::parse
-                ),
-                preceded(multispace0, tag(")")),
-                opt(pair(
-                    preceded(multispace0, tag("->")),
-                    Ty::parse
-                )),
-            )),
-                |(start, args, end, ret_ty)| {
-                    let mut output;
-                    let end_span;
-                    match ret_ty {
-                        Some(ty) => {
-                            end_span = ty.1.span;
-                            output = ty.1;
-                        },
-                        None => {
-                            output = Ty::new();
-                            end_span = Span::from_parse_span(end);
-                            output.span = Span::combine(end_span, end_span);
-                        },
-                    };
-                    FnDecl {
-                        inputs: args,
-                        output: output,
-                        span: Span::combine(Span::from_parse_span(start), end_span),
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse a function argument.
- */
-impl Parser for Argument {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "argument",
-            map(tuple((
-                opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
-                ExprIdent::parse,
-                preceded(multispace0, tag(":")),
-                Ty::parse,
-            )),
-                |(mut_token, id, _, ty)| {
-                    let start = match mut_token {
-                        Some(mutable) => Span::from_parse_span(mutable),
-                        None => id.span,
-                    };
-                    let end = ty.span;
-                    Argument {
-                        mutable: mut_token.is_some(),
-                        ident: id,
-                        ty: ty,
-                        span: Span::combine(start, end)
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse expression block.
- */
-impl Parser for Block {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "block statement",
-            map(tuple((
-                preceded(multispace_comment0, tag("{")),
-                many0(preceded(multispace_comment0, Stmt::parse)),
-                preceded(multispace_comment0, tag("}")),
-            )),
-                |(start, stmts, end)| {
-                    Block {
-                        stmts: stmts,
-                        span: Span::combine(
-                            Span::from_parse_span(start),
-                            Span::from_parse_span(end),
-                        ),
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse different types of statements.
- */
-impl Parser for Stmt {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "statement",
-            alt((
-                map(Local::parse, |local| Stmt::Local(local)),
-                map(Item::parse,  |item|  Stmt::Item(item)),
-                map(terminated(Expr::parse, preceded(multispace0, tag(";"))),
-                    |expr|  Stmt::Semi(expr)),
-                map(Expr::parse,  |expr|  Stmt::Expr(expr)),
-            ))
-        )(input)
-    }
-}
-
-/**
- * Parse a local variable (let binding).
- */
-impl Parser for Local {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "local variable",
-            map(tuple((
-                preceded(multispace0, tag("let")),
-                opt(preceded(multispace1, tag("mut"))),
-                preceded(multispace1, ExprIdent::parse),
-                preceded(multispace0, tag(":")),
-                preceded(multispace0, Ty::parse),
-                opt(pair(
-                    preceded(multispace0, tag("=")),
-                    preceded(multispace0, Expr::parse)
-                )),
-                preceded(multispace0, tag(";")),
-            )),
-                |(start, mutable, ident, _, ty, init, end)| {
-                    let init = match init {
-                        Some((_, expr)) => Some(expr),
-                        None => None,
-                    };
-                    Local {
-                        mutable: mutable.is_some(),
-                        ident: ident,
-                        ty: ty,
-                        init: Box::new(init),
-                        span: Span::combine(
-                            Span::from_parse_span(start),
-                            Span::from_parse_span(end),
-                        ),
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse a type can be i32, bool or a reference.
- */
-impl Parser for Ty {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "type",
-            map(TyKind::parse, |(kind, span)| Ty{kind: kind, span: span})
-        )(input)
-    }
-}
-
-impl TyKind {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, (Self, Span)> {
+pub fn parse_item(input: ParseSpan) -> IResult<ParseSpan, Item> {
+    context(
+        "item",
         alt((
-            map(preceded(multispace0, tag("i32")), |s| (TyKind::Int, Span::from_parse_span(s))),
-            map(preceded(multispace0, tag("bool")), |s| (TyKind::Bool, Span::from_parse_span(s))),
-            map(preceded(multispace0, TypeRef::parse), |r| (TyKind::Ref(r.0), r.1)),
-        ))(input)
-    }
+            map(parse_fn_item, |func| Item::Fn(func)),
+            map(parse_foreign_fn_item, |func| Item::ForeignFn(func)),
+            map(parse_foreign_mod_item, |module| Item::ForeignMod(module)),
+        ))
+    )(input)
 }
 
-/**
- * Parse a type reference or mutable reference.
- */
-impl TypeRef {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, (Self, Span)> {
-        context(
-            "type reference",
-            map(tuple((
-                preceded(multispace0, tag("&")),
-                opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
-                preceded(multispace0, Ty::parse),
-            )),
-                |(amp, mut_token, elem)| {
-                    let elem_span = elem.span;
-                    (TypeRef{mutable: mut_token.is_some(), elem: Box::new(elem)},
-                     Span::combine(Span::from_parse_span(amp), elem_span))
+pub fn parse_foreign_item(input: ParseSpan) -> IResult<ParseSpan, Item> {
+    context(
+        "item",
+        map(parse_foreign_fn_item, |func| Item::ForeignFn(func))
+    )(input)
+}
+
+pub fn parse_fn_item(input: ParseSpan) -> IResult<ParseSpan, FnItem> {
+    context(
+        "function",
+        map(tuple((
+            preceded(multispace0, tag("fn")),
+            preceded(multispace1, parse_ident_expr),
+            parse_fn_decl,
+            parse_block,
+        )),
+            |(start, id, decl, block)| {
+                let block_span = block.span;
+                FnItem {
+                    ident: id,
+                    decl: decl,
+                    block: block,
+                    span: Span::combine(
+                        Span::from_parse_span(start),
+                        block_span,
+                    ),
                 }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse binary operators
- */
-impl Parser for BinOp {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "operator",
-            preceded(multispace0, alt((
-                map(tag("+"),  |_| BinOp::Add),
-                map(tag("-"),  |_| BinOp::Sub),
-                map(tag("**"), |_| BinOp::Pow),
-                map(tag("*"),  |_| BinOp::Mul),
-                map(tag("/"),  |_| BinOp::Div),
-                map(tag("%"),  |_| BinOp::Mod),
-                map(tag("&&"), |_| BinOp::And),
-                map(tag("||"), |_| BinOp::Or),
-                map(tag("=="), |_| BinOp::Eq),
-                map(tag("!="), |_| BinOp::Ne),
-                map(tag("<="), |_| BinOp::Le),
-                map(tag(">="), |_| BinOp::Ge),
-                map(tag("<"),  |_| BinOp::Lt),
-                map(tag(">"),  |_| BinOp::Gt),
-            )))
-        )(input)
-    }
-}
-
-impl Parser for UnOp {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "operator",
-            preceded(multispace0, alt((
-                map(tag("-"),  |_| UnOp::Neg),
-                map(tag("!"),  |_| UnOp::Not),
-                map(tag("*"),  |_| UnOp::Deref),
-            )))
-        )(input)
-    }
-}
-
-/**
- * Parse an expression, for mathematical expressions use parse_math instead.
- */
-impl Parser for Expr {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "expression",
-            alt((
-                map(ExprAssign::parse,    |expr_assign|   Expr::Assign(expr_assign)),
-                map(ExprIf::parse,        |expr_if|       Expr::If(expr_if)),
-                map(ExprWhile::parse,     |expr_while|    Expr::While(expr_while)),
-                map(ExprBlock::parse,     |expr_block|    Expr::Block(expr_block)),
-                map(ExprReturn::parse,    |expr_return|   Expr::Return(expr_return)),
-                map(ExprBreak::parse,     |expr_break|    Expr::Break(expr_break)),
-                map(ExprContinue::parse,  |expr_continue| Expr::Continue(expr_continue)),
-                map(ExprCall::parse,      |expr_call|     Expr::Call(expr_call)),
-                Expr::parse_math
-            ))
-        )(input)
-    }
-}
-
-/**
- * Implementation of expression to separate parsing of standard
- * non-mathematical expressions  mathematical and also atom expressions.
- */
-impl Expr {
-    /**
-     * Parse a mathematical expression. Uses precedence climbing
-     * algorithm for parsing into a mathematically correct expression.
-     */
-    pub fn parse_math(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        preceded(multispace0, ExprBinary::parse)(input)
-    }
-
-    /**
-     * Parse an atom i.e. literal, parenthesized expression, function call,
-     * identifier or unary operation.
-     */
-    pub fn parse_atom(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "expression",
-            alt((
-                map(ExprLit::parse,       |literal|  Expr::Lit(literal)),
-                map(ExprParen::parse,     |expr|     Expr::Paren(expr)),
-                map(ExprCall::parse_term, |call|     Expr::Call(call)),
-                map(ExprIdent::parse,     |ident|    Expr::Ident(ident)),
-                map(ExprUnary::parse,     |unary|    Expr::Unary(unary)),
-                map(ExprReference::parse, |expr_ref| Expr::Reference(expr_ref)),
-            ))
-        )(input)
-    }
-}
-
-/**
- * Parse mutable variable assignment.
- */
-impl Parser for ExprAssign {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "assignment",
-            preceded(
-                multispace0,
-                map(tuple((
-                    Expr::parse_atom,
-                    preceded(multispace0, tag("=")),
-                    Expr::parse,
-                    preceded(multispace0, peek(tag(";"))),
-                )),
-                    |(left, _, right, end)| {
-                        let left_span = left.get_span();
-                        ExprAssign {
-                            left: Box::new(left),
-                            right: Box::new(right),
-                            span: Span::combine(left_span, Span::from_parse_span(end)),
-                        }
-                    }
-                )
-            )
-        )(input)
-    }
-}
-
-/**
- * Implement precedence climbing algorithm
- */
-impl ExprBinary {
-    /**
-     * Parse a binary operation.
-     */
-    pub fn parse(input: ParseSpan) -> IResult<ParseSpan, Expr> {
-        ExprBinary::climb(input, 1)
-    }
-
-    /**
-     * Parse a binary operation using precedence climbing algorithm.
-     */
-    fn climb(input: ParseSpan, min_prec: u8) -> IResult<ParseSpan, Expr> {
-        let (mut output, mut expr_lhs) = Expr::parse_atom(input)?;
-        loop {
-            match peek(BinOp::parse)(output) {
-                Ok((_, operator)) => {
-                    let (prec, assoc) = operator.get_prec();
-                    if prec < min_prec {
-                        break;
-                    }
-                    let next_min_prec = match assoc {
-                        Assoc::Left => prec + 1,
-                        Assoc::Right => prec,
-                    };
-                    let (span, operator) = BinOp::parse(output)?;
-                    let (span, _) = multispace0(span)?;
-                    let (span, expr_rhs) = ExprBinary::climb(span, next_min_prec)?;
-                    output = span;
-                    expr_lhs = Expr::Binary(ExprBinary {
-                        left: Box::new(expr_lhs),
-                        op: operator,
-                        right: Box::new(expr_rhs),
-                        span: Span::combine(
-                            Span::from_parse_span(input),
-                            Span::from_parse_span(output),
-                        ),
-                    });
-                },
-                _ => break,
             }
-        }
-        Ok((output, expr_lhs))
-    }
+        )
+    )(input)
 }
 
-/**
- * Parse block expression.
- */
-impl Parser for ExprBlock {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        map(
-            Block::parse, |block| {
-                let span = block.span;
-                ExprBlock{block, span}
+pub fn parse_foreign_fn_item(input: ParseSpan) -> IResult<ParseSpan, ForeignFnItem> {
+    context(
+        "foreign function",
+        map(tuple((
+            preceded(multispace0, tag("fn")),
+            preceded(multispace1, parse_ident_expr),
+            parse_fn_decl,
+            preceded(multispace0, tag(";")),
+        )),
+            |(start, id, decl, semi)| {
+                ForeignFnItem {
+                    ident: id,
+                    decl: decl,
+                    span: Span::combine(
+                        Span::from_parse_span(start),
+                        Span::from_parse_span(semi),
+                    ),
+                }
             }
-        )(input)
-    }
+        )
+    )(input)
 }
 
-/**
- * Parse break keyword.
- */
-impl Parser for ExprBreak {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "break",
-            map(pair(
-                preceded(multispace0, tag("break")),
-                preceded(multispace0, peek(tag(";")))
-            ),
-                |(start, end) : (ParseSpan, ParseSpan)| ExprBreak {
+pub fn parse_foreign_mod_item(input: ParseSpan) -> IResult<ParseSpan, ForeignModItem> {
+    context(
+        "extern",
+        map(tuple((
+            preceded(multispace0, tag("extern")),
+            opt(preceded(multispace0, parse_string)),
+            preceded(multispace0, tag("{")),
+            many0(preceded(multispace_comment0, parse_foreign_item)),
+            preceded(multispace0, tag("}")),
+        )),
+            |(start, abi_string, _, items, end)| {
+                ForeignModItem {
+                    abi: abi_string.map(|(abi, _)| abi),
+                    items,
                     span: Span::combine(
                         Span::from_parse_span(start),
                         Span::from_parse_span(end),
                     ),
                 }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse function call.
- * Used for parsing expressions.
- */
-impl Parser for ExprCall {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        map(pair(
-            ExprCall::parse_term,
-            preceded(multispace0, peek(tag(";")))
-        ),
-            |(mut call, end)| {
-                call.span = Span::from_parse_span(end);
-                call
             }
-        )(input)
-    }
+        )
+    )(input)
 }
 
-/**
- * Parse function call as terminal.
- * Used for parsing atoms.
- */
-impl ExprCall {
-    fn parse_term(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "function call",
-            map(tuple((
-                ExprIdent::parse,
-                preceded(multispace0, tag("(")),
-                separated_list(preceded(multispace0, tag(",")), Expr::parse),
-                preceded(multispace0, tag(")")),
-            )),
-                |(id, _, args, end)| {
-                    let rid = id.clone();
-                    ExprCall {
-                        ident: id,
-                        args: args,
-                        span: Span::combine(
-                            rid.span,
-                            Span::from_parse_span(end),
-                        ),
-                    }
-                }
-            )
-        )(input)
-
-    }
-}
-
-/**
- * Parse continue keyword.
- */
-impl Parser for ExprContinue {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "continue",
-            map(pair(
-                preceded(multispace0, tag("continue")),
-                preceded(multispace0, peek(tag(";")))
-            ),
-                |(start, end) : (ParseSpan, ParseSpan)| ExprContinue {
-                    span: Span::combine(
-                        Span::from_parse_span(start),
-                        Span::from_parse_span(end)
-                    ),
-                }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse an identifier e.g. test_id.
- */
-impl Parser for ExprIdent {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "identifier",
-            preceded(multispace0, map(pair(
-                peek(alt((alpha1, tag("_")))),
-                take_while1(|c: char| is_alphanumeric(c as u8) || c == '_')),
-                |(_, s): (ParseSpan, ParseSpan)| ExprIdent {
-                    to_string: s.fragment.to_string(),
-                    span: Span::from_parse_span(s)
-                })
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse an if statement.
- */
-impl Parser for ExprIf  {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "if statement",
-            map(tuple((
-                preceded(multispace0, tag("if")),
-                preceded(multispace1, Expr::parse),
-                preceded(multispace0, Block::parse),
-                opt(preceded(
-                    pair(multispace0, tag("else")),
-                    preceded(multispace0, Block::parse))
-                ),
-            )),
-                |(start, cond, then_block, else_block)| {
-                    let end = match else_block.clone() {
-                        Some(block) => block,
-                        None => then_block.clone(),
-                    };
-                    ExprIf {
-                        cond: Box::new(cond),
-                        then_block: then_block,
-                        else_block: else_block,
-                        span: Span::combine(
-                            Span::from_parse_span(start),
-                            end.span
-                        ),
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse a literal expression.
- */
-impl Parser for ExprLit {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "literal",
-            alt((
-                map(parse_int,  |(val, span)| ExprLit { lit: Lit::Int (val), span: span }),
-                map(parse_bool, |(val, span)| ExprLit { lit: Lit::Bool(val), span: span }),
-            )),
-        )(input)
-    }
-}
-
-/**
- * Parse a parenthesized expression.
- */
-impl Parser for ExprParen {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+pub fn parse_fn_decl(input: ParseSpan) -> IResult<ParseSpan, FnDecl> {
+    context(
+        "function declaration",
         map(tuple((
             preceded(multispace0, tag("(")),
-            Expr::parse,
-            preceded(multispace0, tag(")"))
+            separated_list(
+                preceded(multispace0, tag(",")),
+                parse_argument
+            ),
+            preceded(multispace0, tag(")")),
+            opt(pair(
+                preceded(multispace0, tag("->")),
+                parse_ty
+            )),
         )),
-            |(start, expr, end)| ExprParen {
+            |(start, args, end, ret_ty)| {
+                let mut output;
+                let end_span;
+                match ret_ty {
+                    Some(ty) => {
+                        end_span = ty.1.span;
+                        output = ty.1;
+                    },
+                    None => {
+                        output = Ty::new();
+                        end_span = Span::from_parse_span(end);
+                        output.span = Span::combine(end_span, end_span);
+                    },
+                };
+                FnDecl {
+                    inputs: args,
+                    output: output,
+                    span: Span::combine(Span::from_parse_span(start), end_span),
+                }
+            }
+        )
+    )(input)
+}
+
+pub fn parse_argument(input: ParseSpan) -> IResult<ParseSpan, Argument> {
+    context(
+        "argument",
+        map(tuple((
+            opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
+            parse_ident_expr,
+            preceded(multispace0, tag(":")),
+            parse_ty,
+        )),
+            |(mut_token, id, _, ty)| {
+                let start = match mut_token {
+                    Some(mutable) => Span::from_parse_span(mutable),
+                    None => id.span,
+                };
+                let end = ty.span;
+                Argument {
+                    mutable: mut_token.is_some(),
+                    ident: id,
+                    ty: ty,
+                    span: Span::combine(start, end)
+                }
+            }
+        )
+    )(input)
+}
+
+pub fn parse_block(input: ParseSpan) -> IResult<ParseSpan, Block> {
+    context(
+        "block statement",
+        map(tuple((
+            preceded(multispace_comment0, tag("{")),
+            many0(preceded(multispace_comment0, parse_stmt)),
+            preceded(multispace_comment0, tag("}")),
+        )),
+            |(start, stmts, end)| {
+                Block {
+                    stmts: stmts,
+                    span: Span::combine(
+                        Span::from_parse_span(start),
+                        Span::from_parse_span(end),
+                    ),
+                }
+            }
+        )
+    )(input)
+}
+
+pub fn parse_stmt(input: ParseSpan) -> IResult<ParseSpan, Stmt> {
+    context(
+        "statement",
+        alt((
+            map(parse_local_stmt, |local| Stmt::Local(local)),
+            map(parse_item,  |item|  Stmt::Item(item)),
+            map(terminated(parse_expr, preceded(multispace0, tag(";"))),
+                |expr|  Stmt::Semi(expr)),
+            map(parse_expr,  |expr|  Stmt::Expr(expr)),
+        ))
+    )(input)
+}
+
+pub fn parse_local_stmt(input: ParseSpan) -> IResult<ParseSpan, Local> {
+    context(
+        "local variable",
+        map(tuple((
+            preceded(multispace0, tag("let")),
+            opt(preceded(multispace1, tag("mut"))),
+            preceded(multispace1, parse_ident_expr),
+            preceded(multispace0, tag(":")),
+            preceded(multispace0, parse_ty),
+            opt(pair(
+                preceded(multispace0, tag("=")),
+                preceded(multispace0, parse_expr)
+            )),
+            preceded(multispace0, tag(";")),
+        )),
+            |(start, mutable, ident, _, ty, init, end)| {
+                let init = match init {
+                    Some((_, expr)) => Some(expr),
+                    None => None,
+                };
+                Local {
+                    mutable: mutable.is_some(),
+                    ident: ident,
+                    ty: ty,
+                    init: Box::new(init),
+                    span: Span::combine(
+                        Span::from_parse_span(start),
+                        Span::from_parse_span(end),
+                    ),
+                }
+            }
+        )
+    )(input)
+}
+
+pub fn parse_ty(input: ParseSpan) -> IResult<ParseSpan, Ty> {
+    context(
+        "type",
+        map(parse_ty_kind, |(kind, span)| Ty{kind: kind, span: span})
+    )(input)
+}
+
+fn parse_ty_kind(input: ParseSpan) -> IResult<ParseSpan, (TyKind, Span)> {
+    alt((
+        map(preceded(multispace0, tag("i32")), |s| (TyKind::Int, Span::from_parse_span(s))),
+        map(preceded(multispace0, tag("bool")), |s| (TyKind::Bool, Span::from_parse_span(s))),
+        map(preceded(multispace0, parse_ty_ref), |r| (TyKind::Ref(r.0), r.1)),
+    ))(input)
+}
+
+fn parse_ty_ref(input: ParseSpan) -> IResult<ParseSpan, (TypeRef, Span)> {
+    context(
+        "type reference",
+        map(tuple((
+            preceded(multispace0, tag("&")),
+            opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
+            preceded(multispace0, parse_ty),
+        )),
+            |(amp, mut_token, elem)| {
+                let elem_span = elem.span;
+                (TypeRef{mutable: mut_token.is_some(), elem: Box::new(elem)},
+                 Span::combine(Span::from_parse_span(amp), elem_span))
+            }
+        )
+    )(input)
+}
+
+pub fn parse_binop(input: ParseSpan) -> IResult<ParseSpan, BinOp> {
+    context(
+        "operator",
+        preceded(multispace0, alt((
+            map(tag("+"),  |_| BinOp::Add),
+            map(tag("-"),  |_| BinOp::Sub),
+            map(tag("**"), |_| BinOp::Pow),
+            map(tag("*"),  |_| BinOp::Mul),
+            map(tag("/"),  |_| BinOp::Div),
+            map(tag("%"),  |_| BinOp::Mod),
+            map(tag("&&"), |_| BinOp::And),
+            map(tag("||"), |_| BinOp::Or),
+            map(tag("=="), |_| BinOp::Eq),
+            map(tag("!="), |_| BinOp::Ne),
+            map(tag("<="), |_| BinOp::Le),
+            map(tag(">="), |_| BinOp::Ge),
+            map(tag("<"),  |_| BinOp::Lt),
+            map(tag(">"),  |_| BinOp::Gt),
+        )))
+    )(input)
+}
+
+pub fn parse_unop(input: ParseSpan) -> IResult<ParseSpan, UnOp> {
+    context(
+        "operator",
+        preceded(multispace0, alt((
+            map(tag("-"),  |_| UnOp::Neg),
+            map(tag("!"),  |_| UnOp::Not),
+            map(tag("*"),  |_| UnOp::Deref),
+        )))
+    )(input)
+}
+
+pub fn parse_expr(input: ParseSpan) -> IResult<ParseSpan, Expr> {
+    context(
+        "expression",
+        alt((
+            map(parse_assign_expr,    |expr_assign|   Expr::Assign(expr_assign)),
+            map(parse_if_expr,        |expr_if|       Expr::If(expr_if)),
+            map(parse_while_expr,     |expr_while|    Expr::While(expr_while)),
+            map(parse_block_expr,     |expr_block|    Expr::Block(expr_block)),
+            map(parse_return_expr,    |expr_return|   Expr::Return(expr_return)),
+            map(parse_break_expr,     |expr_break|    Expr::Break(expr_break)),
+            map(parse_continue_expr,  |expr_continue| Expr::Continue(expr_continue)),
+            map(parse_call_expr,      |expr_call|     Expr::Call(expr_call)),
+            preceded(multispace0, parse_binary_expr),
+        ))
+    )(input)
+}
+
+pub fn parse_expr_atom(input: ParseSpan) -> IResult<ParseSpan, Expr> {
+    context(
+        "expression",
+        alt((
+            map(parse_lit_expr,       |literal|  Expr::Lit(literal)),
+            map(parse_paren_expr,     |expr|     Expr::Paren(expr)),
+            map(parse_call_expr,      |call|     Expr::Call(call)),
+            map(parse_ident_expr,     |ident|    Expr::Ident(ident)),
+            map(parse_unary_expr,     |unary|    Expr::Unary(unary)),
+            map(parse_reference_expr, |expr_ref| Expr::Reference(expr_ref)),
+        ))
+    )(input)
+}
+
+pub fn parse_assign_expr(input: ParseSpan) -> IResult<ParseSpan, ExprAssign> {
+    context(
+        "assignment",
+        preceded(
+            multispace0,
+            map(tuple((
+                parse_expr_atom,
+                preceded(multispace0, tag("=")),
+                parse_expr,
+                preceded(multispace0, peek(tag(";"))),
+            )),
+                |(left, _, right, end)| {
+                    let left_span = left.get_span();
+                    ExprAssign {
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        span: Span::combine(left_span, Span::from_parse_span(end)),
+                    }
+                }
+            )
+        )
+    )(input)
+}
+
+pub fn parse_binary_expr(input: ParseSpan) -> IResult<ParseSpan, Expr> {
+    parse_binary_precedence_climb(input, 1)
+}
+
+pub fn parse_binary_precedence_climb(input: ParseSpan, min_prec: u8) -> IResult<ParseSpan, Expr> {
+    let (mut output, mut expr_lhs) = parse_expr_atom(input)?;
+    loop {
+        match peek(parse_binop)(output) {
+            Ok((_, operator)) => {
+                let (prec, assoc) = operator.get_prec();
+                if prec < min_prec {
+                    break;
+                }
+                let next_min_prec = match assoc {
+                    Assoc::Left => prec + 1,
+                    Assoc::Right => prec,
+                };
+                let (span, operator) = parse_binop(output)?;
+                let (span, _) = multispace0(span)?;
+                let (span, expr_rhs) = parse_binary_precedence_climb(span, next_min_prec)?;
+                output = span;
+                expr_lhs = Expr::Binary(ExprBinary {
+                    left: Box::new(expr_lhs),
+                    op: operator,
+                    right: Box::new(expr_rhs),
+                    span: Span::combine(
+                        Span::from_parse_span(input),
+                        Span::from_parse_span(output),
+                    ),
+                });
+            },
+            _ => break,
+        }
+    }
+    Ok((output, expr_lhs))
+}
+
+pub fn parse_block_expr(input: ParseSpan) -> IResult<ParseSpan, ExprBlock> {
+    map(parse_block, |block| {
+        let span = block.span;
+        ExprBlock { block, span }
+    })(input)
+}
+
+pub fn parse_break_expr(input: ParseSpan) -> IResult<ParseSpan, ExprBreak> {
+    context(
+        "break",
+        map(pair(
+            preceded(multispace0, tag("break")),
+            preceded(multispace0, peek(tag(";")))
+        ),
+            |(start, end) : (ParseSpan, ParseSpan)| ExprBreak {
+                span: Span::combine(
+                    Span::from_parse_span(start),
+                    Span::from_parse_span(end),
+                ),
+            }
+        )
+    )(input)
+}
+
+fn parse_call_expr(input: ParseSpan) -> IResult<ParseSpan, ExprCall> {
+    context(
+        "function call",
+        map(tuple((
+            parse_ident_expr,
+            preceded(multispace0, tag("(")),
+            separated_list(preceded(multispace0, tag(",")), parse_expr),
+            preceded(multispace0, tag(")")),
+        )),
+            |(id, _, args, end)| {
+                let rid = id.clone();
+                ExprCall {
+                    ident: id,
+                    args: args,
+                    span: Span::combine(
+                        rid.span,
+                        Span::from_parse_span(end),
+                    ),
+                }
+            }
+        )
+    )(input)
+}
+
+pub fn parse_continue_expr(input: ParseSpan) -> IResult<ParseSpan, ExprContinue> {
+    context(
+        "continue",
+        map(pair(
+            preceded(multispace0, tag("continue")),
+            preceded(multispace0, peek(tag(";")))
+        ),
+            |(start, end) : (ParseSpan, ParseSpan)| ExprContinue {
+                span: Span::combine(
+                    Span::from_parse_span(start),
+                    Span::from_parse_span(end)
+                ),
+            }
+        )
+    )(input)
+}
+
+pub fn parse_ident_expr(input: ParseSpan) -> IResult<ParseSpan, ExprIdent> {
+    context(
+        "identifier",
+        preceded(multispace0, map(
+            pair(
+                peek(alt((alpha1, tag("_")))),
+                take_while1(|c: char| is_alphanumeric(c as u8) || c == '_')),
+            |(_, s): (ParseSpan, ParseSpan)| ExprIdent {
+                to_string: s.fragment.to_string(),
+                span: Span::from_parse_span(s)
+            })
+        )
+    )(input)
+}
+
+pub fn parse_if_expr(input: ParseSpan) -> IResult<ParseSpan, ExprIf> {
+    context(
+        "if statement",
+        map(tuple((
+            preceded(multispace0, tag("if")),
+            preceded(multispace1, parse_expr),
+            preceded(multispace0, parse_block),
+            opt(preceded(
+                pair(multispace0, tag("else")),
+                preceded(multispace0, parse_block))
+            ),
+        )),
+            |(start, cond, then_block, else_block)| {
+                let end = match else_block.clone() {
+                    Some(block) => block,
+                    None => then_block.clone(),
+                };
+                ExprIf {
+                    cond: Box::new(cond),
+                    then_block: then_block,
+                    else_block: else_block,
+                    span: Span::combine(
+                        Span::from_parse_span(start),
+                        end.span
+                    ),
+                }
+            }
+        )
+    )(input)
+}
+
+pub fn parse_lit_expr(input: ParseSpan) -> IResult<ParseSpan, ExprLit> {
+    context(
+        "literal",
+        alt((
+            map(parse_int,  |(val, span)| ExprLit { lit: Lit::Int (val), span: span }),
+            map(parse_bool, |(val, span)| ExprLit { lit: Lit::Bool(val), span: span }),
+        )),
+    )(input)
+}
+
+
+pub fn parse_paren_expr(input: ParseSpan) -> IResult<ParseSpan, ExprParen> {
+    map(tuple((
+        preceded(multispace0, tag("(")),
+        parse_expr,
+        preceded(multispace0, tag(")"))
+    )),
+        |(start, expr, end)| ExprParen {
+            expr: Box::new(expr),
+            span: Span::combine(
+                Span::from_parse_span(start),
+                Span::from_parse_span(end)
+            ),
+        }
+    )(input)
+}
+
+pub fn parse_reference_expr(input: ParseSpan) -> IResult<ParseSpan, ExprReference> {
+    map(tuple((
+        preceded(multispace0, tag("&")),
+        opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
+        preceded(multispace0, parse_expr_atom),
+    )),
+        |(amp, mut_token, expr)| {
+            let expr_span = expr.get_span();
+            ExprReference {
+                mutable: mut_token.is_some(),
+                expr: Box::new(expr),
+                span: Span::combine(Span::from_parse_span(amp), expr_span),
+            }
+        }
+    )(input)
+}
+
+pub fn parse_return_expr(input: ParseSpan) -> IResult<ParseSpan, ExprReturn> {
+    context(
+        "return",
+        map(tuple((
+            preceded(multispace0, tag("return")),
+            opt(preceded(multispace1, parse_expr )),
+            preceded(multispace0, peek(tag(";"))),
+        )),
+            |(start, expr, end)| ExprReturn {
                 expr: Box::new(expr),
                 span: Span::combine(
                     Span::from_parse_span(start),
                     Span::from_parse_span(end)
                 ),
             }
-        )(input)
-    }
+        )
+    )(input)
 }
 
-/**
- * Parse a reference expression.
- */
-impl Parser for ExprReference {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
+pub fn parse_unary_expr(input: ParseSpan) -> IResult<ParseSpan, ExprUnary> {
+    let (input, _) = multispace0(input)?;
+    let (span, op) = parse_unop(input)?;
+    let (span, expr) = parse_binary_precedence_climb(span, op.get_prec().0)?;
+    Ok((span, ExprUnary {
+        op: op,
+        expr: Box::new(expr),
+        span: Span::combine(Span::from_parse_span(input), Span::from_parse_span(span)),
+    }))
+}
+
+pub fn parse_while_expr(input: ParseSpan) -> IResult<ParseSpan, ExprWhile> {
+    context(
+        "while loop",
         map(tuple((
-            preceded(multispace0, tag("&")),
-            opt(preceded(multispace0, terminated(tag("mut"), multispace1))),
-            preceded(multispace0, Expr::parse_atom),
+            preceded(multispace0, tag("while")),
+            preceded(multispace1, parse_expr),
+            preceded(multispace0, parse_block)
         )),
-            |(amp, mut_token, expr)| {
-                let expr_span = expr.get_span();
-                ExprReference {
-                    mutable: mut_token.is_some(),
-                    expr: Box::new(expr),
-                    span: Span::combine(Span::from_parse_span(amp), expr_span),
+            |(start, cond, block)| {
+                let block_span = block.span;
+                ExprWhile {
+                    cond: Box::new(cond),
+                    block: block,
+                    span: Span::combine(Span::from_parse_span(start), block_span),
                 }
             }
-        )(input)
-    }
+        )
+    )(input)
 }
 
-/**
- * Parse a return statement with optional return expression.
- */
-impl Parser for ExprReturn {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "return",
-            map(tuple((
-                preceded(multispace0, tag("return")),
-                opt(preceded(multispace1, Expr::parse)),
-                preceded(multispace0, peek(tag(";"))),
-            )),
-                |(start, expr, end)| ExprReturn {
-                    expr: Box::new(expr),
-                    span: Span::combine(
-                        Span::from_parse_span(start),
-                        Span::from_parse_span(end)
-                    ),
-                }
-            )
-        )(input)
-    }
-}
-
-/**
- * Parse an unary operation.
- */
-impl Parser for ExprUnary {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        let (input, _) = multispace0(input)?;
-        let (span, op) = UnOp::parse(input)?;
-        let (span, expr) = ExprBinary::climb(span, op.get_prec().0)?;
-        Ok((span, ExprUnary {
-            op: op,
-            expr: Box::new(expr),
-            span: Span::combine(Span::from_parse_span(input), Span::from_parse_span(span)),
-        }))
-    }
-}
-
-/**
- * Parse a while loop.
- */
-impl Parser for ExprWhile {
-    fn parse(input: ParseSpan) -> IResult<ParseSpan, Self> {
-        context(
-            "while loop",
-            map(tuple((
-                preceded(multispace0, tag("while")),
-                preceded(multispace1, Expr::parse),
-                preceded(multispace0, Block::parse)
-            )),
-                |(start, cond, block)| {
-                    let block_span = block.span;
-                    ExprWhile {
-                        cond: Box::new(cond),
-                        block: block,
-                        span: Span::combine(Span::from_parse_span(start), block_span),
-                    }
-                }
-            )
-        )(input)
-    }
-}
-
-fn parse_int(input: ParseSpan) -> IResult<ParseSpan, (i32, Span)> {
+pub fn parse_int(input: ParseSpan) -> IResult<ParseSpan, (i32, Span)> {
     let (input, digits) = preceded(multispace0, digit1)(input)?;
     match digits.fragment.parse::<i32>() {
         Ok(n) => Ok((input, (n, Span::from_parse_span(digits)))),
@@ -866,14 +696,14 @@ fn parse_int(input: ParseSpan) -> IResult<ParseSpan, (i32, Span)> {
     }
 }
 
-fn parse_bool(input: ParseSpan) -> IResult<ParseSpan, (bool, Span)> {
+pub fn parse_bool(input: ParseSpan) -> IResult<ParseSpan, (bool, Span)> {
     preceded(multispace0, alt((
         map(tag("true"),  |s| (true,  Span::from_parse_span(s))),
         map(tag("false"), |s| (false, Span::from_parse_span(s))),
     )))(input)
 }
 
-fn parse_string(input: ParseSpan) -> IResult<ParseSpan, (String, Span)> {
+pub fn parse_string(input: ParseSpan) -> IResult<ParseSpan, (String, Span)> {
     preceded(multispace0, map(tuple((
         tag("\""),
         take_while(|c: char| c != '"'),
@@ -885,9 +715,6 @@ fn parse_string(input: ParseSpan) -> IResult<ParseSpan, (String, Span)> {
     }))(input)
 }
 
-/**
- * Parse both multispace1 and comments.
- */
 pub fn multispace_comment0(input: ParseSpan) -> IResult<ParseSpan, ()> {
     map(
         many0(
@@ -899,10 +726,7 @@ pub fn multispace_comment0(input: ParseSpan) -> IResult<ParseSpan, ()> {
     )(input)
 }
 
-/**
- * Parses any type of comment and removes it from the span.
- */
-fn any_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
+pub fn any_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     alt((
         doc_comment,
         block_doc_comment,
@@ -911,20 +735,14 @@ fn any_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     ))(input)
 }
 
-/**
- * Parse a singleline comment.
- */
-fn line_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
+pub fn line_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     context(
         "comment",
         map(pair(tag("//"), take_until("\n")), |_| ())
     )(input)
 }
 
-/**
- * Parse a block comment.
- */
-fn block_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
+pub fn block_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     let mut input = tag("/*")(input)?.0;
     loop {
         let next: IResult<ParseSpan, ParseSpan> = take(1usize)(input);
@@ -943,9 +761,6 @@ fn block_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     }
 }
 
-/**
- * Parse a singleline documentation comment.
- */
 fn doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     context(
         "doc-comment",
@@ -953,9 +768,6 @@ fn doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     )(input)
 }
 
-/**
- * Parse a
- */
 fn block_doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     let mut input = tag("/**")(input)?.0;
     loop {

@@ -90,7 +90,7 @@ pub fn main() {
 
 fn run_compiler(config: Config) {
     info!("setting up the compiler");
-    let mut working_dir = env::current_dir().unwrap_or(PathBuf::new());
+    let mut _working_dir = env::current_dir().unwrap_or(PathBuf::new());
 
     let mut ast_file: Option<File> = None;
 
@@ -108,7 +108,7 @@ fn run_compiler(config: Config) {
         
         let mut filename = String::clone(&input);
         if path.is_absolute() {
-            working_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or(working_dir);
+            _working_dir = path.parent().map(|p| p.to_path_buf()).unwrap_or(_working_dir);
             filename = String::from(path.file_name().map(|s| s.to_str().unwrap()).unwrap());
         }
 

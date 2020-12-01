@@ -23,7 +23,7 @@ pub struct Reference {
 }
 
 #[derive(Debug, Clone)]
-struct InterpValue {
+pub struct InterpValue {
     pub data: Value,
     pub span: Span,
     pub mutable: bool,
@@ -32,7 +32,7 @@ struct InterpValue {
     pub should_break: bool,
 }
 
-fn create_interp_value(data: Value, span: Span, mutable: bool) -> InterpValue {
+pub fn create_interp_value(data: Value, span: Span, mutable: bool) -> InterpValue {
     InterpValue {
         data,
         span,
@@ -43,11 +43,11 @@ fn create_interp_value(data: Value, span: Span, mutable: bool) -> InterpValue {
     }
 }
 
-fn empty_interp_value() -> InterpValue {
+pub fn empty_interp_value() -> InterpValue {
     create_interp_value(Value::None, Span::new(), false)
 }
 
-fn is_value_empty(value: &Value) -> bool {
+pub fn is_value_empty(value: &Value) -> bool {
     match value {
         Value::Void |
         Value::None => true,
@@ -55,7 +55,7 @@ fn is_value_empty(value: &Value) -> bool {
     }
 }
 
-fn to_type_kind(value: &Value) -> TyKind {
+pub fn to_type_kind(value: &Value) -> TyKind {
     match value {
         Value::Int(_) => TyKind::Int,
         Value::Bool(_) => TyKind::Bool,
@@ -69,7 +69,7 @@ fn to_type_kind(value: &Value) -> TyKind {
     }
 }
 
-fn to_type(value: &InterpValue) -> Ty {
+pub fn to_type(value: &InterpValue) -> Ty {
     let ty_kind = to_type_kind(&value.data);
     Ty { kind: ty_kind, span: value.span }
 }
@@ -112,8 +112,8 @@ pub fn create_interp_context<'a>() -> InterpContext<'a> {
 fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symbol: Option<String>) -> usize {
     if let Some(id) = symbol {
         if ic.call_stack.len() > 0 {
-            let scope = ic.call_stack[ic.call_stack.len() - 1];
-            scope.entities.insert(id, ic.stack_pointer);
+            let len = ic.call_stack.len();
+            ic.call_stack[len - 1].entities.insert(id, ic.stack_pointer);
         }
     }
     if ic.stack_pointer >= ic.stack.len() {
@@ -126,10 +126,10 @@ fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symb
 }
 
 fn find_local_variable<'a>(ic: &mut InterpContext<'a>, span: Span, symbol: String) -> IResult<(InterpValue, usize)> {
-    for scope in ic.call_stack {
+    for scope in &ic.call_stack {
         if let Some(&addr) = scope.entities.get(&symbol) {
             if addr >= ic.base_pointer && addr < ic.stack_pointer {
-                return Ok((ic.stack[addr], addr));
+                return Ok((ic.stack[addr].clone(), addr));
             }
             return Err(fatal_error(ic, span, &format!("value `{}` is outside stack frame", symbol), ""));
         }
@@ -246,7 +246,7 @@ pub fn fmt_interp_scope(
     scope: &InterpScope,
     f: &mut fmt::Formatter<'_>,
     file: &File,
-    mut indent: usize,
+    indent: usize,
     index: usize
 ) -> fmt::Result {
     write_str(f, &format!("\n{}: ", index), indent - 4)?;
@@ -272,12 +272,12 @@ pub fn interp_file<'a>(ic: &mut InterpContext<'a>, file: &'a File) {
 }
 
 pub fn interp_item<'a>(ic: &mut InterpContext<'a>, item: &'a Item) {
-    match item { // FIXME(alexander): cloning should not be necessary!!!
+    match item { // FIXME(alexander): cloning string should not be necessary, maybe use string interner
         Item::Fn(func) => {
-            ic.signatures.insert(func.ident.to_string, item);
+            ic.signatures.insert(func.ident.to_string.clone(), item);
         }
         Item::ForeignFn(func) => {
-            ic.signatures.insert(func.ident.to_string, item);
+            ic.signatures.insert(func.ident.to_string.clone(), item);
         }
         Item::ForeignMod(module) => {
             for foreign_item in &module.items {
@@ -406,7 +406,7 @@ pub fn interp_stmt<'a>(ic: &mut InterpContext<'a>, stmt: &Stmt) -> IResult<Inter
         Stmt::Local(local) => {
             let val = match &*local.init {
                 Some(init) => {
-                    let val = interp_expr(ic, init)?;
+                    let mut val = interp_expr(ic, init)?;
                     val.mutable = local.mutable;
                     let val_ty = to_type(&val);
                     if val_ty != local.ty {
@@ -416,7 +416,7 @@ pub fn interp_stmt<'a>(ic: &mut InterpContext<'a>, stmt: &Stmt) -> IResult<Inter
                 }
                 None => empty_interp_value()
             };
-            store_local_variable(ic, val, Some(local.ident.to_string));
+            store_local_variable(ic, val, Some(local.ident.to_string.clone()));
             Ok(empty_interp_value())
         }
 
@@ -450,7 +450,7 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
         Expr::Binary    (e) => interp_binary_expr(ic, e),
         Expr::Block     (e) => interp_block_expr(ic, e),
         Expr::Call      (e) => interp_call_expr(ic, e),
-        Expr::Ident     (e) => find_local_variable(ic, e.span, e.to_string).map(|(v, _)| v),
+        Expr::Ident     (e) => find_local_variable(ic, e.span, e.to_string.clone()).map(|(v, _)| v),
         Expr::If        (e) => interp_if_expr(ic, e),
         Expr::Lit       (e) => interp_lit_expr(ic, e),
         Expr::Paren     (e) => interp_expr(ic, &e.expr),
@@ -459,12 +459,14 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
         Expr::Unary     (e) => interp_unary_expr(ic, e),
         Expr::While     (e) => interp_while_expr(ic, e),
         Expr::Break     (e) => {
-            let val = empty_interp_value();
+            let mut val = empty_interp_value();
+            val.span = e.span;
             val.should_break = true;
             Ok(val)
         }
         Expr::Continue  (e) => {
-            let val = empty_interp_value();
+            let mut val = empty_interp_value();
+            val.span = e.span;
             val.should_continue = true;
             Ok(val)
         }
@@ -476,7 +478,7 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
  */
 pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(InterpValue, usize)> {
     match expr {
-        Expr::Ident(ident) => find_local_variable(ic, ident.span, ident.to_string),
+        Expr::Ident(ident) => find_local_variable(ic, ident.span, ident.to_string.clone()),
         Expr::Unary(unary) => {
             match unary.op {
                 UnOp::Deref => {
@@ -484,7 +486,7 @@ pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(Inte
                     match value.data {
                         Value::Ref(r) => {
                             if r.mutable {
-                                Ok((ic.stack[r.addr], r.addr))
+                                Ok((ic.stack[r.addr].clone(), r.addr))
                             } else {
                                 
                                 let mut err = fatal_error(
@@ -602,7 +604,7 @@ pub fn interp_block_expr(ic: &mut InterpContext, block: &ExprBlock) -> IResult<I
  */
 pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<InterpValue> {
     let base_pointer = ic.base_pointer;
-    let mut new_scope = create_interp_scope(call.span, false);
+    let new_scope = create_interp_scope(call.span, false);
     ic.call_stack.push(new_scope);
 
     let mut values = Vec::new();
@@ -633,11 +635,12 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
                         return Err(mismatched_types_fatal_error(ic, span, &arg_ty.kind, val_ty));
                     }
                     let id = &inputs[i].ident;
-                    let addr = store_local_variable(ic, values[i], Some(id.to_string));
-                    new_scope.entities.insert(id.to_string, addr);
+                    let addr = store_local_variable(ic, values[i].clone(), Some(id.to_string.clone()));
+                    let len = ic.call_stack.len();
+                    ic.call_stack[len - 1].entities.insert(id.to_string.clone(), addr);
                 }
             } else {
-                let mut err = fatal_error(
+                let err = fatal_error(
                     ic,
                     func.span,
                     &format!("this function takes {} parameters but {} parameters were supplied",
@@ -748,7 +751,7 @@ pub fn interp_return_expr(ic: &mut InterpContext, return_expr: &ExprReturn) -> I
         Some(expr) => interp_expr(ic, expr),
         None => Ok(create_interp_value(Value::Void, return_expr.span, false)),
     };
-    ret.map(|val| {
+    ret.map(|mut val| {
         val.from_return = true;
         val
     })
@@ -773,14 +776,14 @@ pub fn interp_unary_expr<'a>(ic: &mut InterpContext, unary: &ExprUnary) -> IResu
         },
 
         UnOp::Deref => match value.data {
-            Value::Ref(r) => ic.stack[r.addr].data,
+            Value::Ref(r) => ic.stack[r.addr].data.clone(),
             _ => Value::None,
         }
     };
 
     match result {
         Value::None => {
-            let mut err = fatal_error(
+            let err = fatal_error(
                 ic,
                 unary.span,
                 &format!("type `{}` cannot be {}", value_type, unary.op),
