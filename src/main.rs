@@ -17,7 +17,7 @@ use crate::ast::File;
 use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
-use crate::typeck::{TypeChecker, TyCtxt};
+use crate::typeck::{create_type_context, type_check_file};
 
 struct Config {
     input: Option<String>,
@@ -94,7 +94,6 @@ pub fn main() {
 fn run_compiler(config: Config) {
     info!("setting up the compiler");
     let mut _working_dir = env::current_dir().unwrap_or(PathBuf::new());
-
     let mut ast_file: Option<File> = None;
 
     // Parse input file provided by config
@@ -135,21 +134,19 @@ fn run_compiler(config: Config) {
         return;
     }
 
+    // Include compiler intrinsics in the parsed ast file
     let mut ast = ast_file.unwrap();
     let intrinsic_mod = get_intrinsic_ast_items();
     ast.items.push(intrinsic_mod);
 
+    // Type check the current file
+    let mut tc = create_type_context();
+    type_check_file(&mut tc, &ast);
+
+    // Interpret the current file
     if config.interpret {
         let mut ic = create_interp_context();
         interp_file(&mut ic, &ast);
         interp_entry_point(&mut ic);
     }
-
-    // let mut sym_table = gen_sym_table(&ast);
-    // let mut ty_ctxt = TyCtxt::new(&sess, &mut sym_table);
-    // ast.check_type(&mut ty_ctxt);
-    // if config.interpret {
-        // let mut env = RuntimeEnv::new(&mut sess);
-        // ast.eval(&mut env);
-    // }
 }

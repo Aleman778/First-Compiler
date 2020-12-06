@@ -50,6 +50,25 @@ pub struct Reference {
     pub mutable: bool,
 }
 
+pub fn create_interp_context<'a>() -> InterpContext<'a> {
+    InterpContext {
+        file: None,
+        signatures: HashMap::new(),
+        call_stack: Vec::new(),
+        stack: Vec::with_capacity(1000),
+        stack_pointer: 0,
+        base_pointer: 0,
+    }
+}
+
+pub fn create_interp_scope(span: Span, is_block_scope: bool) -> InterpScope {
+    InterpScope {
+        entities: HashMap::new(),
+        span,
+        is_block_scope,
+    }
+}
+
 pub fn create_interp_value(data: Value, span: Span, mutable: bool) -> InterpValue {
     InterpValue {
         data,
@@ -92,25 +111,6 @@ pub fn to_type(value: &InterpValue) -> Ty {
     Ty { kind: ty_kind, span: value.span }
 }
 
-pub fn create_interp_scope(span: Span, is_block_scope: bool) -> InterpScope {
-    InterpScope {
-        entities: HashMap::new(),
-        span,
-        is_block_scope,
-    }
-}
-
-pub fn create_interp_context<'a>() -> InterpContext<'a> {
-    InterpContext {
-        file: None,
-        signatures: HashMap::new(),
-        call_stack: Vec::new(),
-        stack: Vec::with_capacity(1000),
-        stack_pointer: 0,
-        base_pointer: 0,
-    }
-}
-
 fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symbol: Option<String>) -> usize {
     if let Some(id) = symbol {
         if ic.call_stack.len() > 0 {
@@ -130,19 +130,19 @@ fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symb
 }
 
 fn find_local_variable<'a>(ic: &mut InterpContext<'a>, span: Span, symbol: String) -> IResult<(InterpValue, usize)> {
-    for scope in &ic.call_stack {
+    for scope in ic.call_stack.iter().rev() {
         if let Some(&addr) = scope.entities.get(&symbol) {
             if addr >= ic.base_pointer && addr < ic.stack_pointer {
                 return Ok((ic.stack[addr].clone(), addr));
             }
-            return Err(fatal_error(ic, span, &format!("value `{}` is outside stack frame", symbol), ""));
+            return Err(interp_error(ic, span, &format!("value `{}` is outside stack frame", symbol), ""));
         }
 
         if !scope.is_block_scope {
             break;
         }
     }
-    Err(fatal_error(ic, span, &format!("cannot find value `{}` in this scope", symbol), ""))
+    Err(interp_error(ic, span, &format!("cannot find value `{}` in this scope", symbol), ""))
 }
 
 fn write_str(buf: &mut fmt::Formatter<'_>, mut s: &str, indent: usize) -> fmt::Result {
@@ -253,13 +253,13 @@ pub fn interp_entry_point<'a>(ic: &mut InterpContext<'a>) -> i32 {
             match item {
                 Item::Fn(func) => func,
                 _ => {
-                    print_error_msg(&fatal_error(ic, Span::new(), "main exists but is not a valid function", ""));
+                    print_error_msg(&interp_error(ic, Span::new(), "main exists but is not a valid function", ""));
                     return 1;
                 }
             }
         }
         None => {
-            print_error_msg(&fatal_error(ic, Span::new(), "there is no main function", ""));
+            print_error_msg(&interp_error(ic, Span::new(), "there is no main function", ""));
             return 1;
         }
     };
@@ -333,7 +333,7 @@ fn interp_intrinsics<'a>(
             };
         },
 
-        _ => return Err(fatal_error(
+        _ => return Err(interp_error(
             ic,
             Span::new(),
             &format!("`{}` is not a valid intrinsic function", item.ident.to_string),
@@ -404,7 +404,7 @@ pub fn interp_stmt<'a>(ic: &mut InterpContext<'a>, stmt: &Stmt) -> IResult<Inter
                 Item::ForeignFn(x) => x.span,
                 Item::ForeignMod(x) => x.span,
             };
-            Err(fatal_error(ic, span, "items in functions are not supported by the interpreter", ""))
+            Err(interp_error(ic, span, "items in functions are not supported by the interpreter", ""))
         }
     }
 }
@@ -454,7 +454,7 @@ pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(Inte
                                 Ok((ic.stack[r.addr].clone(), r.addr))
                             } else {
 
-                                let mut err = fatal_error(
+                                let mut err = interp_error(
                                     ic,
                                     expr.get_span(),
                                     "cannot assign to variable using immutable reference",
@@ -471,15 +471,15 @@ pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(Inte
                             }
                         },
 
-                        _ => Err(fatal_error(ic, Span::new(), "invalid expression", "")),
+                        _ => Err(interp_error(ic, Span::new(), "invalid expression", "")),
                     }
                 },
 
-                _ => Err(fatal_error(ic, Span::new(), "invalid expression", "")),
+                _ => Err(interp_error(ic, Span::new(), "invalid expression", "")),
             }
         },
 
-        _ => Err(fatal_error(ic, Span::new(), "invalid expression", "")),
+        _ => Err(interp_error(ic, Span::new(), "invalid expression", "")),
     }
 }
 
@@ -488,7 +488,7 @@ fn interp_assign_expr(ic: &mut InterpContext, expr: &ExprAssign) -> IResult<Inte
         Ok(addr) => addr.1,
         Err(mut err) => {
             if err.msg == "invalid expression" {
-                err = fatal_error(
+                err = interp_error(
                     ic,
                     expr.span,
                     "invalid left-hand side expression",
@@ -547,7 +547,7 @@ pub fn interp_binary_expr<'a>(ic: &mut InterpContext<'a>, expr: &ExprBinary) -> 
 
     match result {
         Value::None => {
-            Err(fatal_error(
+            Err(interp_error(
                 ic,
                 combined_span,
                 &format!("cannot {} `{}` to `{}`", expr.op, left_type, right_type),
@@ -576,7 +576,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
 
     let item = match ic.signatures.get(&call.ident.to_string) {
         Some(item) => item,
-        None => return Err(fatal_error(
+        None => return Err(interp_error(
             ic,
             call.ident.span,
             &format!("cannot find function `{}` in this scope", call.ident.to_string),
@@ -604,7 +604,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
                     ic.call_stack[len - 1].entities.insert(id.to_string.clone(), addr);
                 }
             } else {
-                let err = fatal_error(
+                let err = interp_error(
                     ic,
                     func.span,
                     &format!("this function takes {} parameters but {} parameters were supplied",
@@ -624,7 +624,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
 
         Item::ForeignFn(func) => {
             if values.len() != func.decl.inputs.len() {
-                return Err(fatal_error(
+                return Err(interp_error(
                     ic,
                     func.span,
                     &format!("this function takes {} parameters but {} parameters were supplied",
@@ -637,7 +637,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
 
         _ => {
             let ident = &call.ident;
-            Err(fatal_error(
+            Err(interp_error(
                 ic,
                 ident.span,
                 &format!("cannot find function `{}` in this scope", ident.to_string),
@@ -693,7 +693,7 @@ pub fn interp_reference_expr(ic: &mut InterpContext, ref_expr: &ExprReference) -
         }
         Err(mut err) => {
             if err.msg == "invalid expression" {
-                err = fatal_error(
+                err = interp_error(
                     ic,
                     ref_expr.span,
                     "cannot reference of ",
@@ -744,7 +744,7 @@ pub fn interp_unary_expr<'a>(ic: &mut InterpContext, unary: &ExprUnary) -> IResu
 
     match result {
         Value::None => {
-            let err = fatal_error(
+            let err = interp_error(
                 ic,
                 unary.span,
                 &format!("type `{}` cannot be {}", value_type, unary.op),
@@ -817,7 +817,7 @@ fn create_error_msg<'a>(
     }
 }
 
-fn fatal_error<'a>(ic: &InterpContext<'a>, span: Span, message: &str, label: &str) -> ErrorMsg {
+fn interp_error<'a>(ic: &InterpContext<'a>, span: Span, message: &str, label: &str) -> ErrorMsg {
     create_error_msg(ic, ErrorLevel::Fatal, span, message, label)
 }
 

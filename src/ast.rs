@@ -712,13 +712,7 @@ pub struct Span {
     pub ctx: u16,
 }
 
-/**
- * Implementation of span.
- */
 impl Span {
-    /**
-     * Constructs an empty span.
-     */
     pub fn new() -> Self {
         Span {
             base: 0,
@@ -727,9 +721,10 @@ impl Span {
         }
     }
 
-    /**
-     * Constructs a new span from a parse span.
-     */
+    pub fn is_empty(&self) -> bool {
+        return self.base == 0 && self.len == 0 && self.ctx == 0;
+    }
+
     pub fn from_parse_span(s: ParseSpan) -> Self {
         Span {
             base: s.offset as u32,
@@ -738,9 +733,6 @@ impl Span {
         }
     }
 
-    /**
-     * Returns two spans combined into one,
-     */
     pub fn combine(s1: Span, s2: Span) -> Self {
         assert!(s1.ctx == s2.ctx);
         if s1.base < s2.base {
