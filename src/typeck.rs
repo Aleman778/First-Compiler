@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use crate::ast::*;
 use crate::error::*;
 
-pub type TypeTable<'a> = HashMap<String, &'a Ty>;
+pub type TypeTable = HashMap<String, Ty>;
 
 pub struct TypeContext<'a> {
     pub file: Option<&'a File>,
-    pub locals: Vec<TypeTable<'a>>, // based on the call stack
+    pub locals: Vec<TypeTable>, // based on the call stack
     pub items: HashMap<String, &'a Item>,
     pub current_item: Option<&'a Item>,
     pub error_count: u32,
@@ -26,15 +26,15 @@ pub fn create_type_context<'a>() -> TypeContext<'a> {
 fn store_global_items<'a>(tc: &mut TypeContext<'a>, items: &'a Vec<Item>) {
     for item in items {
         let ident = match item {
-            Item::Fn(func) => func.ident.to_string,
-            Item::ForeignFn(func) => func.ident.to_string,
+            Item::Fn(func) => &func.ident.to_string,
+            Item::ForeignFn(func) => &func.ident.to_string,
             Item::ForeignMod(module) => {
                 store_global_items(tc, &module.items);
                 continue;
             }
         };
     
-        tc.items.insert(ident, &item);
+        tc.items.insert(ident.to_string(), &item);
     }
 }
 
@@ -42,8 +42,8 @@ pub fn type_check_file<'a>(tc: &mut TypeContext<'a>, file: &'a File) {
     tc.file = Some(file);
     store_global_items(tc, &file.items);
     
-    for item in file.items {
-        type_check_item(tc, &item);
+    for item in &file.items {
+        type_check_item(tc, item);
     }
 }
 
@@ -146,13 +146,13 @@ pub fn type_check_stmt<'a>(tc: &mut TypeContext<'a>, stmt: &'a Stmt) -> Ty {
                         
                         _ => {},
                     };
-                    local.ty
+                    local.ty.clone()
                 }
             };
 
             if tc.locals.len() > 0 {
                 let len = tc.locals.len();
-                tc.locals[len - 1].insert(local.ident.to_string, &ty);
+                tc.locals[len - 1].insert(local.ident.to_string.clone(), ty);
             }
             
             Ty::new()
@@ -184,7 +184,7 @@ pub fn type_check_expr<'a>(tc: &mut TypeContext<'a>, expr: &'a Expr) -> Ty {
         Expr::Call      (e) => type_check_call_expr(tc, e),
         Expr::Ident     (e) => type_check_ident_expr(tc, e),
         Expr::If        (e) => type_check_if_expr(tc, e),
-        Expr::Lit       (e) => type_check_literal_expr(tc, e),
+        Expr::Lit       (e) => type_check_literal_expr(e),
         Expr::Paren     (e) => type_check_expr(tc, &e.expr),
         Expr::Reference (e) => type_check_reference_expr(tc, e),
         Expr::Return    (e) => type_check_return_expr(tc, e),
@@ -253,8 +253,8 @@ pub fn type_check_binary_expr<'a>(tc: &mut TypeContext<'a>, binary_expr: &'a Exp
 pub fn type_check_call_expr<'a>(tc: &mut TypeContext<'a>, call: &'a ExprCall) -> Ty {
     let fn_decl = match tc.items.get(&call.ident.to_string) {
         Some(item) => match item {
-            Item::Fn(func) => func.decl,
-            Item::ForeignFn(func) => func.decl,
+            Item::Fn(func) => &func.decl,
+            Item::ForeignFn(func) => &func.decl,
             _ => panic!("compiler bug"),
         }
         
@@ -297,7 +297,7 @@ pub fn type_check_call_expr<'a>(tc: &mut TypeContext<'a>, call: &'a ExprCall) ->
 
 pub fn type_check_ident_expr<'a>(tc: &mut TypeContext<'a>, ident: &'a ExprIdent) -> Ty {
     for table in tc.locals.iter().rev() {
-        if let Some(&ty) = table.get(&ident.to_string) {
+        if let Some(ty) = table.get(&ident.to_string) {
             let mut id_ty = ty.clone();
             id_ty.span = ident.span;
             return id_ty;
@@ -342,7 +342,7 @@ pub fn type_check_literal_expr<'a>(literal: &'a ExprLit) -> Ty {
 pub fn type_check_reference_expr<'a>(tc: &mut TypeContext<'a>, reference_expr: &'a ExprReference) -> Ty {
     let ty = type_check_expr(tc, &reference_expr.expr);
     if ty.is_none() {
-        let mut err = type_error(
+        type_error(
             tc,
             reference_expr.span,
             "cannot reference none type",
@@ -365,14 +365,14 @@ pub fn type_check_return_expr<'a>(tc: &mut TypeContext<'a>, return_expr: &'a Exp
             let ret_ty = type_check_expr(tc, &expr);
             let actual_ret_ty = match tc.current_item {
                 Some(item) => match item {
-                    Item::Fn(func) => func.decl.output,
-                    Item::ForeignFn(func) => func.decl.output,
+                    Item::Fn(func) => &func.decl.output,
+                    Item::ForeignFn(func) => &func.decl.output,
                     _ => panic!("compiler bug"),
                 }
                 None => panic!("compiler bug: not analysing any function"),
             };
             
-            if actual_ret_ty != ret_ty {
+            if *actual_ret_ty != ret_ty {
                 mismatched_types_error(tc, return_expr.span, &actual_ret_ty.kind, &ret_ty);
                 
                 // TODO(alexander): check empty return type
@@ -455,7 +455,7 @@ fn create_error_msg<'a>(
     }
 }
 
-fn type_error<'a>(tc: &TypeContext<'a>, span: Span, message: &str, label: &str) {
+fn type_error<'a>(tc: &mut TypeContext<'a>, span: Span, message: &str, label: &str) {
     let msg = create_error_msg(
         tc,
         ErrorLevel::Error,
@@ -467,7 +467,7 @@ fn type_error<'a>(tc: &TypeContext<'a>, span: Span, message: &str, label: &str) 
     tc.error_count += 1;
 }
 
-fn mismatched_types_error<'a>(tc: &TypeContext<'a>, span: Span, expected: &TyKind, found: &Ty) {
+fn mismatched_types_error<'a>(tc: &mut TypeContext<'a>, span: Span, expected: &TyKind, found: &Ty) {
     let msg = create_error_msg(
         tc,
         ErrorLevel::Error,
