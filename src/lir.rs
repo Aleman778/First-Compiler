@@ -91,9 +91,9 @@ impl Default for LirInstruction {
 impl fmt::Display for LirContext<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for insn in &self.instructions {
-            write!(f, "{}\n", insn);
+            write!(f, "{}\n", insn)?;
         }
-        write!(f, "")
+        Ok(())
     }
 }
 

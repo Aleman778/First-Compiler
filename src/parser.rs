@@ -11,8 +11,10 @@ use nom::{
     error::context,
     Err,
 };
+use string_interner::{StringInterner};
 use nom_locate::LocatedSpanEx;
 use std::collections::HashMap;
+use std::cell::RefCell;
 use crate::error::*;
 use crate::ast::*;
 
@@ -41,6 +43,25 @@ pub struct ParseError {
 pub struct Verbose {
     span: Span,
     kind: ErrorKind,
+}
+
+thread_local!(static GLOBAL_STRING_INTERNER: RefCell<StringInterner> =
+              RefCell::new(StringInterner::default()));
+
+pub type Symbol = string_interner::DefaultSymbol;
+
+pub fn get_symbol<'a>(string: &str) -> Symbol {
+    GLOBAL_STRING_INTERNER.with(|interner_cell| {
+        let interner = &mut *interner_cell.borrow_mut();
+        interner.get_or_intern(string)
+    })
+}
+
+pub fn get_string<'a>(symbol: Symbol) -> &'static str {
+    GLOBAL_STRING_INTERNER.with(|interner_cell| unsafe {
+        let interner = interner_cell.borrow();
+        std::mem::transmute::<&str, &'static str>(interner.resolve(symbol).unwrap())
+    })
 }
 
 /**

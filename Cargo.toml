@@ -1,5 +1,5 @@
 [package]
-name = "sqrrl"
+name = "first"
 version = "0.1.0"
 authors = ["Alexander Mennborg <alexander.mennborg@gmail.com>"]
 edition = "2018"
@@ -11,6 +11,7 @@ publish = false
 nom = "5"
 termcolor = "1"
 nom_locate = "1"
+string-interner = "0.12.1"
 simple_logger = "1.4.0"
 clap = "2.33.0"
 log = "0.4"
