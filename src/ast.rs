@@ -303,35 +303,22 @@ impl cmp::PartialEq for TypeRef {
  */
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum BinOp {
-    /// The `+` operator (addition)
     Add,
-    /// The `-` binary operator (subtraction)
     Sub,
-    /// The `*` operator (multiplication)
     Mul,
-    /// The `/` operator (division)
     Div,
-    /// The `**` operator (power)
     Pow,
-    /// The `%` operator (modulus)
     Mod,
-    /// The `&&` operator (logical and)
     And,
-    /// The `||` operator (logical or)
     Or,
-    /// The `=` operator (equality)
     Eq,
-    /// The `!=` operator (not equal to)
     Ne,
-    /// The `<` operator (less than)
     Lt,
-    /// The `<=` operator (less than or equal to)
     Le,
-    /// The `>` operator (greater than)
     Gt,
-    /// The `>=` operator (greater than or equal to)
     Ge,
 }
+
 /**
  * Implementation of the binary operator node.
  */

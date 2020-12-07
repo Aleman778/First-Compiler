@@ -7,6 +7,7 @@ mod ast;
 mod parser;
 mod interp;
 mod typeck;
+mod lir;
 mod intrinsics;
 
 use log::info;
@@ -18,6 +19,7 @@ use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
+use crate::lir::{create_lir_context, build_lir_from_ast};
 
 struct Config {
     input: Option<String>,
@@ -116,7 +118,7 @@ fn run_compiler(config: Config) {
 
         // Parse input file
         ast_file = Some(parse_file(source, filename));
-        println!("ast: {:#?}", ast_file);
+        // println!("ast: {:#?}", ast_file);
     }
 
     // Parse optional code directly from the config
@@ -149,4 +151,10 @@ fn run_compiler(config: Config) {
         interp_file(&mut ic, &ast);
         interp_entry_point(&mut ic);
     }
+
+    // Build low-level intermediate representation
+    let mut lc = create_lir_context();
+    build_lir_from_ast(&mut lc, &ast);
+
+    println!("lir:\n{}", lc);
 }

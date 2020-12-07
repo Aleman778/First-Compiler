@@ -164,6 +164,6 @@ fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
 
     color.clear();
     stderr.set_color(&color)?;
-    write!(&mut stderr, "\n")?;
+    write!(&mut stderr, "\n\n")?;
     Ok(())
 }
