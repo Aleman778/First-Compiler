@@ -1,11 +1,12 @@
 fn main() {
     let mut x: i32 = 5;
     let y: &mut i32 = &mut x;
-    let z: &i32 = &x;
-    *y = 10 + false;
-    test();
+    *y = if x > 3 {
+        15
+    } else {
+        5
+    };
+    // test();
     
     print_int(x);
-    print_int(*y);   
-    print_int(*z);
 }

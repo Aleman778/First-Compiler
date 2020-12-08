@@ -10,7 +10,7 @@ mod typeck;
 mod lir;
 mod intrinsics;
 
-use log::info;
+use log::{info, error};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 use clap::{App, Arg, AppSettings};
@@ -118,7 +118,7 @@ fn run_compiler(config: Config) {
 
         // Parse input file
         ast_file = Some(parse_file(source, filename));
-        // println!("ast: {:#?}", ast_file);
+        println!("ast: {:#?}", ast_file);
     }
 
     // Parse optional code directly from the config
@@ -144,6 +144,12 @@ fn run_compiler(config: Config) {
     // Type check the current file
     let mut tc = create_type_context();
     type_check_file(&mut tc, &ast);
+
+    if tc.error_count > 0 {
+        error!("type checker reported {} errors, stopping compilation", tc.error_count);
+        eprintln!("\nerror: aborting due to previous error");
+        return;
+    }
 
     // Interpret the current file
     if config.interpret {

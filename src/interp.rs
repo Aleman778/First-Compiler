@@ -10,7 +10,7 @@ pub type IResult<T> = Result<T, ErrorMsg>;
 
 pub struct InterpContext<'a> {
     pub file:          Option<&'a File>,
-    pub signatures:    HashMap<String, &'a Item>,
+    pub signatures:    HashMap<Symbol, &'a Item>,
     pub call_stack:    Vec<InterpScope>,
     pub stack:         Vec<InterpValue>,
     pub stack_pointer: usize,
@@ -19,7 +19,7 @@ pub struct InterpContext<'a> {
 
 #[derive(Clone)]
 pub struct InterpScope {
-    pub entities: HashMap<String, usize>,
+    pub entities: HashMap<Symbol, usize>,
     pub span: Span,
     pub is_block_scope: bool,
 }
@@ -111,7 +111,7 @@ pub fn to_type(value: &InterpValue) -> Ty {
     Ty { kind: ty_kind, span: value.span }
 }
 
-fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symbol: Option<String>) -> usize {
+fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symbol: Option<Symbol>) -> usize {
     if let Some(id) = symbol {
         if ic.call_stack.len() > 0 {
             let len = ic.call_stack.len();
@@ -129,20 +129,24 @@ fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symb
     return addr;
 }
 
-fn find_local_variable<'a>(ic: &mut InterpContext<'a>, span: Span, symbol: String) -> IResult<(InterpValue, usize)> {
+fn find_local_variable<'a>(ic: &mut InterpContext<'a>, span: Span, symbol: Symbol) -> IResult<(InterpValue, usize)> {
     for scope in ic.call_stack.iter().rev() {
         if let Some(&addr) = scope.entities.get(&symbol) {
             if addr >= ic.base_pointer && addr < ic.stack_pointer {
                 return Ok((ic.stack[addr].clone(), addr));
             }
-            return Err(interp_error(ic, span, &format!("value `{}` is outside stack frame", symbol), ""));
+            return Err(interp_error(
+                ic,
+                span,
+                &format!("value `{}` is outside stack frame", resolve_symbol(symbol)),
+                ""));
         }
 
         if !scope.is_block_scope {
             break;
         }
     }
-    Err(interp_error(ic, span, &format!("cannot find value `{}` in this scope", symbol), ""))
+    Err(interp_error(ic, span, &format!("cannot find value `{}` in this scope", resolve_symbol(symbol)), ""))
 }
 
 fn write_str(buf: &mut fmt::Formatter<'_>, mut s: &str, indent: usize) -> fmt::Result {
@@ -181,7 +185,7 @@ impl<'a> fmt::Debug for InterpContext<'a> {
         }
         let mut result = String::new();
         for (sig, _) in &self.signatures {
-            result.push_str(&format!("\"{}\", ", sig));
+            result.push_str(&format!("\"{}\", ", resolve_symbol(*sig)));
         }
         result.pop();
         result.pop();
@@ -234,10 +238,10 @@ pub fn interp_file<'a>(ic: &mut InterpContext<'a>, file: &'a File) {
 pub fn interp_item<'a>(ic: &mut InterpContext<'a>, item: &'a Item) {
     match item { // FIXME(alexander): cloning string should not be necessary, maybe use string interner
         Item::Fn(func) => {
-            ic.signatures.insert(func.ident.to_string.clone(), item);
+            ic.signatures.insert(func.ident.sym, item);
         }
         Item::ForeignFn(func) => {
-            ic.signatures.insert(func.ident.to_string.clone(), item);
+            ic.signatures.insert(func.ident.sym, item);
         }
         Item::ForeignMod(module) => {
             for foreign_item in &module.items {
@@ -248,7 +252,7 @@ pub fn interp_item<'a>(ic: &mut InterpContext<'a>, item: &'a Item) {
 }
 
 pub fn interp_entry_point<'a>(ic: &mut InterpContext<'a>) -> i32 {
-    let main_function = match ic.signatures.get("main") {
+    let main_function = match ic.signatures.get(&intern_string("main")) {
         Some(item) => {
             match item {
                 Item::Fn(func) => func,
@@ -280,7 +284,7 @@ fn interp_intrinsics<'a>(
     item: &ForeignFnItem,
     values: Vec<InterpValue>
 ) -> IResult<InterpValue> {
-    match item.ident.to_string.as_str() {
+    match resolve_symbol(item.ident.sym) {
         "trace" => {
             trace(ic);
         },
@@ -336,7 +340,7 @@ fn interp_intrinsics<'a>(
         _ => return Err(interp_error(
             ic,
             Span::new(),
-            &format!("`{}` is not a valid intrinsic function", item.ident.to_string),
+            &format!("`{}` is not a valid intrinsic function", resolve_symbol(item.ident.sym)),
             "")),
     };
     Ok(create_interp_value(Value::None, Span::new(), false))
@@ -381,7 +385,7 @@ pub fn interp_stmt<'a>(ic: &mut InterpContext<'a>, stmt: &Stmt) -> IResult<Inter
                 }
                 None => empty_interp_value()
             };
-            store_local_variable(ic, val, Some(local.ident.to_string.clone()));
+            store_local_variable(ic, val, Some(local.ident.sym));
             Ok(empty_interp_value())
         }
 
@@ -415,7 +419,7 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
         Expr::Binary    (e) => interp_binary_expr(ic, e),
         Expr::Block     (e) => interp_block_expr(ic, e),
         Expr::Call      (e) => interp_call_expr(ic, e),
-        Expr::Ident     (e) => find_local_variable(ic, e.span, e.to_string.clone()).map(|(v, _)| v),
+        Expr::Ident     (e) => find_local_variable(ic, e.span, e.sym).map(|(v, _)| v),
         Expr::If        (e) => interp_if_expr(ic, e),
         Expr::Lit       (e) => interp_lit_expr(e),
         Expr::Paren     (e) => interp_expr(ic, &e.expr),
@@ -443,7 +447,7 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
  */
 pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(InterpValue, usize)> {
     match expr {
-        Expr::Ident(ident) => find_local_variable(ic, ident.span, ident.to_string.clone()),
+        Expr::Ident(ident) => find_local_variable(ic, ident.span, ident.sym),
         Expr::Unary(unary) => {
             match unary.op {
                 UnOp::Deref => {
@@ -574,12 +578,12 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
         values.push(val);
     }
 
-    let item = match ic.signatures.get(&call.ident.to_string) {
+    let item = match ic.signatures.get(&call.ident.sym) {
         Some(item) => item,
         None => return Err(interp_error(
             ic,
             call.ident.span,
-            &format!("cannot find function `{}` in this scope", call.ident.to_string),
+            &format!("cannot find function `{}` in this scope", resolve_symbol(call.ident.sym)),
             ""))
     };
 
@@ -599,9 +603,9 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
                         return Err(mismatched_types_fatal_error(ic, span, &arg_ty.kind, val_ty));
                     }
                     let id = &inputs[i].ident;
-                    let addr = store_local_variable(ic, values[i].clone(), Some(id.to_string.clone()));
+                    let addr = store_local_variable(ic, values[i].clone(), Some(id.sym));
                     let len = ic.call_stack.len();
-                    ic.call_stack[len - 1].entities.insert(id.to_string.clone(), addr);
+                    ic.call_stack[len - 1].entities.insert(id.sym, addr);
                 }
             } else {
                 let err = interp_error(
@@ -640,7 +644,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
             Err(interp_error(
                 ic,
                 ident.span,
-                &format!("cannot find function `{}` in this scope", ident.to_string),
+                &format!("cannot find function `{}` in this scope", resolve_symbol(ident.sym)),
                 "not found in this scope"))
         }
     }
@@ -808,6 +812,7 @@ fn create_error_msg<'a>(
             level: level,
             line_number: 0,
             column_number: 0,
+            annotation_length: 0,
             path: "".to_string(),
             msg: message.to_string(),
             source: "".to_string(),

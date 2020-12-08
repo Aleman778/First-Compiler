@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use crate::ast::*;
 use crate::error::*;
 
-pub type TypeTable = HashMap<String, Ty>;
+pub type TypeTable = HashMap<Symbol, Ty>;
 
 pub struct TypeContext<'a> {
     pub file: Option<&'a File>,
     pub locals: Vec<TypeTable>, // based on the call stack
-    pub items: HashMap<String, &'a Item>,
+    pub items: HashMap<Symbol, &'a Item>,
     pub current_item: Option<&'a Item>,
     pub error_count: u32,
 }
@@ -25,16 +25,16 @@ pub fn create_type_context<'a>() -> TypeContext<'a> {
 
 fn store_global_items<'a>(tc: &mut TypeContext<'a>, items: &'a Vec<Item>) {
     for item in items {
-        let ident = match item {
-            Item::Fn(func) => &func.ident.to_string,
-            Item::ForeignFn(func) => &func.ident.to_string,
+        let symbol = match item {
+            Item::Fn(func) => func.ident.sym,
+            Item::ForeignFn(func) => func.ident.sym,
             Item::ForeignMod(module) => {
                 store_global_items(tc, &module.items);
                 continue;
             }
         };
     
-        tc.items.insert(ident.to_string(), &item);
+        tc.items.insert(symbol, &item);
     }
 }
 
@@ -141,7 +141,7 @@ pub fn type_check_stmt<'a>(tc: &mut TypeContext<'a>, stmt: &'a Stmt) -> Ty {
                                 tc,
                                 local.ty.span,
                                 &format!("missing type annotation"),
-                                &format!("give `{}` a type", &local.ident.to_string));
+                                &format!("give `{}` a type", resolve_symbol(local.ident.sym)));
                         }
                         
                         _ => {},
@@ -152,7 +152,7 @@ pub fn type_check_stmt<'a>(tc: &mut TypeContext<'a>, stmt: &'a Stmt) -> Ty {
 
             if tc.locals.len() > 0 {
                 let len = tc.locals.len();
-                tc.locals[len - 1].insert(local.ident.to_string.clone(), ty);
+                tc.locals[len - 1].insert(local.ident.sym, ty);
             }
             
             Ty::new()
@@ -251,7 +251,7 @@ pub fn type_check_binary_expr<'a>(tc: &mut TypeContext<'a>, binary_expr: &'a Exp
 }
 
 pub fn type_check_call_expr<'a>(tc: &mut TypeContext<'a>, call: &'a ExprCall) -> Ty {
-    let fn_decl = match tc.items.get(&call.ident.to_string) {
+    let fn_decl = match tc.items.get(&call.ident.sym) {
         Some(item) => match item {
             Item::Fn(func) => &func.decl,
             Item::ForeignFn(func) => &func.decl,
@@ -262,7 +262,7 @@ pub fn type_check_call_expr<'a>(tc: &mut TypeContext<'a>, call: &'a ExprCall) ->
             type_error(
                 tc,
                 call.ident.span,
-                &format!("cannot find function `{}` in this scope", &call.ident.to_string),
+                &format!("cannot find function `{}` in this scope", resolve_symbol(call.ident.sym)),
                 "not found in this scope");
             return Ty::new();
         }
@@ -297,7 +297,7 @@ pub fn type_check_call_expr<'a>(tc: &mut TypeContext<'a>, call: &'a ExprCall) ->
 
 pub fn type_check_ident_expr<'a>(tc: &mut TypeContext<'a>, ident: &'a ExprIdent) -> Ty {
     for table in tc.locals.iter().rev() {
-        if let Some(ty) = table.get(&ident.to_string) {
+        if let Some(ty) = table.get(&ident.sym) {
             let mut id_ty = ty.clone();
             id_ty.span = ident.span;
             return id_ty;
@@ -446,6 +446,7 @@ fn create_error_msg<'a>(
             level: level,
             line_number: 0,
             column_number: 0,
+            annotation_length: 0,
             path: "".to_string(),
             msg: message.to_string(),
             source: "".to_string(),

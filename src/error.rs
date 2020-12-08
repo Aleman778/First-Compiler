@@ -18,6 +18,7 @@ pub struct ErrorMsg {
     pub level: ErrorLevel,
     pub line_number: u32,
     pub column_number: u32,
+    pub annotation_length: u32,
     pub path: String,
     pub msg: String,
     pub source: String,
@@ -39,6 +40,7 @@ pub fn create_error_msg_from_span(
         level: level,
         line_number: line_number as u32,
         column_number: column_number as u32,
+        annotation_length: span.len as u32,
         path: filename.to_string(),
         msg: msg.to_string(),
         source: source[line_start as usize..line_end as usize].to_string(),
@@ -156,7 +158,7 @@ fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
     color.set_fg(Some(Color::Red));
     stderr.set_color(&color)?;
     write!(&mut stderr, "^")?;
-    for _i in 0..=msg.label.len() {
+    for _i in 0..=msg.annotation_length {
         write!(&mut stderr, "~")?;
     }
     write!(&mut stderr, " ")?;

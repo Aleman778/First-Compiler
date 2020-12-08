@@ -11,10 +11,8 @@ use nom::{
     error::context,
     Err,
 };
-use string_interner::{StringInterner};
 use nom_locate::LocatedSpanEx;
 use std::collections::HashMap;
-use std::cell::RefCell;
 use crate::error::*;
 use crate::ast::*;
 
@@ -43,25 +41,6 @@ pub struct ParseError {
 pub struct Verbose {
     span: Span,
     kind: ErrorKind,
-}
-
-thread_local!(static GLOBAL_STRING_INTERNER: RefCell<StringInterner> =
-              RefCell::new(StringInterner::default()));
-
-pub type Symbol = string_interner::DefaultSymbol;
-
-pub fn get_symbol<'a>(string: &str) -> Symbol {
-    GLOBAL_STRING_INTERNER.with(|interner_cell| {
-        let interner = &mut *interner_cell.borrow_mut();
-        interner.get_or_intern(string)
-    })
-}
-
-pub fn get_string<'a>(symbol: Symbol) -> &'static str {
-    GLOBAL_STRING_INTERNER.with(|interner_cell| unsafe {
-        let interner = interner_cell.borrow();
-        std::mem::transmute::<&str, &'static str>(interner.resolve(symbol).unwrap())
-    })
 }
 
 /**
@@ -486,7 +465,7 @@ pub fn parse_binary_precedence_climb(input: ParseSpan, min_prec: u8) -> IResult<
                     left: Box::new(expr_lhs),
                     op: operator,
                     right: Box::new(expr_rhs),
-                    span: Span::combine(
+                    span: Span::between(
                         Span::from_parse_span(input),
                         Span::from_parse_span(output),
                     ),
@@ -571,7 +550,7 @@ pub fn parse_ident_expr(input: ParseSpan) -> IResult<ParseSpan, ExprIdent> {
                 peek(alt((alpha1, tag("_")))),
                 take_while1(|c: char| is_alphanumeric(c as u8) || c == '_')),
             |(_, s): (ParseSpan, ParseSpan)| ExprIdent {
-                to_string: s.fragment.to_string(),
+                sym: intern_string(s.fragment),
                 span: Span::from_parse_span(s)
             })
         )
@@ -679,7 +658,7 @@ pub fn parse_unary_expr(input: ParseSpan) -> IResult<ParseSpan, ExprUnary> {
     Ok((span, ExprUnary {
         op: op,
         expr: Box::new(expr),
-        span: Span::combine(Span::from_parse_span(input), Span::from_parse_span(span)),
+        span: Span::between(Span::from_parse_span(input), Span::from_parse_span(span)),
     }))
 }
 

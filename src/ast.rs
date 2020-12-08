@@ -2,6 +2,8 @@
 
 use std::{fmt, cmp};
 use std::collections::HashMap;
+use std::cell::RefCell;
+use string_interner::{StringInterner, DefaultSymbol};
 use crate::parser::ParseSpan;
 
 /**
@@ -18,22 +20,6 @@ pub struct File {
     pub span: Span,
     pub lines: Vec<u32>, // bytepos for each line in the file
     pub imported_files: HashMap<String, Box<File>>,
-}
-
-pub fn get_span_location_in_file(lines: &Vec<u32>, span: Span) -> (usize, usize, usize, usize) {
-    let line_number = match lines.binary_search(&span.base) {
-        Ok(line) => line - 1,
-        Err(line) => line - 1,
-    };
-    let end_byte_pos = span.base + span.len as u32;
-    let end_line_number = match lines.binary_search(&end_byte_pos) {
-        Ok(line) => line,
-        Err(line) => line,
-    };
-    let line_start = lines[line_number] as usize;
-    let line_end = lines[end_line_number] as usize;
-    let column_number = (span.base as usize).saturating_sub(line_start);
-    (line_number + 1, column_number, line_start, line_end)
 }
 
 /**
@@ -600,7 +586,7 @@ pub struct ExprContinue {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExprIdent {
-    pub to_string: String,
+    pub sym: Symbol,
     pub span: Span,
 }
 
@@ -736,4 +722,60 @@ impl Span {
             }
         }
     }
+
+    pub fn between(s1: Span, s2: Span) -> Self {
+        assert!(s1.ctx == s2.ctx);
+        if s1.base < s2.base {
+            Span {
+                base: s1.base,
+                len: (s2.base - s1.base) as u16,
+                ctx: s1.ctx,
+            }
+        } else {
+            Span {
+                base: s2.base,
+                len: (s1.base - s2.base) as u16,
+                ctx: s1.ctx,
+            }
+        }
+    }
+}
+
+pub fn get_span_location_in_file(lines: &Vec<u32>, span: Span) -> (usize, usize, usize, usize) {
+    let line_number = match lines.binary_search(&span.base) {
+        Ok(line) => line.saturating_sub(1),
+        Err(line) => line.saturating_sub(1),
+    };
+    let end_byte_pos = span.base + span.len as u32;
+    let end_line_number = match lines.binary_search(&end_byte_pos) {
+        Ok(line) => line,
+        Err(line) => line,
+    };
+    let line_start = lines[line_number] as usize;
+    let line_end = lines[end_line_number] as usize;
+    let column_number = (span.base as usize).saturating_sub(line_start);
+    (line_number + 1, column_number, line_start, line_end)
+}
+
+thread_local!(static GLOBAL_STRING_INTERNER: RefCell<StringInterner> =
+              RefCell::new(StringInterner::default()));
+
+/**
+ * Use string interner to improve memory footprint of not having to store
+ * clones of strings everywhere but instead just store an index to this interner.
+ */
+pub type Symbol = DefaultSymbol;
+
+pub fn intern_string<'a>(string: &str) -> Symbol {
+    GLOBAL_STRING_INTERNER.with(|interner_cell| {
+        let interner = &mut *interner_cell.borrow_mut();
+        interner.get_or_intern(string)
+    })
+}
+
+pub fn resolve_symbol<'a>(symbol: Symbol) -> &'static str {
+    GLOBAL_STRING_INTERNER.with(|interner_cell| unsafe {
+        let interner = interner_cell.borrow();
+        std::mem::transmute::<&str, &'static str>(interner.resolve(symbol).unwrap())
+    })
 }

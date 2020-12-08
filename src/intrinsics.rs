@@ -10,7 +10,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                 Item::ForeignFn(
                     ForeignFnItem {
                         ident: ExprIdent {
-                            to_string: "trace".to_string(),
+                            sym: intern_string("trace"),
                             span: Span::new(),
                         },
                         decl: FnDecl {
@@ -28,7 +28,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                 Item::ForeignFn(
                     ForeignFnItem {
                         ident: ExprIdent {
-                            to_string: "print_int".to_string(),
+                            sym: intern_string("print_int"),
                             span: Span::new(),
                         },
                         decl: FnDecl {
@@ -36,7 +36,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 Argument {
                                     mutable: false,
                                     ident: ExprIdent {
-                                        to_string: "val".to_string(),
+                                        sym: intern_string("val"),
                                         span: Span::new(),
                                     },
                                     ty: Ty {
@@ -59,7 +59,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                 Item::ForeignFn(
                     ForeignFnItem {
                         ident: ExprIdent {
-                            to_string: "print_bool".to_string(),
+                            sym: intern_string("print_bool"),
                             span: Span::new(),
                         },
                         decl: FnDecl {
@@ -67,7 +67,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 Argument {
                                     mutable: false,
                                     ident: ExprIdent {
-                                        to_string: "val".to_string(),
+                                        sym: intern_string("val"),
                                         span: Span::new(),
                                     },
                                     ty: Ty {
@@ -90,7 +90,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                 Item::ForeignFn(
                     ForeignFnItem {
                         ident: ExprIdent {
-                            to_string: "assert".to_string(),
+                            sym: intern_string("assert"),
                             span: Span::new(),
                         },
                         decl: FnDecl {
@@ -98,7 +98,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 Argument {
                                     mutable: false,
                                     ident: ExprIdent {
-                                        to_string: "val".to_string(),
+                                        sym: intern_string("val"),
                                         span: Span::new(),
                                     },
                                     ty: Ty {
@@ -121,7 +121,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                 Item::ForeignFn(
                     ForeignFnItem {
                         ident: ExprIdent {
-                            to_string: "assert_eq_int".to_string(),
+                            sym: intern_string("assert_eq_int"),
                             span: Span::new(),
                         },
                         decl: FnDecl {
@@ -129,7 +129,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 Argument {
                                     mutable: false,
                                     ident: ExprIdent {
-                                        to_string: "left".to_string(),
+                                        sym: intern_string("left"),
                                         span: Span::new(),
                                     },
                                     ty: Ty {
@@ -141,7 +141,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 Argument {
                                     mutable: false,
                                     ident: ExprIdent {
-                                        to_string: "right".to_string(),
+                                        sym: intern_string("right"),
                                         span: Span::new(),
                                     },
                                     ty: Ty {
@@ -164,7 +164,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                 Item::ForeignFn(
                     ForeignFnItem {
                         ident: ExprIdent {
-                            to_string: "assert_eq_bool".to_string(),
+                            sym: intern_string("assert_eq_bool"),
                             span: Span::new(),
                         },
                         decl: FnDecl {
@@ -172,7 +172,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 Argument {
                                     mutable: false,
                                     ident: ExprIdent {
-                                        to_string: "left".to_string(),
+                                        sym: intern_string("left"),
                                         span: Span::new(),
                                     },
                                     ty: Ty {
@@ -184,7 +184,7 @@ pub fn get_intrinsic_ast_items() -> Item {
                                 Argument {
                                     mutable: false,
                                     ident: ExprIdent {
-                                        to_string: "right".to_string(),
+                                        sym: intern_string("right"),
                                         span: Span::new(),
                                     },
                                     ty: Ty {
