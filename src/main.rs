@@ -8,6 +8,8 @@ mod parser;
 mod interp;
 mod typeck;
 mod lir;
+mod jit;
+mod x86;
 mod intrinsics;
 
 use log::{info, error};
@@ -20,6 +22,9 @@ use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
 use crate::lir::{create_lir_context, build_lir_from_ast};
+use crate::x86::{create_x86_assembler, compile_x86_lir};
+use crate::jit::{allocate_jit_code, finalize_jit_code, free_jit_code, execute_jit_code};
+// use crate::llvm::codegen_test;
 
 struct Config {
     input: Option<String>,
@@ -33,7 +38,7 @@ pub fn main() {
     if cfg!(debug_assertions) {
         // NOTE(alexander): used for debugging without arguments
         let config = Config {
-            input: Some(String::from("examples/sandbox.sq")),
+            input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
             run: None,
             interpret: true,
             nocolor: false,
@@ -161,6 +166,36 @@ fn run_compiler(config: Config) {
     // Build low-level intermediate representation
     let mut lc = create_lir_context();
     build_lir_from_ast(&mut lc, &ast);
+    print!("lir:\n{}", lc);
 
-    println!("lir:\n{}", lc);
+    // Generate code to jit
+    let mut x86 = create_x86_assembler();
+    compile_x86_lir(&mut x86, &lc.instructions);
+
+    println!("machine_code:");
+    for (i, byte) in x86.machine_code.iter().enumerate() {
+        print!("{:2x} ", byte);
+        if i % 10 == 9 {
+            println!("");
+        }
+    }
+    println!("");
+
+
+    let jit_code = allocate_jit_code(x86.machine_code.len());
+    
+    unsafe {
+        let src_len = x86.machine_code.len();
+        let src_ptr = x86.machine_code.as_ptr();
+        std::ptr::copy_nonoverlapping(src_ptr, jit_code.code, src_len);
+    }
+    
+    finalize_jit_code(&jit_code);
+
+    // unsafe {
+        // winapi::um::debugapi::DebugBreak();
+    // }
+    let ret = execute_jit_code(&jit_code);
+    println!("Program exited with code {}", ret);
+    free_jit_code(&jit_code);
 }
