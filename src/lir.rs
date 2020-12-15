@@ -5,6 +5,7 @@ use crate::ast::*;
 #[derive(Debug, Clone, PartialEq)]
 pub enum LirOpCode {
     Nop,
+    Breakpoint,
     Copy, // op1 = op2
     CopyFromDeref, // op1 = *op2
     CopyFromRef, // op1 = &op2 (these are always mutable refs)
@@ -86,7 +87,7 @@ pub struct LirBasicBlock {
 /**
  * Used to maintain information about the stack offsets and available registers.
  */
-struct LirBlockContext {
+pub struct LirBlockContext {
     stack_offsets: HashMap<Symbol, usize>,
     next_stack_offset: usize,
     next_register: usize,
@@ -150,6 +151,7 @@ impl fmt::Display for LirOpCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let result = match self {
             LirOpCode::Nop           => "nop",
+            LirOpCode::Breakpoint    => "breakpoint",
             LirOpCode::Copy          => "copy",
             LirOpCode::CopyFromRef   => "copy_from_ref",
             LirOpCode::CopyFromDeref => "copy_from_deref",
@@ -243,9 +245,9 @@ fn allocate_stack<'a>(lc: &mut LirContext<'a>, symbol: Symbol) -> LirOperand {
 
     let len = lc.blocks.len();
     let frame = &mut lc.blocks[len - 1];
+    frame.next_stack_offset += 4; // FIXME(alexander): all types are 4-bits in size
     let offset = frame.next_stack_offset;
     frame.stack_offsets.insert(symbol, offset);
-    frame.next_stack_offset += 4; // NOTE(alexander): all types are 4-bits in size
     if frame.next_stack_offset > frame.largest_stack_size {
         frame.largest_stack_size = frame.next_stack_offset;
     }
@@ -341,14 +343,14 @@ pub fn build_lir_from_block<'a>(lc: &mut LirContext<'a>, block: &Block) -> (LirO
         last_op = build_lir_from_stmt(lc, &stmt);
     }
 
-    blocks_len = lc.blocks.len();
+    let blocks_len = lc.blocks.len();
     if blocks_len >= 2 {
         if lc.blocks[blocks_len - 1].largest_stack_size > current_largest_stack_size {
             lc.blocks[blocks_len - 2].largest_stack_size = lc.blocks[blocks_len - 1].largest_stack_size;
         }
     }
 
-    lc.blocks.pop();
+    let block_context = lc.blocks.pop().unwrap();
 
     if let Some(Stmt::Expr(_)) = block.stmts.last() {
         if let LirOperand::None = last_op {

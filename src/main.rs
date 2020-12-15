@@ -21,7 +21,7 @@ use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
-use crate::lir::{create_lir_context, build_lir_from_ast};
+use crate::lir::{LirInstruction, LirOpCode, create_lir_context, build_lir_from_ast};
 use crate::x86::{create_x86_assembler, compile_x86_lir};
 use crate::jit::{allocate_jit_code, finalize_jit_code, free_jit_code, execute_jit_code};
 // use crate::llvm::codegen_test;
@@ -165,6 +165,14 @@ fn run_compiler(config: Config) {
 
     // Build low-level intermediate representation
     let mut lc = create_lir_context();
+    
+    // insert breakpoint at the beginning
+    // lc.instructions.push(LirInstruction {
+        // opcode: LirOpCode::Breakpoint,
+        // ..Default::default()
+    // });
+
+    // build lir
     build_lir_from_ast(&mut lc, &ast);
     print!("lir:\n{}", lc);
 
@@ -174,7 +182,7 @@ fn run_compiler(config: Config) {
 
     println!("machine_code:");
     for (i, byte) in x86.machine_code.iter().enumerate() {
-        print!("{:2x} ", byte);
+        print!("{:02x} ", byte);
         if i % 10 == 9 {
             println!("");
         }
