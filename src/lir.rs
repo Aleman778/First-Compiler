@@ -41,8 +41,8 @@ pub enum LirOpCode {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum LirOperand {
-    Stack(i64),
-    Register(u64),
+    Stack(usize),
+    Register(usize),
     Label(LirLabel),
     Constant(LirValue),
     None,
@@ -54,7 +54,7 @@ pub enum LirValue {
     Bool(bool),
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LirLabel {
     pub symbol: Symbol,
     pub index: u32, // used to distinguish labels with the same symbol.
@@ -75,13 +75,22 @@ pub struct LirInstruction {
 
 /**
  * Represents a block containing multiple instructions, this
- * is used to manage stack offsets.
+ * is used to manage stack offsets. Only used for function blocks.
  */
-struct LirBasicBlock { // TODO(alexander): store these in context, extend to mark where in insn vec it is stored.
-    pub stack_offsets: HashMap<Symbol, i64>,
-    pub next_stack_offset: i64,
-    pub next_register: u64,
-    pub largest_stack_offset: i64, // needed for pre allocating stack space in prologue
+pub struct LirBasicBlock {
+    pub prologue: usize, // index into LirContext instruction vector
+    pub epilogue: usize,
+    pub required_stack_size: usize, // needed for pre allocating stack space in prologue
+}
+
+/**
+ * Used to maintain information about the stack offsets and available registers.
+ */
+struct LirBlockContext {
+    stack_offsets: HashMap<Symbol, usize>,
+    next_stack_offset: usize,
+    next_register: usize,
+    largest_stack_size: usize,
 }
 
 /**
@@ -90,8 +99,8 @@ struct LirBasicBlock { // TODO(alexander): store these in context, extend to mar
 pub struct LirContext<'a> {
     pub file: Option<&'a File>,
     pub instructions: Vec<LirInstruction>,
-    pub jump_table: HashMap<LirLabel, usize>, // location of labels in instructions
-    basic_blocks: Vec<LirBasicBlock>,
+    pub functions: HashMap<LirLabel, LirBasicBlock>,
+    blocks: Vec<LirBlockContext>,
     unique_label_index: u32,
 }
 
@@ -110,7 +119,10 @@ impl Default for LirInstruction {
 impl fmt::Display for LirContext<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for insn in &self.instructions {
-            write!(f, "    {}\n", insn)?;
+            match insn.opcode {
+                LirOpCode::Label => write!(f, "{}:\n", insn.op1)?,
+                _ => write!(f, "    {}\n", insn)?,
+            }
         }
         Ok(())
     }
@@ -129,7 +141,7 @@ impl fmt::Display for LirInstruction {
                 }
             }
         }
-        
+
         Ok(())
     }
 }
@@ -200,18 +212,18 @@ pub fn create_lir_context<'a>() -> LirContext<'a> {
     LirContext {
         file: None,
         instructions: Vec::new(),
-        jump_table: HashMap::new(),
-        basic_blocks: Vec::new(),
+        functions: HashMap::new(),
+        blocks: Vec::new(),
         unique_label_index: 0,
     }
 }
 
-fn create_lir_basic_block() -> LirBasicBlock {
-    LirBasicBlock {
+fn create_lir_block_context() -> LirBlockContext {
+    LirBlockContext {
         stack_offsets: HashMap::new(),
         next_stack_offset: 0,
         next_register: 0,
-        largest_stack_offset: 0,
+        largest_stack_size: 0,
     }
 }
 
@@ -224,25 +236,24 @@ fn create_lir_label(symbol: Symbol, i: &mut u32) -> LirLabel {
     label
 }
 
-
 fn allocate_stack<'a>(lc: &mut LirContext<'a>, symbol: Symbol) -> LirOperand {
-    if lc.basic_blocks.len() == 0 {
+    if lc.blocks.len() == 0 {
         panic!("not inside any scope");
     }
 
-    let len = lc.basic_blocks.len();
-    let frame = &mut lc.basic_blocks[len - 1];
+    let len = lc.blocks.len();
+    let frame = &mut lc.blocks[len - 1];
     let offset = frame.next_stack_offset;
     frame.stack_offsets.insert(symbol, offset);
     frame.next_stack_offset += 4; // NOTE(alexander): all types are 4-bits in size
-    if frame.next_stack_offset > frame.largest_stack_offset {
-        frame.largest_stack_offset = frame.next_stack_offset;
+    if frame.next_stack_offset > frame.largest_stack_size {
+        frame.largest_stack_size = frame.next_stack_offset;
     }
     LirOperand::Stack(offset)
 }
 
 fn lookup_stack<'a>(lc: &mut LirContext<'a>, symbol: Symbol) -> LirOperand {
-    for frame in &lc.basic_blocks {
+    for frame in &lc.blocks {
         if let Some(offset) = frame.stack_offsets.get(&symbol) {
             return LirOperand::Stack(*offset);
         }
@@ -252,12 +263,12 @@ fn lookup_stack<'a>(lc: &mut LirContext<'a>, symbol: Symbol) -> LirOperand {
 }
 
 fn allocate_register<'a>(lc: &mut LirContext<'a>) -> LirOperand {
-    if lc.basic_blocks.len() == 0 {
+    if lc.blocks.len() == 0 {
         panic!("not inside any scope");
     }
 
-    let len = lc.basic_blocks.len();
-    let frame = &mut lc.basic_blocks[len - 1];
+    let len = lc.blocks.len();
+    let frame = &mut lc.blocks[len - 1];
     let register = frame.next_register;
     frame.next_register += 1;
     LirOperand::Register(register)
@@ -274,99 +285,74 @@ pub fn build_lir_from_ast<'a>(lc: &mut LirContext<'a>, file: &'a File) {
 pub fn build_lir_from_item<'a>(lc: &mut LirContext<'a>, item: &Item) {
     match item {
         Item::Fn(func) => {
+            let label = create_lir_label(func.ident.sym, &mut 0u32);
             lc.instructions.push(LirInstruction {
                 opcode: LirOpCode::Label,
-                op1: LirOperand::Label(create_lir_label(func.ident.sym, &mut 0u32)),
+                op1: LirOperand::Label(label),
                 span: func.span,
                 ..Default::default()
             });
+
+            let prologue = lc.instructions.len();
             lc.instructions.push(LirInstruction {
                 opcode: LirOpCode::Prologue,
-                op1: LirOperand::Constant(LirValue::I32()),
+                op1: LirOperand::Constant(LirValue::I32(0)),
                 ..Default::default()
             });
 
-            let bb = build_lir_from_block(lc, &func.block);
-            
+            let (_, block_context) = build_lir_from_block(lc, &func.block);
 
+            let epilogue = lc.instructions.len();
             lc.instructions.push(LirInstruction {
                 opcode: LirOpCode::Epilogue,
                 ..Default::default()
             });
+
+            let basic_block = LirBasicBlock {
+                prologue,
+                epilogue,
+                required_stack_size: block_context.largest_stack_size,
+            };
+
+            lc.functions.insert(label, basic_block);
         }
         _ => { }
     }
 }
 
-// NOTE(alexander): this function is responsible for storing to immediate register whenever the
-// two operands are both accessing memory since this is not allowed on some processors e.g. x86.
-// TODO(alexander): this could be implemented in the codegen backend instead, it is architecture dependant!
-// pub fn resolve_stack_to_stack_operands<'a>(
-//     lc: &mut LirContext<'a>,
-//     op1: &LirOperand,
-//     op2: &LirOperand
-// ) -> (LirOperand, LirOperand) {
-//     let (op1, op2, op3) = match op1 {
-//         LirOperand::Stack(_) => match op2 {
-//             LirOperand::Stack(_) => (allocate_register(lc), op1, op2),
-//             LirOperand::Register(_) => (op2, op1, LirOperand::None),
-            
-//             _ => panic!("only registers or stack operands allowed here!"),
-//         }
-
-//         LirOperand::Register(_) => (op1, op2, LirOperand::None),
-
-//         _ => panic!("only registers or stack operands allowed here!"),
-//     }
-
-//     if let LirOperand::None == op3 {
-//         let 
-
-//     } else {
-//         lc.instructions.push(LirInstruction {
-//             opcode: LirOpCode::Copy,
-//             op1,
-//             op2,
-//             span: assign.span,
-//             ..Default::default()
-//         });
-        
-//     }
-// }
-
-pub fn build_lir_from_block<'a>(lc: &mut LirContext<'a>, block: &Block) -> LirOperand {
-    let bblen = lc.basic_blocks.len();
+pub fn build_lir_from_block<'a>(lc: &mut LirContext<'a>, block: &Block) -> (LirOperand, LirBlockContext) {
+    let blocks_len = lc.blocks.len();
     let mut next_stack_offset = 0;
     let mut next_register = 0;
-    let mut current_largest_stack_offset = 0;
-    if bblen >= 1 {
-        next_stack_offset = lc.basic_blocks[bblen - 1].next_stack_offset;
-        next_register = lc.basic_blocks[bblen - 1].next_register;
-        current_largest_stack_offset = lc.basic_blocks[bblen - 1].largest_stack_offset;
+    let mut current_largest_stack_size = 0;
+    if blocks_len >= 1 {
+        next_stack_offset = lc.blocks[blocks_len - 1].next_stack_offset;
+        next_register = lc.blocks[blocks_len - 1].next_register;
+        current_largest_stack_size = lc.blocks[blocks_len - 1].largest_stack_size;
     }
 
-    let mut basic_block = create_lir_basic_block();
-    basic_block.next_stack_offset = next_stack_offset;
-    basic_block.next_register = next_register;
-    lc.basic_blocks.push(basic_block);
+    let mut block_context = create_lir_block_context();
+    block_context.next_stack_offset = next_stack_offset;
+    block_context.next_register = next_register;
+    lc.blocks.push(block_context);
 
     let mut last_op = LirOperand::None;
     for stmt in &block.stmts {
         last_op = build_lir_from_stmt(lc, &stmt);
     }
 
-    let bblen = lc.basic_blocks.len();
-    if bblen >= 2 {
-        if lc.basic_blocks[bblen - 1].largest_stack_offset > current_largest_stack_offset {
-            lc.basic_blocks[bblen - 2].largest_stack_offset = lc.basic_blocks[bblen - 1].largest_stack_offset;
+    blocks_len = lc.blocks.len();
+    if blocks_len >= 2 {
+        if lc.blocks[blocks_len - 1].largest_stack_size > current_largest_stack_size {
+            lc.blocks[blocks_len - 2].largest_stack_size = lc.blocks[blocks_len - 1].largest_stack_size;
         }
     }
 
-    lc.basic_blocks.pop();
+    lc.blocks.pop();
 
     if let Some(Stmt::Expr(_)) = block.stmts.last() {
         if let LirOperand::None = last_op {
-            LirOperand::None
+            (LirOperand::None, block_context)
         } else {
             let op1 = allocate_register(lc);
             lc.instructions.push(LirInstruction {
@@ -376,10 +362,10 @@ pub fn build_lir_from_block<'a>(lc: &mut LirContext<'a>, block: &Block) -> LirOp
                 span: block.span,
                 ..Default::default()
             });
-            op1
+            (op1, block_context)
         }
     } else {
-        LirOperand::None
+        (LirOperand::None, block_context)
     }
 }
 
@@ -419,8 +405,6 @@ pub fn build_lir_from_expr<'a>(lc: &mut LirContext<'a>, expr: &Expr) -> LirOpera
                 Expr::Ident(ident) => lookup_stack(lc, ident.sym),
                 _ => panic!("expected identifier"),
             };
-            // let (op1, op2) = resolve_stack_to_stack_operands(lc, op1, op2);
-
 
             lc.instructions.push(LirInstruction {
                 opcode: LirOpCode::Copy,
@@ -464,7 +448,7 @@ pub fn build_lir_from_expr<'a>(lc: &mut LirContext<'a>, expr: &Expr) -> LirOpera
             op1
         }
 
-        Expr::Block(block) => build_lir_from_block(lc, &block.block),
+        Expr::Block(block) => build_lir_from_block(lc, &block.block).0,
 
         Expr::Break(_break_expr) => {
             LirOperand::None
@@ -480,7 +464,7 @@ pub fn build_lir_from_expr<'a>(lc: &mut LirContext<'a>, expr: &Expr) -> LirOpera
                     span: arg.get_span(),
                     ..Default::default()
                 });
-                
+
                 param_size += 1;
             }
 
@@ -506,8 +490,8 @@ pub fn build_lir_from_expr<'a>(lc: &mut LirContext<'a>, expr: &Expr) -> LirOpera
 
             if let LirOperand::None = op2 {
                 panic!("failed to lookup identifier `{}`", resolve_symbol(ident.sym));
-            } 
-            
+            }
+
             lc.instructions.push(LirInstruction {
                 opcode: LirOpCode::Copy,
                 op1,
@@ -515,7 +499,7 @@ pub fn build_lir_from_expr<'a>(lc: &mut LirContext<'a>, expr: &Expr) -> LirOpera
                 span: ident.span,
                 ..Default::default()
             });
-            
+
             op1
         }
 
@@ -575,7 +559,7 @@ pub fn build_lir_from_expr<'a>(lc: &mut LirContext<'a>, expr: &Expr) -> LirOpera
                     op1: LirOperand::Label(create_lir_label(exit_label, &mut lc.unique_label_index)),
                     ..Default::default()
                 });
-  
+
                 lc.instructions.push(LirInstruction {
                     opcode: LirOpCode::Label,
                     op1: LirOperand::Label(create_lir_label(label, &mut lc.unique_label_index)),
@@ -631,7 +615,7 @@ pub fn build_lir_from_expr<'a>(lc: &mut LirContext<'a>, expr: &Expr) -> LirOpera
                 span: reference.span,
                 ..Default::default()
             });
-            
+
             op1
         }
 
@@ -640,7 +624,7 @@ pub fn build_lir_from_expr<'a>(lc: &mut LirContext<'a>, expr: &Expr) -> LirOpera
                 Some(expr) => build_lir_from_expr(lc, expr),
                 None => LirOperand::None,
             };
-            
+
             lc.instructions.push(LirInstruction {
                 opcode: LirOpCode::Return,
                 op1,
