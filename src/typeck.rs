@@ -136,7 +136,7 @@ pub fn type_check_stmt<'a>(tc: &mut TypeContext<'a>, stmt: &'a Stmt) -> Ty {
                 
                 None => {
                     match local.ty.kind {
-                        TyKind::Infer | TyKind::None => {
+                        TyKind::None => {
                             type_error(
                                 tc,
                                 local.ty.span,

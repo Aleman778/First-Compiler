@@ -153,7 +153,6 @@ pub enum TyKind {
     Int,
     Bool,
     Ref(TypeRef),
-    Infer,
     None,
 }
 
@@ -247,7 +246,6 @@ impl fmt::Display for TyKind {
             TyKind::Int => write!(f, "i32"),
             TyKind::Bool => write!(f, "bool"),
             TyKind::Ref(r) => write!(f, "{}", r),
-            TyKind::Infer => write!(f, "infer"),
             TyKind::None => write!(f, "()")
         }
     }

@@ -1,9 +1,9 @@
 use std::collections::HashMap;
-use crate::lir::{LirInstruction, LirLabel, LirValue, LirOpCode, LirOperand};
+use crate::ir::*;
 
 pub struct X86Assembler {
     pub machine_code: Vec<u8>,
-    pub labels: HashMap<LirLabel, usize>, // stores machine code byte positions
+    pub labels: HashMap<IrLabel, usize>, // stores machine code byte positions
     pub x64_mode: bool, // 64-bit mode changes the instruction encoding
 }
 
@@ -80,6 +80,7 @@ enum X86OpEn {
     MI, // modrm_rm, immediate
     M,  // modrm_rm,
     O,  // opcode + modrm_reg
+    OI, // opcode + modrm_reg, immediate
     I,  // immediate
     ZO, // NO OPERANDS
 }
@@ -121,9 +122,9 @@ fn register_encoding(reg: X86Reg) -> u8 {
     }
 }
 
-fn get_scratch_register(x86: &mut X86Assembler, lir_register: usize) -> X86Reg {
+fn get_scratch_register(x86: &mut X86Assembler, ir_register: usize) -> X86Reg {
     if x86.x64_mode {
-        match lir_register { // TODO(alexander): probably want to prioritize r8, r9, ... higher!
+        match ir_register { // TODO(alexander): probably want to prioritize r8, r9, ... higher!
             0  => X86Reg::RAX,
             1  => X86Reg::RCX,
             2  => X86Reg::RDX,
@@ -141,7 +142,7 @@ fn get_scratch_register(x86: &mut X86Assembler, lir_register: usize) -> X86Reg {
             _ => panic!("running out of registers!") // FIXME(alexander): spill out to stack
         }
     } else {
-        match lir_register {
+        match ir_register {
             0  => X86Reg::RAX,
             1  => X86Reg::RCX,
             2  => X86Reg::RDX,
@@ -153,10 +154,10 @@ fn get_scratch_register(x86: &mut X86Assembler, lir_register: usize) -> X86Reg {
     }
 }
 
-fn lir_value_to_x86_value(val: LirValue) -> X86Value {
+fn ir_value_to_x86_value(val: IrValue) -> X86Value {
     match val {
-        LirValue::I32(v) => X86Value::Int32(v),
-        LirValue::Bool(v) => if v {
+        IrValue::I32(v) => X86Value::Int32(v),
+        IrValue::Bool(v) => if v {
             X86Value::Int8(1)
         } else {
             X86Value::Int8(0)
@@ -172,18 +173,18 @@ pub fn create_x86_assembler() -> X86Assembler {
     }
 }
 
-pub fn compile_x86_lir(x86: &mut X86Assembler, instructions: &Vec<LirInstruction>) {
+pub fn compile_x86_ir(x86: &mut X86Assembler, instructions: &Vec<IrInstruction>) {
     for insn in instructions {
         match insn.opcode {
           
-            _ => compile_x86_lir_instruction(x86, insn),
+            _ => compile_x86_ir_instruction(x86, insn),
         }
     }
 
     // FIXME(alexander): hardcoded ret instruction
 }
 
-fn compile_x64_lir_operand(x86: &mut X86Assembler, op: &mut X86Instruction, op1: LirOperand, op2: LirOperand) {
+fn compile_x64_ir_operand(x86: &mut X86Assembler, op: &mut X86Instruction, op1: IrOperand, op2: IrOperand) {
     fn stack_operand(op: &mut X86Instruction, offset: usize) {
         if offset > 127 {
             op.modrm_addr_mode = X86AddrMode::IndirectDisp32;
@@ -197,37 +198,37 @@ fn compile_x64_lir_operand(x86: &mut X86Assembler, op: &mut X86Instruction, op1:
         op.modrm_rm = X86Reg::RBP;
     }
 
-    match op1 {
-        LirOperand::Stack(offset) => stack_operand(op, offset),
-        LirOperand::Register(register) => {
+    match op1.kind {
+        IrOperandKind::Stack(offset) => stack_operand(op, offset),
+        IrOperandKind::Register(register) => {
             op.modrm_addr_mode = X86AddrMode::Direct;
             op.modrm_reg = get_scratch_register(x86, register);
         },
 
-        LirOperand::Constant(_) => panic!("cannot encode constant as first operand"),
+        IrOperandKind::Constant(_) => panic!("cannot encode constant as first operand"),
 
         _ => return,
     }
 
-    match op2 {
-        LirOperand::Stack(offset) => {
+    match op2.kind {
+        IrOperandKind::Stack(offset) => {
             op.encoding = X86OpEn::RM;
-            match op1 {
-                LirOperand::Stack(_) => panic!("cannot encode memory access for both operands!"),
-                LirOperand::Register(_) => {},
+            match op1.kind {
+                IrOperandKind::Stack(_) => panic!("cannot encode memory access for both operands!"),
+                IrOperandKind::Register(_) => {},
                 _ => panic!("unexpected first operand"),
             };
 
             stack_operand(op, offset);
         }
-        LirOperand::Register(reg) => {
-            match op1 {
-                LirOperand::Stack(_) => {
+        IrOperandKind::Register(reg) => {
+            match op1.kind {
+                IrOperandKind::Stack(_) => {
                     op.modrm_reg = get_scratch_register(x86, reg);
                     op.encoding = X86OpEn::MR;
                 }
 
-                LirOperand::Register(_) => {
+                IrOperandKind::Register(_) => {
                     op.modrm_rm = get_scratch_register(x86, reg);
                     op.encoding = X86OpEn::RM;
                 }
@@ -236,9 +237,9 @@ fn compile_x64_lir_operand(x86: &mut X86Assembler, op: &mut X86Instruction, op1:
             };
         }
 
-        LirOperand::Constant(val) => {
-            match op1 {
-                LirOperand::Register(_) => {
+        IrOperandKind::Constant(val) => {
+            match op1.kind {
+                IrOperandKind::Register(_) => {
                     op.modrm_rm = op.modrm_reg;
                     // TODO(alexander): do we need to reset op.modrm_reg, I would think not.
                 }
@@ -246,7 +247,7 @@ fn compile_x64_lir_operand(x86: &mut X86Assembler, op: &mut X86Instruction, op1:
             }
             
             op.encoding = X86OpEn::MI;
-            op.immediate = lir_value_to_x86_value(val);
+            op.immediate = ir_value_to_x86_value(val);
         }
 
         _ => return,
@@ -254,43 +255,48 @@ fn compile_x64_lir_operand(x86: &mut X86Assembler, op: &mut X86Instruction, op1:
 }
 
 /**
- * Compiles an lir instruction into x86 machine code.
+ * Compiles an ir instruction into x86 machine code.
  */
-pub fn compile_x86_lir_instruction(x86: &mut X86Assembler, lir_insn: &LirInstruction) {
-    match lir_insn.opcode {
-        LirOpCode::Nop => {
+pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstruction) {
+    match ir_insn.opcode {
+        IrOpCode::Nop => {
             // NOTE(alexander): is it even worth pushing a NOP?
         },
 
-        LirOpCode::Breakpoint => {
+        IrOpCode::Breakpoint => {
             let mut op = create_x86_instruction();
             op.opcode = X86OpCode::Int3;
             push_x86_instruction(x86, &op);
         },
 
-        LirOpCode::Copy => {
+        IrOpCode::Copy => {
             let mut op = create_x86_instruction();
             op.opcode = X86OpCode::Mov;
-            compile_x64_lir_operand(x86, &mut op, lir_insn.op1, lir_insn.op2);
+            compile_x64_ir_operand(x86, &mut op, ir_insn.op1, ir_insn.op2);
             push_x86_instruction(x86, &op);
         }
 
-        LirOpCode::Add => {
+        IrOpCode::Add => {
             let mut op = create_x86_instruction();
             op.opcode = X86OpCode::Add;
-            compile_x64_lir_operand(x86, &mut op, lir_insn.op1, lir_insn.op2);
+            compile_x64_ir_operand(x86, &mut op, ir_insn.op1, ir_insn.op2);
             push_x86_instruction(x86, &op);
         }
 
-        LirOpCode::Return => {
-            match lir_insn.op1 {
-                LirOperand::None |
-                LirOperand::Register(0) => { }
+        IrOpCode::Return => {
+            match ir_insn.op1.kind {
+                IrOperandKind::None |
+                IrOperandKind::Register(0) => {},
 
                 _ => {
                     let mut op = create_x86_instruction();
-                    op.opcode = X86OpCode::Add;
-                    compile_x64_lir_operand(x86, &mut op, LirOperand::Register(0), lir_insn.op2);
+                    op.opcode = X86OpCode::Mov;
+                    
+                    let op1 = IrOperand {
+                        ty: IrType::None,
+                        kind: IrOperandKind::Register(0)
+                    };
+                    compile_x64_ir_operand(x86, &mut op, op1, ir_insn.op1);
                     push_x86_instruction(x86, &op);
                 }
             }
@@ -298,14 +304,14 @@ pub fn compile_x86_lir_instruction(x86: &mut X86Assembler, lir_insn: &LirInstruc
             // TODO(alexander): handle returns that are not at the end of the function.
         }
 
-        LirOpCode::Label => {
+        IrOpCode::Label => {
             // there is no concept of labels in machine code, just store the byte offset of this label.
-            if let LirOperand::Label(label) = lir_insn.op1 {
+            if let IrOperandKind::Label(label) = ir_insn.op1.kind {
                 x86.labels.insert(label, x86.machine_code.len());
             }
         }
 
-        LirOpCode::Prologue => {
+        IrOpCode::Prologue => {
             // push rbp
             let mut op = create_x86_instruction();
             op.modrm_reg = X86Reg::RBP;
@@ -325,7 +331,7 @@ pub fn compile_x86_lir_instruction(x86: &mut X86Assembler, lir_insn: &LirInstruc
             push_x86_instruction(x86, &op);
         }
         
-        LirOpCode::Epilogue => {
+        IrOpCode::Epilogue => {
             // pop rbp
             let mut op = create_x86_instruction();
             op.modrm_reg = X86Reg::RBP;

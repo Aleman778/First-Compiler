@@ -7,7 +7,7 @@ mod ast;
 mod parser;
 mod interp;
 mod typeck;
-mod lir;
+mod ir;
 mod jit;
 mod x86;
 mod intrinsics;
@@ -21,8 +21,8 @@ use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
-use crate::lir::{LirInstruction, LirOpCode, create_lir_context, build_lir_from_ast};
-use crate::x86::{create_x86_assembler, compile_x86_lir};
+use crate::ir::{IrInstruction, IrOpCode, create_ir_builder, build_ir_from_ast};
+use crate::x86::{create_x86_assembler, compile_x86_ir};
 use crate::jit::{allocate_jit_code, finalize_jit_code, free_jit_code, execute_jit_code};
 // use crate::llvm::codegen_test;
 
@@ -164,21 +164,24 @@ fn run_compiler(config: Config) {
     }
 
     // Build low-level intermediate representation
-    let mut lc = create_lir_context();
+    let mut ir_builder = create_ir_builder();
     
     // insert breakpoint at the beginning
-    // lc.instructions.push(LirInstruction {
-        // opcode: LirOpCode::Breakpoint,
-        // ..Default::default()
-    // });
+    ir_builder.instructions.push(IrInstruction {
+        opcode: IrOpCode::Breakpoint,
+        ..Default::default()
+    });
 
     // build lir
-    build_lir_from_ast(&mut lc, &ast);
-    print!("lir:\n{}", lc);
+    build_ir_from_ast(&mut ir_builder, &ast);
+    print!("lir:\n{}", ir_builder);
+
+    // The resulting intermediate representation
+    let ir_instructions = ir_builder.instructions;
 
     // Generate code to jit
     let mut x86 = create_x86_assembler();
-    compile_x86_lir(&mut x86, &lc.instructions);
+    compile_x86_ir(&mut x86, &ir_instructions);
 
     println!("machine_code:");
     for (i, byte) in x86.machine_code.iter().enumerate() {

@@ -1,17 +1,5 @@
 fn main() -> i32 {
     let mut x: i32 = 5;
+    let y: bool = false;
     return x;
 }
-
-lir:
-main:
-    prologue        0
-    copy            $sp + 0x4, 5
-    copy            r0, $sp + 0x4
-    return          r0
-    epilogue
-       
-machine_code:
-55 48 8b ec c7 45 fc 05 00 00 
-00 8b 45 fc 5d c3 
-Program exited with code 5
