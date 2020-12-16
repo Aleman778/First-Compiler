@@ -103,7 +103,7 @@ pub struct IrBasicBlock {
  * Used to maintain information about the stack offsets and available registers.
  */
 pub struct IrBlockContext {
-    stack_entries: HashMap<Symbol, usize>,
+    stack_entries: HashMap<Symbol, (IrType, usize)>,
     next_stack_offset: usize,
     next_register: usize,
     largest_stack_size: usize,
@@ -276,7 +276,7 @@ fn create_ir_label(symbol: Symbol, i: &mut u32) -> IrLabel {
     label
 }
 
-fn allocate_stack<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol) -> IrOperandKind {
+fn allocate_stack<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol, ty: IrType) -> IrOperand {
     if ib.blocks.len() == 0 {
         panic!("not inside any scope");
     }
@@ -285,18 +285,22 @@ fn allocate_stack<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol) -> IrOperandKind {
     let frame = &mut ib.blocks[len - 1];
     frame.next_stack_offset += 4; // FIXME(alexander): all types are 4-bits in size
     let offset = frame.next_stack_offset;
-    frame.stack_entries.insert(symbol, offset);
+    frame.stack_entries.insert(symbol, (ty, offset));
     if frame.next_stack_offset > frame.largest_stack_size {
         frame.largest_stack_size = frame.next_stack_offset;
     }
-    IrOperandKind::Stack(offset)
+
+    IrOperand {
+        ty,
+        kind: IrOperandKind::Stack(offset),
+    }
 }
 
 fn lookup_stack<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol) -> IrOperand {
     for frame in &ib.blocks {
-        if let Some(offset) = frame.stack_entries.get(&symbol) {
+        if let Some((ty, offset)) = frame.stack_entries.get(&symbol) {
             let op = IrOperand {
-                ty: IrType::None,
+                ty: *ty,
                 kind: IrOperandKind::Stack(*offset),
             };
             return op;
@@ -306,7 +310,7 @@ fn lookup_stack<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol) -> IrOperand {
     create_ir_operand()
 }
 
-fn allocate_register<'a>(ib: &mut IrBuilder<'a>) -> IrOperand {
+fn allocate_register<'a>(ib: &mut IrBuilder<'a>, ty: IrType) -> IrOperand {
     if ib.blocks.len() == 0 {
         panic!("not inside any scope");
     }
@@ -316,7 +320,7 @@ fn allocate_register<'a>(ib: &mut IrBuilder<'a>) -> IrOperand {
     let register = frame.next_register;
     frame.next_register += 1;
     IrOperand {
-        ty: IrType::None,
+        ty,
         kind: IrOperandKind::Register(register),
     }
 }
@@ -423,7 +427,7 @@ pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOper
         if let IrOperandKind::None = last_op.kind {
             (create_ir_operand(), block_context)
         } else {
-            let op1 = allocate_register(ib);
+            let op1 = allocate_register(ib, last_op.ty);
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Copy,
                 op1: op1,
@@ -448,11 +452,9 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> IrOperand 
                 }
             };
 
-            let op1 = IrOperand {
-                kind: allocate_stack(ib, local.ident.sym),
-                ty: to_ir_type(&local.ty),
-            };
-            
+            let init_type = to_ir_type(&local.ty);
+            let op1 = allocate_stack(ib, local.ident.sym, init_type);
+
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Copy,
                 op1,
@@ -556,8 +558,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         }
 
         Expr::Ident(ident) => {
-            let op1 = allocate_register(ib);
             let op2 = lookup_stack(ib, ident.sym);
+            let op1 = allocate_register(ib, op2.ty);
 
             if let IrOperandKind::None = op2.kind {
                 panic!("failed to lookup identifier `{}`", resolve_symbol(ident.sym));
@@ -662,14 +664,14 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         Expr::Paren(paren) => build_ir_from_expr(ib, &paren.expr),
 
         Expr::Reference(reference) => {
-            let op1 = allocate_register(ib);
             let op2 = build_ir_from_expr(ib, &reference.expr);
-
+            let op1 = allocate_register(ib, op2.ty);
+            
             // Copy from reference needs to be performed through a register.
             let op2 = if let IrOperandKind::Register(_) = op2.kind {
                 op2
             } else {
-                let op1 = allocate_register(ib);
+                let op1 = allocate_register(ib, op2.ty);
                 ib.instructions.push(IrInstruction {
                     opcode: IrOpCode::Copy,
                     op1,
@@ -716,7 +718,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                         ty: IrType::I32,
                         kind: IrOperandKind::Constant(IrValue::I32(0)),
                     };
-                    let op1 = allocate_register(ib);
+                    let op1 = allocate_register(ib, op2.ty);
                     
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpCode::Sub,
@@ -731,7 +733,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
 
                 UnOp::Not => {
                     let op2 = build_ir_from_expr(ib, &unary.expr);
-                    let op1 = allocate_register(ib);
+                    let op1 = allocate_register(ib, op2.ty);
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpCode::Not,
                         op1,
@@ -745,7 +747,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
 
                 UnOp::Deref => {
                     let op2 = build_ir_from_expr(ib, &unary.expr);
-                    let op1 = allocate_register(ib);
+                    let op1 = allocate_register(ib, op2.ty);
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpCode::CopyFromDeref,
                         op1,

@@ -167,10 +167,10 @@ fn run_compiler(config: Config) {
     let mut ir_builder = create_ir_builder();
     
     // insert breakpoint at the beginning
-    ir_builder.instructions.push(IrInstruction {
-        opcode: IrOpCode::Breakpoint,
-        ..Default::default()
-    });
+    // ir_builder.instructions.push(IrInstruction {
+        // opcode: IrOpCode::Breakpoint,
+        // ..Default::default()
+    // });
 
     // build lir
     build_ir_from_ast(&mut ir_builder, &ast);

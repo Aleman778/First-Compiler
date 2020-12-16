@@ -25,6 +25,8 @@ struct X86Instruction {
 #[derive(Debug, Clone, Copy)]
 enum X86OpCode {
     Mov,
+    MovByte, // same mnemonic as mov, but different opcode
+    MovSignExtend, // only r/m8 to r32
     Add,
     Push,
     Pop,
@@ -271,7 +273,11 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
 
         IrOpCode::Copy => {
             let mut op = create_x86_instruction();
-            op.opcode = X86OpCode::Mov;
+            if let IrType::I8 = ir_insn.op1.ty {
+                op.opcode = X86OpCode::MovByte;
+            } else {
+                op.opcode = X86OpCode::Mov;
+            }
             compile_x64_ir_operand(x86, &mut op, ir_insn.op1, ir_insn.op2);
             push_x86_instruction(x86, &op);
         }
@@ -395,14 +401,29 @@ fn push_x86_instruction(x86: &mut X86Assembler, insn: &X86Instruction) {
             X86OpEn::RM => x86.machine_code.push(0x8b),
             X86OpEn::MI => x86.machine_code.push(0xc7),
             _ => unimplemented!(),
-        },
+        }
+
+        X86OpCode::MovByte => match insn.encoding {
+            X86OpEn::MR => x86.machine_code.push(0x88),
+            X86OpEn::RM => x86.machine_code.push(0x8a),
+            X86OpEn::MI => x86.machine_code.push(0xc6),
+            _ => unimplemented!(),
+        }
+
+        X86OpCode::MovSignExtend => match insn.encoding {
+            X86OpEn::RM => {
+                x86.machine_code.push(0x0f);
+                x86.machine_code.push(0xbe);
+            }
+            _ => unimplemented!(),
+        }
 
         X86OpCode::Add => match insn.encoding {
             X86OpEn::MR => x86.machine_code.push(0x01),
             X86OpEn::RM => x86.machine_code.push(0x03),
             X86OpEn::MI => x86.machine_code.push(0x81),
             _ => unimplemented!(),
-        },
+        }
 
         X86OpCode::Push => match insn.encoding {
             X86OpEn::O => x86.machine_code.push(0x50 + register_encoding(insn.modrm_reg)),
