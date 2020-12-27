@@ -1,8 +1,10 @@
 fn main() -> i32 {
     let mut x: i32 = 5;
     let y: i32 = 10;
-    if x - y > 12 {
+    if x - y < 12 {
         y = 20;
+    } else {
+        y = 0;
     }
     
     return y + x + y;

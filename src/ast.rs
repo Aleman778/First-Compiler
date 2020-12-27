@@ -759,8 +759,8 @@ thread_local!(static GLOBAL_STRING_INTERNER: RefCell<StringInterner> =
               RefCell::new(StringInterner::default()));
 
 /**
- * Use string interner to reduce memory footprint by instead of storing
- * clones of strings everywhere but instead just store an index to this interner.
+ * Use string interner to reduce memory footprint by storing an index to a particular
+ * string rather than storing clones of the same string everywhere.
  */
 pub type Symbol = DefaultSymbol;
 

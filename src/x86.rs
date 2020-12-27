@@ -230,18 +230,15 @@ pub fn compile_x86_ir(x86: &mut X86Assembler, instructions: &Vec<IrInstruction>)
     compile_x86_machine_code(x86);
 
     // Calculate the relative jump distances
-    for (label, jt) in &x86.jump_targets {
+    for (_, jt) in &x86.jump_targets {
         let target_index = jt.pos;
         let target_insn = &x86.instructions[target_index];
         let target_byte_pos = target_insn.cached_pos as isize;
-        println!("JumpTarget({}):", label);
-        println!("\ttarget_byte_pos: {}", target_byte_pos);
 
         for jump_index in &jt.jumps {
             let insn = &x86.instructions[*jump_index];
             let insn_byte_pos = insn.cached_pos as isize;
             let insn_size = insn.cached_size as isize;
-            println!("\tinsn_byte_pos: {}", insn_byte_pos);
 
             let rel32: i32 = (target_byte_pos - insn_byte_pos - insn_size).try_into().unwrap();
             let rel8_opt: Result<u8, _> = rel32.try_into();
@@ -435,6 +432,23 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             jump_insn.immediate = X86Value::Int8(0); // jump distance gets calculated later
             jump_insn.encoding = X86OpEn::D;
             x86.instructions.push(jump_insn);
+        },
+
+        IrOpCode::Jump => {
+            if let IrOperandKind::Label(label) = ir_insn.op1.kind {
+                let insn_index = x86.instructions.len();
+                let jt = get_mut_x86_jump_target(x86, label);
+                jt.jumps.push(insn_index);
+            } else {
+                panic!("missing label on first operand in jump instruction")
+            }
+
+            let mut insn = create_x86_instruction();
+            insn.opcode = X86OpCode::JMP;
+
+            insn.immediate = X86Value::Int8(0); // jump distance gets calculated later
+            insn.encoding = X86OpEn::D;
+            x86.instructions.push(insn);
         }
 
         IrOpCode::Label => {
@@ -670,11 +684,11 @@ fn compile_x86_machine_code(x86: &mut X86Assembler) {
 
             X86OpCode::JMP => match insn.encoding {
                 X86OpEn::D => match insn.immediate {
-                    X86Value::Int8(_) => x86.machine_code.push(0x75),
+                    X86Value::Int8(_) => x86.machine_code.push(0xeb),
                     X86Value::Int32(_) => x86.machine_code.push(0xe9),
                     _ => unimplemented!(),
                 }
-                X86OpEn::M => x86.machine_code.push(0xf7),
+                X86OpEn::M => x86.machine_code.push(0xff),
                 _ => unimplemented!(),
             }
 
