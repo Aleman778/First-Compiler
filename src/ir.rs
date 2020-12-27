@@ -116,6 +116,7 @@ pub struct IrBuilder<'a> {
     pub file: Option<&'a File>,
     pub instructions: Vec<IrInstruction>,
     pub functions: HashMap<IrLabel, IrBasicBlock>,
+    pub addr_size: usize, // address size in bytes on target architecture
     blocks: Vec<IrBlockContext>,
     unique_label_index: u32,
 }
@@ -216,6 +217,16 @@ impl fmt::Display for IrType {
     }
 }
 
+impl fmt::Display for IrLabel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.index > 0 {
+            write!(f, "{}{}", resolve_symbol(self.symbol), self.index)
+        } else {
+            write!(f, "{}", resolve_symbol(self.symbol))
+        }
+    }
+}
+
 impl fmt::Display for IrOperand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let IrType::None = self.ty {
@@ -225,13 +236,7 @@ impl fmt::Display for IrOperand {
         match &self.kind {
             IrOperandKind::Stack(addr) => write!(f, "$sp + {:#x}", addr),
             IrOperandKind::Register(index) => write!(f, "r{}", index),
-            IrOperandKind::Label(label) => {
-                if label.index > 0 {
-                    write!(f, "{}{}", resolve_symbol(label.symbol), label.index)
-                } else {
-                    write!(f, "{}", resolve_symbol(label.symbol))
-                }
-            }
+            IrOperandKind::Label(label) => write!(f, "{}", label),
             IrOperandKind::Constant(val) => match val {
                 IrValue::I32(v) => write!(f, "{}", v),
                 IrValue::Bool(v) => write!(f, "{}", v),
@@ -246,6 +251,7 @@ pub fn create_ir_builder<'a>() -> IrBuilder<'a> {
         file: None,
         instructions: Vec::new(),
         functions: HashMap::new(),
+        addr_size: std::mem::size_of::<usize>(),
         blocks: Vec::new(),
         unique_label_index: 0,
     }
@@ -283,7 +289,13 @@ fn allocate_stack<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol, ty: IrType) -> IrO
 
     let len = ib.blocks.len();
     let frame = &mut ib.blocks[len - 1];
-    frame.next_stack_offset += 4; // FIXME(alexander): all types are 4-bits in size
+    frame.next_stack_offset += match ty {
+        IrType::I8 => 1,
+        IrType::I32 => 4,
+        IrType::PtrI8(_) |
+        IrType::PtrI32(_) => ib.addr_size,
+        IrType::None => panic!("missing type"),
+    };
     let offset = frame.next_stack_offset;
     frame.stack_entries.insert(symbol, (ty, offset));
     if frame.next_stack_offset > frame.largest_stack_size {
@@ -493,8 +505,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         }
 
         Expr::Binary(binary) => {
-            let op2 = build_ir_from_expr(ib, &binary.right);
             let op1 = build_ir_from_expr(ib, &binary.left);
+            let op2 = build_ir_from_expr(ib, &binary.right);
             let opcode = match binary.op {
                 BinOp::Add => IrOpCode::Add,
                 BinOp::Sub => IrOpCode::Sub,
@@ -577,20 +589,21 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         }
 
         Expr::If(if_expr) => {
-            let exit_label = intern_string("if_exit"); // TODO(alexander): handle duplicate labels!
-            let mut else_label: Option<Symbol> = None;
+            let exit_label = create_ir_label(intern_string("if_exit"), &mut ib.unique_label_index);
+            let mut else_label: Option<IrLabel> = None;
 
             let mut op1 = create_ir_operand();
             let mut op2 = create_ir_operand();
             let op3 = match if_expr.else_block {
                 Some(_) => {
-                    let sym = intern_string("if_else"); // TODO(alexander): handle duplicate labels!
-                    else_label = Some(sym);
-                    create_label_ir_operand(create_ir_label(sym, &mut ib.unique_label_index))
+                    let label = create_ir_label(intern_string("if_else"), &mut ib.unique_label_index);
+                    else_label = Some(label);
+                    create_label_ir_operand(label)
                 }
 
-                None => create_label_ir_operand(create_ir_label(exit_label, &mut ib.unique_label_index)),
+                None => create_label_ir_operand(exit_label),
             };
+            
             let mut opcode = match &*if_expr.cond {
                 Expr::Binary(binary) => {
                     let opcode = match binary.op {
@@ -632,13 +645,13 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
             if let Some(label) = else_label {
                 ib.instructions.push(IrInstruction {
                     opcode: IrOpCode::Jump,
-                    op1: create_label_ir_operand(create_ir_label(exit_label, &mut ib.unique_label_index)),
+                    op1: create_label_ir_operand(exit_label),
                     ..Default::default()
                 });
 
                 ib.instructions.push(IrInstruction {
                     opcode: IrOpCode::Label,
-                    op1: create_label_ir_operand(create_ir_label(label, &mut ib.unique_label_index)),
+                    op1: create_label_ir_operand(label),
                     ..Default::default()
                 });
             }
@@ -649,7 +662,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Label,
-                op1: create_label_ir_operand(create_ir_label(exit_label, &mut ib.unique_label_index)),
+                op1: create_label_ir_operand(exit_label),
                 ..Default::default()
             });
 
