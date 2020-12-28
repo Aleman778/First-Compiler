@@ -21,7 +21,7 @@ use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
-use crate::ir::{IrInstruction, IrOpCode, create_ir_builder, build_ir_from_ast};
+use crate::ir::{create_ir_builder, build_ir_from_ast, push_ir_breakpoint};
 use crate::x86::{create_x86_assembler, compile_x86_ir};
 use crate::jit::{allocate_jit_code, finalize_jit_code, free_jit_code, execute_jit_code};
 // use crate::llvm::codegen_test;
@@ -167,11 +167,8 @@ fn run_compiler(config: Config) {
     let mut ir_builder = create_ir_builder();
     
     // insert breakpoint at the beginning
-    ir_builder.instructions.push(IrInstruction {
-        opcode: IrOpCode::Breakpoint,
-        ..Default::default()
-    });
-
+    // push_ir_breakpoint(&mut ir_builder);
+    
     // build lir
     build_ir_from_ast(&mut ir_builder, &ast);
     print!("ir:\n{}", ir_builder);
@@ -207,6 +204,6 @@ fn run_compiler(config: Config) {
         // winapi::um::debugapi::DebugBreak();
     // }
     let ret = execute_jit_code(&jit_code);
-    println!("Program exited with code {}", ret);
+    println!("\nProgram exited with code {}", ret);
     free_jit_code(&jit_code);
 }

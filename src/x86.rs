@@ -40,6 +40,10 @@ enum X86OpCode {
     MOVSX,
     ADD,
     SUB,
+    IMUL,
+    IDIV,
+    XOR,
+    CDQ,
     CMP,
     TEST,
     JL,
@@ -64,9 +68,6 @@ enum X86AddrMode {
     None,           // don't use modrm
 }
 
-// NOTE(alexander): x86 does not care about signedness, let everything be signed since
-// this compiler only has support for signed integers.
-// In this compiler we don't case about 16-bit values.
 #[derive(Debug, Clone, Copy)]
 enum X86Value {
     None,
@@ -98,15 +99,16 @@ enum X86Reg {
 // NOTE(alexander): see intel's manual on instruction operand encoding for more info.
 #[derive(Debug, Clone, Copy)]
 enum X86OpEn {
-    RM, // modrm_reg, modrm_rm
-    MR, // modrm_rm, modrm_reg
-    MI, // modrm_rm, immediate
-    M,  // modrm_rm,
-    O,  // opcode + modrm_reg
-    OI, // opcode + modrm_reg, immediate
-    I,  // immediate
-    D,  // immediate (signed offset)
-    ZO, // NO OPERANDS
+    RM,  // modrm_reg, modrm_rm
+    MR,  // modrm_rm, modrm_reg
+    MI,  // modrm_rm, immediate
+    RMI, // modrm_reg, modrm_rm, immediate
+    M,   // modrm_rm,
+    O,   // opcode + modrm_reg
+    OI,  // opcode + modrm_reg, immediate
+    I,   // immediate
+    D,   // immediate (signed offset)
+    ZO,  // NO OPERANDS
 }
 
 fn create_x86_instruction() -> X86Instruction {
@@ -241,12 +243,15 @@ pub fn compile_x86_ir(x86: &mut X86Assembler, instructions: &Vec<IrInstruction>)
             let insn_size = insn.cached_size as isize;
 
             let rel32: i32 = (target_byte_pos - insn_byte_pos - insn_size).try_into().unwrap();
-            let rel8_opt: Result<u8, _> = rel32.try_into();
+            let rel8_opt: Result<i8, _> = rel32.try_into();
             match rel8_opt {
                 Ok(rel8) => {
                     let rel8_index = insn.cached_pos + insn.cached_size - 1;
-                    println!("machine_code[{}] = {}\n", rel8_index, rel8);
-                    x86.machine_code[rel8_index] = rel8;
+                    x86.machine_code[rel8_index] = if rel8 < 0 {
+                        (256i32 + rel8 as i32) as u8 // signed two's complement in u8
+                    } else {
+                        rel8 as u8
+                    };
                 },
 
                 Err(_) => panic!("32-bit jumps is not implemented!"),
@@ -330,7 +335,8 @@ fn compile_x64_ir_operand(x86: &mut X86Assembler, insn: &mut X86Instruction, op1
 }
 
 /**
- * Compiles an ir instruction into x86 machine code.
+ * Compiles an ir instruction into one or many x86 instructions that are pushed
+ * on the final x86 instructions list.
  */
 pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstruction) {
     match ir_insn.opcode {
@@ -356,6 +362,13 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             x86.instructions.push(insn);
         }
 
+        IrOpCode::Clear => {
+            let mut insn = create_x86_instruction();
+            insn.opcode = X86OpCode::XOR;
+            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op1);
+            x86.instructions.push(insn);
+        }
+        
         IrOpCode::Add => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::ADD;
@@ -369,35 +382,36 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(insn);
         }
-        
-        IrOpCode::Return => {
-            match ir_insn.op1.kind {
-                IrOperandKind::None => {},
 
-                _ => {
-                    if let IrOperandKind::Register(0) = ir_insn.op1.kind {
-                        if let IrType::I32 = ir_insn.op1.ty {
-                            return;
-                        }
-                    };
-
-                    let mut insn = create_x86_instruction();
-                    if let IrType::I8 = ir_insn.op1.ty {
-                        insn.opcode = X86OpCode::MOVSX;
-                    } else {
-                        insn.opcode = X86OpCode::MOV;
-                    }
-
-                    let op1 = IrOperand {
-                        ty: IrType::None,
-                        kind: IrOperandKind::Register(0)
-                    };
-                    compile_x64_ir_operand(x86, &mut insn, op1, ir_insn.op1);
-                    x86.instructions.push(insn);
-                }
+        IrOpCode::Mul => {
+            let mut insn = create_x86_instruction();
+            insn.opcode = X86OpCode::IMUL; // NOTE(alexander): we only support signed numbers atm.
+            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            match insn.encoding {
+                
+                X86OpEn::MR => panic!("not possible"), // TODO(alexander): mov in to register first
+                X86OpEn::MI => insn.encoding = X86OpEn::RMI,
+                _ => { },
             }
+            
+            x86.instructions.push(insn);
+        }
 
-            // TODO(alexander): handle returns that are not at the end of the function.
+        IrOpCode::Div => {
+            // save rdx & rax
+            
+            let mut insn = create_x86_instruction();
+            insn.opcode = X86OpCode::IDIV; // NOTE(alexander): we only support signed numbers atm.
+            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            x86.instructions.push(insn);
+        }
+        
+        IrOpCode::And => {
+
+        }
+
+        IrOpCode::Or => {
+
         }
 
         IrOpCode::IfLt |
@@ -457,6 +471,36 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
                 let jt = get_mut_x86_jump_target(x86, label);
                 jt.pos = insn_index;
             }
+        }
+
+        IrOpCode::Return => {
+            match ir_insn.op1.kind {
+                IrOperandKind::None => {},
+
+                _ => {
+                    if let IrOperandKind::Register(0) = ir_insn.op1.kind {
+                        if let IrType::I32 = ir_insn.op1.ty {
+                            return;
+                        }
+                    };
+
+                    let mut insn = create_x86_instruction();
+                    if let IrType::I8 = ir_insn.op1.ty {
+                        insn.opcode = X86OpCode::MOVSX;
+                    } else {
+                        insn.opcode = X86OpCode::MOV;
+                    }
+
+                    let op1 = IrOperand {
+                        ty: IrType::None,
+                        kind: IrOperandKind::Register(0)
+                    };
+                    compile_x64_ir_operand(x86, &mut insn, op1, ir_insn.op1);
+                    x86.instructions.push(insn);
+                }
+            }
+
+            // TODO(alexander): handle returns that are not at the end of the function.
         }
 
         IrOpCode::Prologue => {
@@ -568,7 +612,7 @@ fn compile_x86_machine_code(x86: &mut X86Assembler) {
                 X86OpEn::MI => {
                     x86.machine_code.push(0x81);
                     insn.modrm_reg = X86Reg::RAX; // reg = 0
-                },
+                }
                 X86OpEn::MR => x86.machine_code.push(0x01),
                 X86OpEn::RM => x86.machine_code.push(0x03),
                 _ => unimplemented!(),
@@ -579,9 +623,46 @@ fn compile_x86_machine_code(x86: &mut X86Assembler) {
                 X86OpEn::MI => {
                     x86.machine_code.push(0x81);
                     insn.modrm_reg = X86Reg::RBP; // reg = 5
-                },
+                }
                 X86OpEn::MR => x86.machine_code.push(0x29),
                 X86OpEn::RM => x86.machine_code.push(0x2b),
+                _ => unimplemented!(),
+            }
+
+            X86OpCode::IMUL => match insn.encoding {
+                X86OpEn::M => {
+                    x86.machine_code.push(0xf7);
+                    insn.modrm_reg = X86Reg::RAX; // reg = 0
+                }
+                X86OpEn::RM => {
+                    x86.machine_code.push(0x0f);
+                    x86.machine_code.push(0xaf);
+                }
+                X86OpEn::RMI => x86.machine_code.push(0x69),
+                _ => unimplemented!(),
+            }
+
+            X86OpCode::IDIV => match insn.encoding {
+                X86OpEn::M => {
+                    x86.machine_code.push(0xf7);
+                    insn.modrm_reg = X86Reg::RDI; // reg = 7
+                }
+                _ => unimplemented!(),
+            }
+
+            X86OpCode::XOR => match insn.encoding {
+                X86OpEn::I  => x86.machine_code.push(0x35),
+                X86OpEn::MI => {
+                    x86.machine_code.push(0x81);
+                    insn.modrm_reg = X86Reg::RSI; // reg = 6
+                }
+                X86OpEn::MR => x86.machine_code.push(0x31),
+                X86OpEn::RM => x86.machine_code.push(0x33),
+                _ => unimplemented!(),
+            }
+
+            X86OpCode::CDQ => match insn.encoding {
+                X86OpEn::ZO => x86.machine_code.push(0x99),
                 _ => unimplemented!(),
             }
 
@@ -605,7 +686,10 @@ fn compile_x86_machine_code(x86: &mut X86Assembler) {
 
             X86OpCode::TEST => match insn.encoding {
                 X86OpEn::I  => x86.machine_code.push(0xa9),
-                X86OpEn::MI => x86.machine_code.push(0xf7),
+                X86OpEn::MI => {
+                    x86.machine_code.push(0xf7);
+                    insn.modrm_reg = X86Reg::RAX; // reg = 0
+                }
                 X86OpEn::MR => x86.machine_code.push(0x85),
                 _ => unimplemented!(),
             }
