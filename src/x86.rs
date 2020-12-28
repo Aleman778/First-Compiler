@@ -16,6 +16,7 @@ pub struct X86JumpTarget {
 }
 
 // NOTE(alexander): defines parts of an x86 instruction encoding, sib is not used!
+#[derive(Debug, Clone)]
 pub struct X86Instruction {
     rex             : bool, // use REX prefix, ignored in 32-bit mode
     rex_w           : bool, // 64-bit mode instructions
@@ -388,7 +389,6 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             insn.opcode = X86OpCode::IMUL; // NOTE(alexander): we only support signed numbers atm.
             compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             match insn.encoding {
-                
                 X86OpEn::MR => panic!("not possible"), // TODO(alexander): mov in to register first
                 X86OpEn::MI => insn.encoding = X86OpEn::RMI,
                 _ => { },
@@ -398,16 +398,106 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         }
 
         IrOpCode::Div => {
-            // save rdx & rax
-            
+            // TODO(alexander): save rdx & rax
+
             let mut insn = create_x86_instruction();
-            insn.opcode = X86OpCode::IDIV; // NOTE(alexander): we only support signed numbers atm.
             compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
-            x86.instructions.push(insn);
+            let mut target_insn = insn.clone();
+
+            // M has to be a register, specifically RAX
+            if let X86AddrMode::Direct = insn.modrm_addr_mode {
+            } else {
+                // NOTE(alexander): this is unlikely to happen based on the ir
+                let mut copy_insn = insn.clone();
+                copy_insn.opcode = X86OpCode::MOV;
+                copy_insn.encoding = X86OpEn::RM;
+                copy_insn.modrm_reg = X86Reg::RAX;
+                copy_insn.immediate = X86Value::None;
+                x86.instructions.push(copy_insn);
+                insn.modrm_addr_mode = X86AddrMode::Direct;
+            }
+
+            match insn.encoding {
+                X86OpEn::MR => {
+                    // Swap the encoding, denominator should be modrm_rm
+                    insn.encoding = X86OpEn::RM;
+                    let temp = insn.modrm_rm;
+                    insn.modrm_rm = insn.modrm_reg;
+                    insn.modrm_reg = temp;
+                }
+                
+                X86OpEn::MI => {
+                    // Copy immediate into scratch register
+                    let mut copy_insn = insn.clone();
+                    copy_insn.opcode = X86OpCode::MOV;
+                    copy_insn.modrm_rm = X86Reg::RCX;
+                    x86.instructions.push(copy_insn);
+
+                    insn.immediate = X86Value::None; // No need for the immedate anymore
+                    insn.modrm_reg = insn.modrm_rm;
+                    insn.modrm_rm = X86Reg::RCX;
+                }
+                _ => { },
+            }
+
+            if let X86Reg::RAX = insn.modrm_reg {
+            } else {
+                let mut copy_insn = insn.clone();
+                copy_insn.opcode = X86OpCode::MOV;
+                copy_insn.encoding = X86OpEn::RM;
+                copy_insn.modrm_rm = insn.modrm_reg;
+                copy_insn.modrm_reg = X86Reg::RAX;
+                x86.instructions.push(copy_insn);
+            }
+
+            let mut ext_insn = insn.clone();
+            ext_insn.opcode = X86OpCode::CDQ; // NOTE(alexander): sign-extend RAX into RDX.
+            ext_insn.encoding = X86OpEn::ZO;
+            ext_insn.modrm_addr_mode = X86AddrMode::None;            
+            x86.instructions.push(ext_insn);
+
+            insn.opcode = X86OpCode::IDIV; // NOTE(alexander): we only support signed numbers atm.
+            insn.encoding = X86OpEn::M; // NOTE(alexander): IDIV only accepts RDX:RAX /= modrm_rm, why intel!?!?
+            x86.instructions.push(insn.clone());
+
+            // Now save the result back in the correct register
+            target_insn.opcode = X86OpCode::MOV;
+            match target_insn.encoding {
+                X86OpEn::MR => {
+                    if let X86Reg::RAX = target_insn.modrm_rm {
+                        if let X86AddrMode::Direct = target_insn.modrm_addr_mode {
+                            return;
+                        }
+                    }
+                    target_insn.modrm_reg = X86Reg::RAX;
+                }
+
+                X86OpEn::RM => {
+                    if let X86Reg::RAX = target_insn.modrm_reg {
+                        return;
+                    }
+                    target_insn.modrm_addr_mode = X86AddrMode::Direct;
+                    target_insn.modrm_rm = X86Reg::RAX;
+                }
+                
+                X86OpEn::MI => {
+                    if let X86Reg::RAX = target_insn.modrm_rm {
+                        if let X86AddrMode::Direct = target_insn.modrm_addr_mode {
+                            return;
+                        }
+                    }
+                    target_insn.immediate = X86Value::None;
+                    target_insn.encoding = X86OpEn::MR;
+                    target_insn.modrm_reg = X86Reg::RAX;
+                }
+
+                _ => return,
+            }
+            x86.instructions.push(target_insn);
         }
         
         IrOpCode::And => {
-
+            
         }
 
         IrOpCode::Or => {
@@ -594,8 +684,14 @@ fn compile_x86_machine_code(x86: &mut X86Assembler) {
                 (X86OpEn::RM, true)  => x86.machine_code.push(0x8a),
                 (X86OpEn::RM, false) => x86.machine_code.push(0x8b),
 
-                (X86OpEn::MI, false) => x86.machine_code.push(0xc7),
-                (X86OpEn::MI, true)  => x86.machine_code.push(0xc6),
+                (X86OpEn::MI, true)  => {
+                    x86.machine_code.push(0xc6);
+                    insn.modrm_reg = X86Reg::RAX; // reg = 0
+                }
+                (X86OpEn::MI, false) => {
+                    x86.machine_code.push(0xc7);
+                    insn.modrm_reg = X86Reg::RAX; // reg = 0
+                }
                 _ => unimplemented!(),
             }
 
