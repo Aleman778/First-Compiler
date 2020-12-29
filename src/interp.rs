@@ -108,7 +108,7 @@ pub fn to_type_kind(value: &Value) -> TyKind {
 
 pub fn to_type(value: &InterpValue) -> Ty {
     let ty_kind = to_type_kind(&value.data);
-    Ty { kind: ty_kind, span: value.span }
+    Ty::new(ty_kind, value.span)
 }
 
 fn store_local_variable<'a>(ic: &mut InterpContext<'a>, value: InterpValue, symbol: Option<Symbol>) -> usize {

@@ -210,7 +210,7 @@ pub fn parse_fn_decl(input: ParseSpan) -> IResult<ParseSpan, FnDecl> {
                         output = ty.1;
                     },
                     None => {
-                        output = Ty::new();
+                        output = Ty::default();
                         end_span = Span::from_parse_span(end);
                         output.span = Span::combine(end_span, end_span);
                     },
@@ -323,7 +323,7 @@ pub fn parse_local_stmt(input: ParseSpan) -> IResult<ParseSpan, Local> {
 pub fn parse_ty(input: ParseSpan) -> IResult<ParseSpan, Ty> {
     context(
         "type",
-        map(parse_ty_kind, |(kind, span)| Ty{kind: kind, span: span})
+        map(parse_ty_kind, |(kind, span)| Ty::new(kind, span))
     )(input)
 }
 

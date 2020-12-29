@@ -482,15 +482,14 @@ pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOper
 pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> IrOperand {
     match stmt {
         Stmt::Local(local) => {
+            let init_type = to_ir_type(&local.ty);
+            let op1 = allocate_stack(ib, local.ident.sym, init_type);
             let op2 = match &*local.init {
                 Some(expr) => build_ir_from_expr(ib, expr),
                 None => {
-                    create_ir_operand() // temp, handle uninitialized case
+                    return create_ir_operand();
                 }
             };
-
-            let init_type = to_ir_type(&local.ty);
-            let op1 = allocate_stack(ib, local.ident.sym, init_type);
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Copy,

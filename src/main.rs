@@ -40,7 +40,7 @@ pub fn main() {
         let config = Config {
             input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
             run: None,
-            interpret: true,
+            interpret: false,
             nocolor: false,
             compiletest: false,
         };
@@ -161,13 +161,14 @@ fn run_compiler(config: Config) {
         let mut ic = create_interp_context();
         interp_file(&mut ic, &ast);
         interp_entry_point(&mut ic);
+        return;
     }
 
     // Build low-level intermediate representation
     let mut ir_builder = create_ir_builder();
     
     // insert breakpoint at the beginning
-    // push_ir_breakpoint(&mut ir_builder);
+    push_ir_breakpoint(&mut ir_builder);
     
     // build lir
     build_ir_from_ast(&mut ir_builder, &ast);

@@ -50,12 +50,25 @@ pub fn create_error_msg_from_span(
 }
 
 pub fn print_error_msg(msg: &ErrorMsg) {
-    match print_error_mgs_fmt(msg) {
+    
+    fn get_max_left_spacing(msg: &ErrorMsg) -> u32 {
+        let left_spacing = (((msg.line_number as f32).log10()).floor() as u32) + 1;
+        if let Some(next) = &msg.next {
+            left_spacing.max(get_max_left_spacing(&*next))
+        } else {
+            left_spacing
+        }
+    }
+
+    // TODO(alexander): maybe sort the error messages by line number to improve readability.
+    let left_spacing = get_max_left_spacing(msg);
+    match print_error_msg_fmt(msg, left_spacing, true) {
         _ => { }
     };
 }
 
-fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
+fn print_error_msg_fmt(msg: &ErrorMsg, left_spacing: u32, print_header: bool) -> std::io::Result<()> {
+
     if let ErrorLevel::Cancelled = msg.level {
         return Ok(());
     }
@@ -63,64 +76,65 @@ fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
     let mut stderr = StandardStream::stderr(ColorChoice::Always);
     let mut color = ColorSpec::new();
 
-    // Print Location
-    write!(&mut stderr, "{}:{}:{}: ", msg.path, msg.line_number, msg.column_number)?;
+    if print_header {
+        // Print Location
+        write!(&mut stderr, "{}:{}:{}: ", msg.path, msg.line_number, msg.column_number)?;
 
-    // Print error level
-    color.set_intense(true);
-    match msg.level {
-        ErrorLevel::Fatal => {
-            color.set_fg(Some(Color::White));
-            color.set_bg(Some(Color::Red));
-            stderr.set_color(&color)?;
-            write!(&mut stderr, "fatal:")?;
+        // Print error level
+        color.set_intense(true);
+        match msg.level {
+            ErrorLevel::Fatal => {
+                color.set_fg(Some(Color::White));
+                color.set_bg(Some(Color::Red));
+                stderr.set_color(&color)?;
+                write!(&mut stderr, "fatal:")?;
+            }
+            ErrorLevel::Error => {
+                color.set_bg(Some(Color::Red));
+                stderr.set_color(&color)?;
+                write!(&mut stderr, "error:")?;
+            }
+            ErrorLevel::Warn => {
+                color.set_bg(Some(Color::Red));
+                stderr.set_color(&color)?;
+                write!(&mut stderr, "error:")?;
+            }
+            ErrorLevel::Info => {
+                color.set_bg(Some(Color::Blue));
+                stderr.set_color(&color)?;
+                write!(&mut stderr, "info:")?;
+            }
+            ErrorLevel::Note => {
+                color.set_bg(Some(Color::Blue));
+                stderr.set_color(&color)?;
+                write!(&mut stderr, "note:")?;
+            }
+            ErrorLevel::Help => {
+                color.set_bg(Some(Color::Blue));
+                stderr.set_color(&color)?;
+                write!(&mut stderr, "help:")?;
+            }
+            _ => { }
         }
-        ErrorLevel::Error => {
-            color.set_bg(Some(Color::Red));
-            stderr.set_color(&color)?;
-            write!(&mut stderr, "error:")?;
-        }
-        ErrorLevel::Warn => {
-            color.set_bg(Some(Color::Red));
-            stderr.set_color(&color)?;
-            write!(&mut stderr, "error:")?;
-        }
-        ErrorLevel::Info => {
-            color.set_bg(Some(Color::Blue));
-            stderr.set_color(&color)?;
-            write!(&mut stderr, "info:")?;
-        }
-        ErrorLevel::Note => {
-            color.set_bg(Some(Color::Blue));
-            stderr.set_color(&color)?;
-            write!(&mut stderr, "note:")?;
-        }
-        ErrorLevel::Help => {
-            color.set_bg(Some(Color::Blue));
-            stderr.set_color(&color)?;
-            write!(&mut stderr, "help:")?;
-        }
-        _ => { }
-    }
-    color.clear();
-    stderr.set_color(&color)?;
-    write!(&mut stderr, " ")?;
-
-    color.set_intense(true);
-    stderr.set_color(&color)?;
-    write!(&mut stderr, "{}\n", msg.msg)?;
-
-    color.clear();
-    stderr.set_color(&color)?;
-
-    let d = (((msg.line_number as f32).log10()).floor() as u32) + 1;
-    for _i in 0..=d {
+        color.clear();
+        stderr.set_color(&color)?;
         write!(&mut stderr, " ")?;
-    }
 
-    color.set_fg(Some(Color::Blue));
-    stderr.set_color(&color)?;
-    write!(&mut stderr, "|")?;
+        color.set_intense(true);
+        stderr.set_color(&color)?;
+        write!(&mut stderr, "{}\n", msg.msg)?;
+
+        color.clear();
+        stderr.set_color(&color)?;
+
+        for _i in 0..=left_spacing {
+            write!(&mut stderr, " ")?;
+        }
+
+        color.set_fg(Some(Color::Blue));
+        stderr.set_color(&color)?;
+        write!(&mut stderr, "|")?;
+    }
 
     color.clear();
     stderr.set_color(&color)?;
@@ -141,7 +155,7 @@ fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
         write!(&mut stderr, "\n")?;
     }
 
-    for _i in 0..=d {
+    for _i in 0..=left_spacing {
         write!(&mut stderr, " ")?;
     }
 
@@ -158,7 +172,7 @@ fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
     color.set_fg(Some(Color::Red));
     stderr.set_color(&color)?;
     write!(&mut stderr, "^")?;
-    for _i in 0..=msg.annotation_length {
+    for _i in 0..(msg.annotation_length - 1) {
         write!(&mut stderr, "~")?;
     }
     write!(&mut stderr, " ")?;
@@ -166,6 +180,12 @@ fn print_error_mgs_fmt(msg: &ErrorMsg) -> std::io::Result<()> {
 
     color.clear();
     stderr.set_color(&color)?;
-    write!(&mut stderr, "\n\n")?;
+
+    if let Some(next) = &msg.next {
+        print_error_msg_fmt(&*next, left_spacing, false)?;
+    } else {
+        write!(&mut stderr, "\n\n")?;
+    }
+
     Ok(())
 }

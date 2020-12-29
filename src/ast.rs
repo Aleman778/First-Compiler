@@ -142,7 +142,12 @@ pub struct Local {
 #[derive(Debug, Clone)]
 pub struct Ty {
     pub kind: TyKind,
+    pub mutable: bool,
+    pub assigned: bool,
     pub span: Span,
+    pub sym: Option<Symbol>, // used in type checking 
+    pub first_declared_span: Span,
+    pub first_assigned_span: Span,
 }
 
 /**
@@ -173,8 +178,16 @@ impl Ty {
     /**
      * Creates an empty type with kind `TyKind::None` and empty span.
      */
-    pub fn new() -> Self {
-        Ty{kind: TyKind::None, span: Span::new()}
+    pub fn new(kind: TyKind, span: Span) -> Self {
+        Ty {
+            kind,
+            mutable: false,
+            assigned: false,
+            span,
+            sym: None,
+            first_declared_span: Span::new(),
+            first_assigned_span: Span::new(),
+        }
     }
 
     /**
@@ -224,6 +237,20 @@ impl Ty {
         match self.kind {
             TyKind::None => true,
             _ => false,
+        }
+    }
+}
+
+impl Default for Ty {
+    fn default() -> Self {
+        Ty {
+            kind: TyKind::None,
+            mutable: false,
+            assigned: false,
+            span: Span::new(),
+            sym: None,
+            first_declared_span: Span::new(),
+            first_assigned_span: Span::new(),
         }
     }
 }
@@ -696,6 +723,10 @@ impl Span {
         return self.base == 0 && self.len == 0 && self.ctx == 0;
     }
 
+    pub fn is_inside(&self, other: Span) -> bool {
+        return other.base < self.base && (other.base + other.len as u32) < (self.base + self.len as u32);
+    }
+
     pub fn from_parse_span(s: ParseSpan) -> Self {
         Span {
             base: s.offset as u32,
@@ -752,7 +783,7 @@ pub fn get_span_location_in_file(lines: &Vec<u32>, span: Span) -> (usize, usize,
     let line_start = lines[line_number] as usize;
     let line_end = lines[end_line_number] as usize;
     let column_number = (span.base as usize).saturating_sub(line_start);
-    (line_number + 1, column_number, line_start, line_end)
+    (line_number + 1, column_number + 1, line_start, line_end)
 }
 
 thread_local!(static GLOBAL_STRING_INTERNER: RefCell<StringInterner> =
