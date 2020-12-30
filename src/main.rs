@@ -168,11 +168,11 @@ fn run_compiler(config: Config) {
     let mut ir_builder = create_ir_builder();
     
     // insert breakpoint at the beginning
-    push_ir_breakpoint(&mut ir_builder);
+    // push_ir_breakpoint(&mut ir_builder);
     
     // build lir
     build_ir_from_ast(&mut ir_builder, &ast);
-    print!("ir:\n{}", ir_builder);
+    print!("\n\nIntermediate Representation:\n-----------------------------------------------\n{}", ir_builder);
 
     // The resulting intermediate representation
     let ir_instructions = ir_builder.instructions;
@@ -181,10 +181,15 @@ fn run_compiler(config: Config) {
     let mut x86 = create_x86_assembler();
     compile_x86_ir(&mut x86, &ir_instructions);
 
-    println!("machine_code:");
+    println!("\n\nX86 Assembler:\n-----------------------------------------------");
+    for insn in x86.instructions {
+        println!("{}", insn);
+    }
+
+    println!("\n\nX86 Machine Code:\n-----------------------------------------------");
     for (i, byte) in x86.machine_code.iter().enumerate() {
         print!("{:02x} ", byte);
-        if i % 10 == 9 {
+        if i % 16 == 15 {
             println!("");
         }
     }

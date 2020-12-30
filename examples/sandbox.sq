@@ -1,14 +1,9 @@
 fn main() -> i32 {
-    let x: i32 = 10;
-    let y: &i32 = &x;
-
-    *y = 12;
-    
-    // while x < -6 {
-        // x = x + 1;
-    // }
-
-    // let y: i32 = 3;
-    // return x/y;
-    return 0;
+    let mut z: i32 = 10;
+    let y: &mut i32 = &mut z;
+    let mut x: bool = false;
+    if (x || true) && true {
+        *y = 20;
+    }
+    return *y;
 }

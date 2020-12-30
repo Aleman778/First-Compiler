@@ -212,8 +212,8 @@ impl fmt::Display for IrType {
         match self {
             IrType::I8        => write!(f, "i8"),
             IrType::I32       => write!(f, "i32"),
-            IrType::PtrI8(i)  => write!(f, "{}i8", "*".repeat(*i as usize)),
-            IrType::PtrI32(i) => write!(f, "{}i32", "*".repeat(*i as usize)),
+            IrType::PtrI8(i)  => write!(f, "i8{}", "*".repeat(*i as usize)),
+            IrType::PtrI32(i) => write!(f, "i32{}", "*".repeat(*i as usize)),
             IrType::None      => write!(f, ""),
         }
     }
@@ -509,16 +509,27 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> IrOperand 
 }
 
 pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand {
+
     match expr {
         Expr::Assign(assign) => {
+            let mut opcode = IrOpCode::Copy;
+            
             let op2 = build_ir_from_expr(ib, &assign.right);
             let op1 = match &*assign.left {
                 Expr::Ident(ident) => lookup_stack(ib, ident.sym),
-                _ => panic!("expected identifier"),
+                Expr::Unary(unary) => {
+                    if let UnOp::Deref = unary.op {
+                        opcode = IrOpCode::CopyToDeref;
+                    } else {
+                        panic!("expected dereference")
+                    }
+                    build_ir_from_expr(ib, &unary.expr)
+                }
+                _ => panic!("expected identifier or dereference"),
             };
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Copy,
+                opcode,
                 op1,
                 op2,
                 span: assign.span,
@@ -596,22 +607,23 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         }
 
         Expr::Ident(ident) => {
-            let op2 = lookup_stack(ib, ident.sym);
-            let op1 = allocate_register(ib, op2.ty);
+            lookup_stack(ib, ident.sym)
+            // let op2 = lookup_stack(ib, ident.sym);
+            // let op1 = allocate_register(ib, op2.ty);
 
-            if let IrOperandKind::None = op2.kind {
-                panic!("failed to lookup identifier `{}`", resolve_symbol(ident.sym));
-            }
+            // if let IrOperandKind::None = op2.kind {
+                // panic!("failed to lookup identifier `{}`", resolve_symbol(ident.sym));
+            // }
 
-            ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Copy,
-                op1,
-                op2,
-                span: ident.span,
-                ..Default::default()
-            });
-
-            op1
+            // ib.instructions.push(IrInstruction {
+                // opcode: IrOpCode::Copy,
+                // op1,
+                // op2,
+                // span: ident.span,
+                // ..Default::default()
+            // });
+            // 
+            // op1
         }
 
         Expr::If(if_expr) => {
@@ -704,26 +716,33 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
 
         Expr::Reference(reference) => {
             let op2 = build_ir_from_expr(ib, &reference.expr);
-            let op1 = allocate_register(ib, op2.ty);
+            let mut op1 = allocate_register(ib, op2.ty);
             
             // Copy from reference needs to be performed through a register.
-            let op2 = if let IrOperandKind::Register(_) = op2.kind {
-                op2
-            } else {
-                let op1 = allocate_register(ib, op2.ty);
-                ib.instructions.push(IrInstruction {
-                    opcode: IrOpCode::Copy,
-                    op1,
-                    op2,
-                    span: reference.span,
-                    ..Default::default()
-                });
-
-                op1
+            // let op2 = if let IrOperandKind::Register(_) = op2.kind {
+            //     op2
+            // } else {
+            //     let op1 = allocate_register(ib, op2.ty);
+            //     ib.instructions.push(IrInstruction {
+            //         opcode: IrOpCode::Copy,
+            //         op1,
+            //         op2,
+            //         span: reference.span,
+            //         ..Default::default()
+            //     });
+            //     op1
+            // };
+            
+            op1.ty = match op1.ty {
+                IrType::I8        => IrType::PtrI8(1),
+                IrType::I32       => IrType::PtrI32(1),
+                IrType::PtrI8(i)  => IrType::PtrI8(i + 1),
+                IrType::PtrI32(i) => IrType::PtrI32(i + 1),
+                IrType::None      => panic!("missing type info"),
             };
-
+            
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Copy,
+                opcode: IrOpCode::CopyFromRef,
                 op1,
                 op2,
                 span: reference.span,
@@ -788,7 +807,26 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
 
                 UnOp::Deref => {
                     let op2 = build_ir_from_expr(ib, &unary.expr);
-                    let op1 = allocate_register(ib, op2.ty);
+                    let mut op1 = allocate_register(ib, op2.ty);
+                    
+                    op1.ty = match op1.ty {
+                        IrType::I8 | 
+                        IrType::I32 => panic!("cannot dereference non ref type"),
+                        
+                        IrType::PtrI8(i) => if i > 1 {
+                            IrType::PtrI8(i - 1)
+                        } else {
+                            IrType::I8
+                        }
+                        
+                        IrType::PtrI32(i) => if i > 1 {
+                            IrType::PtrI32(i - 1)
+                        } else {
+                            IrType::I32
+                        }
+                        
+                        IrType::None => panic!("missing type info"),
+                    };
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpCode::CopyFromDeref,
                         op1,
