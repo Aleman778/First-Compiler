@@ -440,7 +440,14 @@ pub fn type_check_ident_expr<'a>(tc: &mut TypeContext<'a>, ident: &'a ExprIdent)
             return ty_ident;
         }
     }
-    Ty::default()
+
+    type_error(tc,
+               ident.span,
+               &format!("cannot find value `{}` in this scope", resolve_symbol(ident.sym)),
+               "not found in this scope");
+    let mut ty = Ty::default();
+    ty.kind = TyKind::Error;
+    ty
 }
 
 pub fn type_check_if_expr<'a>(tc: &mut TypeContext<'a>, if_expr: &'a ExprIf) -> Ty {
@@ -490,33 +497,33 @@ pub fn type_check_reference_expr<'a>(tc: &mut TypeContext<'a>, reference_expr: &
 }
 
 pub fn type_check_return_expr<'a>(tc: &mut TypeContext<'a>, return_expr: &'a ExprReturn) -> Ty {
-    match &*return_expr.expr {
-        Some(expr) => {
-            let ret_ty = type_check_expr(tc, &expr);
-            let actual_ret_ty = match tc.current_item {
-                Some(item) => match item {
-                    Item::Fn(func) => &func.decl.output,
-                    Item::ForeignFn(func) => &func.decl.output,
-                    _ => panic!("compiler bug"),
-                }
-                None => panic!("compiler bug: not analysing any function"),
-            };
-
-            if *actual_ret_ty != ret_ty {
-                mismatched_types_error(tc, return_expr.span, &actual_ret_ty.kind, &ret_ty);
-
-                // TODO(alexander): check empty return type
-                actual_ret_ty.clone()
-            } else {
-                ret_ty
-            }
-        }
-
+    let ret_ty = match &*return_expr.expr {
+        Some(expr) => type_check_expr(tc, &expr),
         None => {
             let mut ret_ty = Ty::default();
             ret_ty.span = return_expr.span;
             ret_ty
         }
+    };
+    let actual_ret_ty = match tc.current_item {
+        Some(item) => match item {
+            Item::Fn(func) => &func.decl.output,
+            Item::ForeignFn(func) => &func.decl.output,
+            _ => panic!("compiler bug"),
+        }
+        None => panic!("compiler bug: not analysing any function"),
+    };
+
+    if *actual_ret_ty != ret_ty {
+        if let TyKind::Error = ret_ty.kind {
+        } else {
+            mismatched_types_error(tc, return_expr.span, &actual_ret_ty.kind, &ret_ty);
+        }
+
+        // TODO(alexander): check empty return type
+        actual_ret_ty.clone()
+    } else {
+        ret_ty
     }
 }
 

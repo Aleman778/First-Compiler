@@ -20,6 +20,7 @@ pub struct File {
     pub span: Span,
     pub lines: Vec<u32>, // bytepos for each line in the file
     pub imported_files: HashMap<String, Box<File>>,
+    pub error_count: u32
 }
 
 /**
@@ -158,6 +159,7 @@ pub enum TyKind {
     Int,
     Bool,
     Ref(TypeRef),
+    Error, // used by type checker
     None,
 }
 
@@ -273,6 +275,7 @@ impl fmt::Display for TyKind {
             TyKind::Int => write!(f, "i32"),
             TyKind::Bool => write!(f, "bool"),
             TyKind::Ref(r) => write!(f, "{}", r),
+            TyKind::Error => panic!(),
             TyKind::None => write!(f, "()")
         }
     }

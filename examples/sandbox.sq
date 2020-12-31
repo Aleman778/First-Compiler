@@ -1,8 +1,10 @@
 fn main() -> i32 {
     let mut z: i32 = 10;
+    
     let y: &mut i32 = &mut z;
-    let mut x: bool = false;
-    if (x || true) && true {
+    let x: bool = z < 20;
+
+    if !x {
         *y = 20;
     }
     return *y;

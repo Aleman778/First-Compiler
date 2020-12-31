@@ -123,7 +123,6 @@ fn run_compiler(config: Config) {
 
         // Parse input file
         ast_file = Some(parse_file(source, filename));
-        println!("ast: {:#?}", ast_file);
     }
 
     // Parse optional code directly from the config
@@ -138,6 +137,7 @@ fn run_compiler(config: Config) {
     }
 
     if ast_file.is_none() {
+        eprintln!("\nerror: failed to parse anything");
         return;
     }
 
@@ -145,6 +145,13 @@ fn run_compiler(config: Config) {
     let mut ast = ast_file.unwrap();
     let intrinsic_mod = get_intrinsic_ast_items();
     ast.items.push(intrinsic_mod);
+
+    if ast.error_count > 0 {
+        error!("parse errors reported {} errors, stopping compilation", ast.error_count);
+        eprintln!("\nerror: aborting due to previous error");
+        return;
+    }
+    print!("\n\nAbstract Syntax Tree:\n-----------------------------------------------\n{:#?}", ast.items);
 
     // Type check the current file
     let mut tc = create_type_context();
@@ -178,7 +185,7 @@ fn run_compiler(config: Config) {
     let ir_instructions = ir_builder.instructions;
 
     // Generate code to jit
-    let mut x86 = create_x86_assembler();
+    let mut x86 = create_x86_assembler(ir_builder.functions);
     compile_x86_ir(&mut x86, &ir_instructions);
 
     println!("\n\nX86 Assembler:\n-----------------------------------------------");

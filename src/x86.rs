@@ -1,13 +1,16 @@
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::fmt;
+use crate::ast::intern_string;
 use crate::ir::*;
 
 pub struct X86Assembler {
     pub machine_code: Vec<u8>,
     pub instructions: Vec<X86Instruction>,
     pub jump_targets: HashMap<IrLabel, X86JumpTarget>,
-    pub x64_mode: bool, // 64-bit mode changes the instruction encoding
+    pub functions: HashMap<IrLabel, IrBasicBlock>, // NOTE(alexander): temp basic block might not be enough!
+    pub curr_function: IrLabel,
+    pub x64_mode: bool,
 }
 
 pub struct X86JumpTarget {
@@ -49,6 +52,12 @@ enum X86OpCode {
     CDQ,
     CMP,
     TEST,
+    SETL,
+    SETG,
+    SETLE,
+    SETGE,
+    SETE,
+    SETNE,
     JL,
     JLE,
     JG,
@@ -143,11 +152,17 @@ impl fmt::Display for X86OpCode {
             X86OpCode::IMUL  => write!(f, "imul"),
             X86OpCode::IDIV  => write!(f, "idiv"),
             X86OpCode::AND   => write!(f, "and"),
-            X86OpCode::OR   => write!(f, "or"),
+            X86OpCode::OR    => write!(f, "or"),
             X86OpCode::XOR   => write!(f, "xor"),
             X86OpCode::CDQ   => write!(f, "cdq"),
             X86OpCode::CMP   => write!(f, "cmp"),
             X86OpCode::TEST  => write!(f, "test"),
+            X86OpCode::SETL  => write!(f, "setl"),
+            X86OpCode::SETG  => write!(f, "setg"),
+            X86OpCode::SETLE => write!(f, "setle"),
+            X86OpCode::SETGE => write!(f, "setge"),
+            X86OpCode::SETE  => write!(f, "sete"),
+            X86OpCode::SETNE => write!(f, "setne"),
             X86OpCode::JL    => write!(f, "jl"),
             X86OpCode::JLE   => write!(f, "jle"),
             X86OpCode::JG    => write!(f, "jg"),
@@ -198,7 +213,7 @@ impl fmt::Display for X86Value {
 
 impl fmt::Display for X86Instruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "    {} ", self.opcode)?;
+        write!(f, "    {:<6} ", format!("{}", self.opcode))?;
         let ptr_str = if self.byte_operands {
             "byte ptr"
         } else {
@@ -215,7 +230,7 @@ impl fmt::Display for X86Instruction {
             } else {
                 format!("- {}", -v)
             }
-            
+
             X86Value::Int32(v) => if v >= 0 {
                 format!("+ {}", v)
             } else {
@@ -224,7 +239,7 @@ impl fmt::Display for X86Instruction {
 
             X86Value::None => String::new(),
         };
-        
+
         let modrm_rm_str = match self.modrm_addr_mode {
             X86AddrMode::Indirect => format!("{} [{}]", ptr_str, self.modrm_rm),
             X86AddrMode::IndirectDisp8 |
@@ -232,7 +247,7 @@ impl fmt::Display for X86Instruction {
             X86AddrMode::Direct => format!("{}", self.modrm_rm),
             X86AddrMode::None => String::new(),
         };
-        
+
         match self.encoding {
             X86OpEn::RM  => write!(f, "{}, {}", self.modrm_reg, modrm_rm_str),
             X86OpEn::MR  => write!(f, "{}, {}", modrm_rm_str, self.modrm_reg),
@@ -331,11 +346,13 @@ fn ir_value_to_x86_value(val: IrValue) -> X86Value {
     }
 }
 
-pub fn create_x86_assembler() -> X86Assembler {
+pub fn create_x86_assembler(functions: HashMap<IrLabel, IrBasicBlock>) -> X86Assembler {
     X86Assembler {
         machine_code: Vec::new(),
         instructions: Vec::new(),
         jump_targets: HashMap::new(),
+        functions: functions,
+        curr_function: IrLabel { symbol: intern_string("main"), index: 0 },
         x64_mode: cfg!(target_arch="x86_64"),
     }
 }
@@ -380,7 +397,20 @@ pub fn compile_x86_ir(x86: &mut X86Assembler, instructions: &Vec<IrInstruction>)
     }
 }
 
-fn compile_x64_ir_operand(x86: &mut X86Assembler, insn: &mut X86Instruction, op1: IrOperand, op2: IrOperand) {
+fn compile_x86_stack_operand(insn: &mut X86Instruction, offset: usize) {
+    if offset > 127 {
+        insn.modrm_addr_mode = X86AddrMode::IndirectDisp32;
+        insn.displacement = X86Value::Int32(-(offset as i32));
+    } else if offset > 0 {
+        insn.modrm_addr_mode = X86AddrMode::IndirectDisp8;
+        insn.displacement = X86Value::Int8(-(offset as i8));
+    } else {
+        insn.modrm_addr_mode = X86AddrMode::Indirect;
+    }
+    insn.modrm_rm = X86Reg::RBP;
+}
+
+fn compile_x86_ir_operand(x86: &mut X86Assembler, insn: &mut X86Instruction, op1: IrOperand, op2: IrOperand) {
     match op1.ty {
         IrType::I8 => insn.byte_operands = true,
         IrType::PtrI8(_) |
@@ -391,21 +421,8 @@ fn compile_x64_ir_operand(x86: &mut X86Assembler, insn: &mut X86Instruction, op1
         _ => {}
     }
 
-    fn stack_operand(insn: &mut X86Instruction, offset: usize) {
-        if offset > 127 {
-            insn.modrm_addr_mode = X86AddrMode::IndirectDisp32;
-            insn.displacement = X86Value::Int32(-(offset as i32));
-        } else if offset > 0 {
-            insn.modrm_addr_mode = X86AddrMode::IndirectDisp8;
-            insn.displacement = X86Value::Int8(-(offset as i8));
-        } else {
-            insn.modrm_addr_mode = X86AddrMode::Indirect;
-        }
-        insn.modrm_rm = X86Reg::RBP;
-    }
-
     match op1.kind {
-        IrOperandKind::Stack(offset) => stack_operand(insn, offset),
+        IrOperandKind::Stack(offset) => compile_x86_stack_operand(insn, offset),
         IrOperandKind::Register(register) => {
             insn.modrm_addr_mode = X86AddrMode::Direct;
             insn.modrm_reg = get_scratch_register(x86, register);
@@ -425,7 +442,7 @@ fn compile_x64_ir_operand(x86: &mut X86Assembler, insn: &mut X86Instruction, op1
                 _ => panic!("unexpected first operand"),
             };
 
-            stack_operand(insn, offset);
+            compile_x86_stack_operand(insn, offset);
         }
         IrOperandKind::Register(reg) => {
             match op1.kind {
@@ -484,21 +501,21 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         IrOpCode::Copy => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::MOV;
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(insn);
         }
 
         IrOpCode::CopyFromRef => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::LEA; // NOTE(alexander): only supports RM encoding!
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(insn);
         }
 
         IrOpCode::CopyFromDeref => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::MOV;
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             insn.rex = true;
             insn.rex_w = true;
 
@@ -541,7 +558,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         IrOpCode::CopyToDeref => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::MOV;
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
 
             match insn.encoding { // TODO(alexander): better selection of scratch registers!
                 X86OpEn::RM => {
@@ -553,34 +570,39 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
                 }
 
                 X86OpEn::MR => {
-                    if let X86AddrMode::Direct = insn.modrm_addr_mode {
-                    } else {
-                        let mut copy_insn = insn.clone();
-                        copy_insn.modrm_rm = X86Reg::RAX;
-                        copy_insn.modrm_addr_mode = X86AddrMode::Direct;
-                        x86.instructions.push(copy_insn);
-                        insn.modrm_rm = X86Reg::RAX;
-                    }
+                    let mut copy_insn = insn.clone();
+                    copy_insn.modrm_rm = X86Reg::RAX;
+                    copy_insn.modrm_addr_mode = X86AddrMode::Direct;
+                    x86.instructions.push(copy_insn);
+                    insn.modrm_rm = X86Reg::RAX;
                 }
 
                 X86OpEn::MI => {
                     // Copy address to register if indirect
-                    if let X86AddrMode::Direct = insn.modrm_addr_mode {
-                    } else {
-                        let mut copy_insn = insn.clone();
-                        copy_insn.modrm_reg = X86Reg::RAX;
-                        copy_insn.encoding = X86OpEn::RM;
-                        copy_insn.immediate = X86Value::None;
-                        x86.instructions.push(copy_insn);
-                        insn.modrm_rm = X86Reg::RAX;
-                        insn.rex = false; // NOTE(alexander): do not copy immediate as 64-bit value
-                        insn.rex_w = false; // can causes the stack to become corrupted.
-                    }
+                    let mut copy_insn = insn.clone();
+                    copy_insn.modrm_reg = X86Reg::RAX;
+                    copy_insn.encoding = X86OpEn::RM;
+                    copy_insn.immediate = X86Value::None;
+                    x86.instructions.push(copy_insn);
+                    insn.modrm_rm = X86Reg::RAX;
                 }
 
                 _ => panic!("unexpected encoding"),
             }
 
+            match ir_insn.op2.ty {
+                IrType::I8 |
+                IrType::I32 => {
+                    insn.rex   = false; // NOTE(alexander): do not copy immediate as 64-bit value
+                    insn.rex_w = false; // can causes the stack to become corrupted.
+                }
+                IrType::PtrI8(_) |
+                IrType::PtrI32(_) => {
+                    insn.rex   = true;
+                    insn.rex_w = true;
+                },
+                _ => panic!("expected type"),
+            }
             insn.modrm_addr_mode = X86AddrMode::Indirect;
             x86.instructions.push(insn);
         }
@@ -588,28 +610,28 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         IrOpCode::Clear => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::XOR;
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op1);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op1);
             x86.instructions.push(insn);
         }
 
         IrOpCode::Add => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::ADD;
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(insn);
         }
 
         IrOpCode::Sub => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::SUB;
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(insn);
         }
 
         IrOpCode::Mul => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::IMUL; // NOTE(alexander): we only support signed numbers atm.
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             match insn.encoding {
                 X86OpEn::MR => panic!("not possible"), // TODO(alexander): mov in to register first
                 X86OpEn::MI => insn.encoding = X86OpEn::RMI,
@@ -623,7 +645,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             // TODO(alexander): save rdx & rax
 
             let mut insn = create_x86_instruction();
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             let mut target_insn = insn.clone();
 
             // M has to be a register, specifically RAX
@@ -721,14 +743,80 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         IrOpCode::And => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::AND;
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(insn);
         }
 
         IrOpCode::Or => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::OR;
-            compile_x64_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            x86.instructions.push(insn);
+        }
+
+        IrOpCode::Lt |
+        IrOpCode::Gt |
+        IrOpCode::Le |
+        IrOpCode::Ge |
+        IrOpCode::Eq |
+        IrOpCode::Ne => {
+            let mut cmp_insn = create_x86_instruction();
+            cmp_insn.opcode = X86OpCode::CMP;
+            compile_x86_ir_operand(x86, &mut cmp_insn, ir_insn.op2, ir_insn.op3);
+            x86.instructions.push(cmp_insn);
+
+            let mut insn = create_x86_instruction();
+            match ir_insn.opcode {
+                IrOpCode::Lt => insn.opcode = X86OpCode::SETL,
+                IrOpCode::Gt => insn.opcode = X86OpCode::SETG,
+                IrOpCode::Le => insn.opcode = X86OpCode::SETLE,
+                IrOpCode::Ge => insn.opcode = X86OpCode::SETGE,
+                IrOpCode::Eq => insn.opcode = X86OpCode::SETE,
+                IrOpCode::Ne => insn.opcode = X86OpCode::SETNE,
+                _ => panic!(),
+            }
+
+            match ir_insn.op1.kind {
+                IrOperandKind::Register(register) => {
+                    insn.modrm_addr_mode = X86AddrMode::Direct;
+                    insn.modrm_rm = get_scratch_register(x86, register);
+                },
+                IrOperandKind::Stack(offset) => compile_x86_stack_operand(&mut insn, offset),
+                _ => panic!("unexpected operand"),
+            }
+            insn.byte_operands = true;
+            insn.encoding = X86OpEn::M;
+            x86.instructions.push(insn);
+
+            // let mut insn = create_x86_instruction();
+            // insn.opcode = X86OpCode::MOV;
+            // insn.encoding = X86OpEn::MI;
+            // insn.byte_operands = true;
+            // match ir_insn.op1.kind {
+            //     IrOperandKind::Register(register) => {
+            //         insn.modrm_addr_mode = X86AddrMode::Direct;
+            //         insn.modrm_rm = get_scratch_register(x86, register);
+            //     },
+            //     _ => panic!("unexpected operand"),
+            // }
+
+            // insn.immediate = X86Value::Int8(0);
+            // x86.instructions.push(insn.clone());
+
+            // let mut jump_insn = create_x86_instruction();
+            // jump_insn.opcode = X86OpCode::JMP;
+            // jump_insn.encoding = X86OpEn::D;
+            // jump_insn.immediate = X86Value::Int8(3); // opcode + modrm + i8 immediate
+            // x86.instructions.push(jump_insn);
+
+            // insn.immediate = X86Value::Int8(1);
+            // x86.instructions.push(insn);
+        }
+
+        IrOpCode::Xor => {
+            let mut insn = create_x86_instruction();
+            insn.opcode = X86OpCode::XOR;
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(insn);
         }
 
@@ -740,7 +828,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         IrOpCode::IfNe => {
             let mut cmp_insn = create_x86_instruction();
             cmp_insn.opcode = X86OpCode::CMP;
-            compile_x64_ir_operand(x86, &mut cmp_insn, ir_insn.op1, ir_insn.op2);
+            compile_x86_ir_operand(x86, &mut cmp_insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(cmp_insn);
 
             if let IrOperandKind::Label(label) = ir_insn.op3.kind {
@@ -813,8 +901,19 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
                         ty: IrType::None,
                         kind: IrOperandKind::Register(0)
                     };
-                    compile_x64_ir_operand(x86, &mut insn, op1, ir_insn.op1);
+                    compile_x86_ir_operand(x86, &mut insn, op1, ir_insn.op1);
                     x86.instructions.push(insn);
+
+                    // TODO(alexander): this instruction is not needed if return is at the bottom of a function!
+                    let mut jump_insn = create_x86_instruction();
+                    jump_insn.opcode = X86OpCode::JMP;
+                    jump_insn.encoding = X86OpEn::D;
+                    jump_insn.immediate = X86Value::Int8(0);
+                    let label = IrLabel { symbol: x86.curr_function.symbol, index: 1 }; // index = 1 is epilogue
+                    let insn_index = x86.instructions.len();
+                    let jt = get_mut_x86_jump_target(x86, label);
+                    jt.jumps.push(insn_index);
+                    x86.instructions.push(jump_insn);
                 }
             }
 
@@ -842,6 +941,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         }
 
         IrOpCode::Epilogue => {
+            
             // pop rbp
             let mut insn = create_x86_instruction();
             insn.modrm_reg = X86Reg::RBP;
@@ -1009,14 +1109,24 @@ fn compile_x86_machine_code(x86: &mut X86Assembler) {
                 _ => unimplemented!(),
             }
 
-            X86OpCode::XOR => match insn.encoding {
-                X86OpEn::I  => x86.machine_code.push(0x35),
-                X86OpEn::MI => {
+            X86OpCode::XOR => match (insn.encoding, insn.byte_operands) {
+                (X86OpEn::I, true)  => x86.machine_code.push(0x34),
+                (X86OpEn::I, false) => x86.machine_code.push(0x35),
+
+                (X86OpEn::MI, true) => {
+                    x86.machine_code.push(0x80);
+                    insn.modrm_reg = X86Reg::RSI; // reg = 6
+                }
+                (X86OpEn::MI, false) => {
                     x86.machine_code.push(0x81);
                     insn.modrm_reg = X86Reg::RSI; // reg = 6
                 }
-                X86OpEn::MR => x86.machine_code.push(0x31),
-                X86OpEn::RM => x86.machine_code.push(0x33),
+
+                (X86OpEn::MR, true)  => x86.machine_code.push(0x30),
+                (X86OpEn::MR, false) => x86.machine_code.push(0x31),
+                
+                (X86OpEn::RM, true)  => x86.machine_code.push(0x32),
+                (X86OpEn::RM, false) => x86.machine_code.push(0x33),
                 _ => unimplemented!(),
             }
 
@@ -1029,10 +1139,13 @@ fn compile_x86_machine_code(x86: &mut X86Assembler) {
                 (X86OpEn::I, true)   => x86.machine_code.push(0x3c),
                 (X86OpEn::I, false)  => x86.machine_code.push(0x3d),
 
-                (X86OpEn::MI, true)  => x86.machine_code.push(0x80),
+                (X86OpEn::MI, true)  => {
+                    x86.machine_code.push(0x80);
+                    insn.modrm_reg = X86Reg::RDI; // reg = 7
+                }
                 (X86OpEn::MI, false) => {
                     x86.machine_code.push(0x81);
-                    insn.modrm_reg = X86Reg::RDI; // NOTE(alexander): this makes no sense!
+                    insn.modrm_reg = X86Reg::RDI; // reg = 7
                 }
 
                 (X86OpEn::MR, true)  => x86.machine_code.push(0x38),
@@ -1043,13 +1156,62 @@ fn compile_x86_machine_code(x86: &mut X86Assembler) {
                 _ => unimplemented!(),
             }
 
-            X86OpCode::TEST => match insn.encoding {
-                X86OpEn::I  => x86.machine_code.push(0xa9),
-                X86OpEn::MI => {
-                    x86.machine_code.push(0xf7);
+            X86OpCode::TEST => match (insn.encoding, insn.byte_operands) { // NOTE(alexander): only needed for bytes
+                (X86OpEn::I, true)  => x86.machine_code.push(0xa8),
+                (X86OpEn::MI, true) => {
+                    x86.machine_code.push(0xf6);
                     insn.modrm_reg = X86Reg::RAX; // reg = 0
                 }
-                X86OpEn::MR => x86.machine_code.push(0x85),
+                (X86OpEn::MR, true) => x86.machine_code.push(0x84),
+                _ => unimplemented!(),
+            }
+
+            
+            X86OpCode::SETL => match (insn.encoding, insn.byte_operands) {
+                (X86OpEn::M, true) => {
+                    x86.machine_code.push(0x0f);
+                    x86.machine_code.push(0x9c);
+                }
+                _ => unimplemented!(),
+            }
+            
+            X86OpCode::SETG => match (insn.encoding, insn.byte_operands) {
+                (X86OpEn::M, true) => {
+                    x86.machine_code.push(0x0f);
+                    x86.machine_code.push(0x9f);
+                }
+                _ => unimplemented!(),
+            }
+            
+            X86OpCode::SETLE => match (insn.encoding, insn.byte_operands) {
+                (X86OpEn::M, true) => {
+                    x86.machine_code.push(0x0f);
+                    x86.machine_code.push(0x9e);
+                }
+                _ => unimplemented!(),
+            }
+            
+            X86OpCode::SETGE => match (insn.encoding, insn.byte_operands) {
+                (X86OpEn::M, true) => {
+                    x86.machine_code.push(0x0f);
+                    x86.machine_code.push(0x9d);
+                }
+                _ => unimplemented!(),
+            }
+            
+            X86OpCode::SETE => match (insn.encoding, insn.byte_operands) {
+                (X86OpEn::M, true) => {
+                    x86.machine_code.push(0x0f);
+                    x86.machine_code.push(0x94);
+                }
+                _ => unimplemented!(),
+            }
+            
+            X86OpCode::SETNE => match (insn.encoding, insn.byte_operands) {
+                (X86OpEn::M, true) => {
+                    x86.machine_code.push(0x0f);
+                    x86.machine_code.push(0x95);
+                }
                 _ => unimplemented!(),
             }
 

@@ -51,6 +51,7 @@ pub fn parse_file(source: String, filename: String) -> File {
     let mut curr_pos = 0;
     let mut lines = vec![0];
     let mut remaining: &str = &source;
+    let mut error_count: u32 = 0;
     loop {
         match remaining.find("\n") {
             Some(pos) => {
@@ -83,6 +84,7 @@ pub fn parse_file(source: String, filename: String) -> File {
                 };
             },
             Err(Err::Error(error)) => {
+                error_count += 1;
                 parse_error(error, &source, &filename, &lines);
                 break;
             },
@@ -93,7 +95,7 @@ pub fn parse_file(source: String, filename: String) -> File {
     let span = Span::from_parse_span(input);
     let imported_files = HashMap::new();
 
-    File { source, filename, items, span, lines, imported_files }
+    File { source, filename, items, span, lines, imported_files, error_count }
 }
 
 pub fn parse_item(input: ParseSpan) -> IResult<ParseSpan, Item> {
@@ -874,25 +876,32 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
  * Prints the given errors from the parser using the source, current filename and line number byte offsets.
  */
 fn parse_error<'a>(error: ParseError, source: &str, filename: &str, lines: &Vec<u32>) {
-    for err in error.errors {
-        let error_msg = match &err.kind {
-            ErrorKind::ParseIntError(e) => e.to_string(),
-            ErrorKind::Nom(e) => (*e).description().to_string(),
-            ErrorKind::Char(e) => format!("{}", *e),
-            ErrorKind::Context(e) => {
-                let beg = err.span.base as usize;
-                let end = err.span.base as usize + err.span.len as usize;
-                format!("expected `{}`, found `{}`", e, &source[beg..end])
-            },
-        };
+    match error.errors.first() {
+        Some(err) => {
+            println!("{:#?}", err.kind);
+            let error_msg = match &err.kind {
+                ErrorKind::ParseIntError(e) => e.to_string(),
+                ErrorKind::Nom(e) => (*e).description().to_string(),
+                ErrorKind::Char(e) => format!("{}", *e),
+                ErrorKind::Context(e) => {
+                    let beg = err.span.base as usize;
+                    let end = err.span.base as usize + err.span.len as usize;
+                    format!("expected `{}`, found `{}`", e, &source[beg..end])
+                },
+            };
+
+            println!("span: {:#?}", err.span);
+            
+            print_error_msg(&create_error_msg_from_span(ErrorLevel::Error,
+                                                        lines,
+                                                        err.span,
+                                                        filename,
+                                                        source,
+                                                        &error_msg,
+                                                        ""))
+        }
         
-        print_error_msg(&create_error_msg_from_span(ErrorLevel::Error,
-                                                   lines,
-                                                   err.span,
-                                                   filename,
-                                                   source,
-                                                   &error_msg,
-                                                   ""))
+        None => {}
     }
 }
 

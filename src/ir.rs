@@ -19,13 +19,13 @@ pub enum IrOpCode {
     Mod,
     And,
     Or,
-    Eq,
+    Xor,
+    Eq, // op1 = op2 binop op3 (op1 always boolean)
     Ne,
     Lt,
     Le,
     Gt,
     Ge,
-    Not, // op1 = !op1
     IfLt, // jump op3 (if op1 binop op2 equals true)
     IfGt,
     IfLe,
@@ -182,13 +182,13 @@ impl fmt::Display for IrOpCode {
             IrOpCode::Mod           => "mod",
             IrOpCode::And           => "and",
             IrOpCode::Or            => "or",
+            IrOpCode::Xor           => "xor",
             IrOpCode::Eq            => "eq",
             IrOpCode::Ne            => "ne",
             IrOpCode::Lt            => "lt",
             IrOpCode::Le            => "le",
             IrOpCode::Gt            => "gt",
             IrOpCode::Ge            => "ge",
-            IrOpCode::Not           => "not",
             IrOpCode::IfLt          => "iflt",
             IrOpCode::IfGt          => "ifgt",
             IrOpCode::IfLe          => "ifle",
@@ -373,6 +373,7 @@ fn to_ir_type(ty: &Ty) -> IrType {
         TyKind::Int => IrType::I32,
         TyKind::Bool => IrType::I8,
         TyKind::Ref(type_ref) => to_ir_ptr_type(&type_ref.elem, &mut 1),
+        TyKind::Error => IrType::None,
         TyKind::None => IrType::None,
     }
 }
@@ -412,7 +413,16 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
 
             let (_, block_context) = build_ir_from_block(ib, &func.block);
 
+            let exit_label = create_ir_label(ib, func.ident.sym, Some(1));
+
             let epilogue = ib.instructions.len();
+            ib.instructions.push(IrInstruction {
+                opcode: IrOpCode::Label,
+                op1: create_label_ir_operand(exit_label),
+                span: func.span,
+                ..Default::default()
+            });
+            
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Epilogue,
                 ..Default::default()
@@ -559,15 +569,39 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                 BinOp::Ge  => IrOpCode::Ge,
             };
 
-            ib.instructions.push(IrInstruction {
-                opcode,
-                op1,
-                op2,
-                span: binary.span,
-                ..Default::default()
-            });
+            match binary.op {
+                BinOp::Eq |
+                BinOp::Ne |
+                BinOp::Lt |
+                BinOp::Le |
+                BinOp::Gt |
+                BinOp::Ge => {
+                    let op3 = op2;
+                    let op2 = op1;
+                    let op1 = allocate_register(ib, IrType::I8);
+                    ib.instructions.push(IrInstruction {
+                        opcode,
+                        op1,
+                        op2,
+                        op3,
+                        span: binary.span,
+                    });
 
-            op1
+                    op1
+                }
+
+                _ => {
+                    ib.instructions.push(IrInstruction {
+                        opcode,
+                        op1,
+                        op2,
+                        span: binary.span,
+                        ..Default::default()
+                    });
+
+                    op1
+                }
+            }
         }
 
         Expr::Block(block) => build_ir_from_block(ib, &block.block).0,
@@ -607,7 +641,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         }
 
         Expr::Ident(ident) => {
-            lookup_stack(ib, ident.sym)
+            lookup_stack(ib, ident.sym) // NOTE(alexander): this may cause stack read/write in same insn
             // let op2 = lookup_stack(ib, ident.sym);
             // let op1 = allocate_register(ib, op2.ty);
 
@@ -654,8 +688,11 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                         _ => IrOpCode::Nop,
                     };
 
-                    op1 = build_ir_from_expr(ib, &binary.left);
-                    op2 = build_ir_from_expr(ib, &binary.right);
+                    if let IrOpCode::Nop = opcode {
+                    } else {
+                        op1 = build_ir_from_expr(ib, &binary.left);
+                        op2 = build_ir_from_expr(ib, &binary.right);
+                    }
                     opcode
                 }
                 _ => IrOpCode::Nop,
@@ -664,10 +701,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
             if let IrOpCode::Nop = opcode {
                 opcode = IrOpCode::IfEq;
                 op1 = build_ir_from_expr(ib, &if_expr.cond);
-                op2 = IrOperand {
-                    ty: IrType::I8,
-                    kind: IrOperandKind::Constant(IrValue::Bool(false)),
-                };
+                op2 = create_bool_ir_operand(false);
             }
 
             ib.instructions.push(IrInstruction {
@@ -717,7 +751,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         Expr::Reference(reference) => {
             let op2 = build_ir_from_expr(ib, &reference.expr);
             let mut op1 = allocate_register(ib, op2.ty);
-            
+
+            // NOTE(alexander): better handled by the actual backend implementation
             // Copy from reference needs to be performed through a register.
             // let op2 = if let IrOperandKind::Register(_) = op2.kind {
             //     op2
@@ -792,12 +827,11 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                 },
 
                 UnOp::Not => {
-                    let op2 = build_ir_from_expr(ib, &unary.expr);
-                    let op1 = allocate_register(ib, op2.ty);
+                    let op1 = build_ir_from_expr(ib, &unary.expr);
                     ib.instructions.push(IrInstruction {
-                        opcode: IrOpCode::Not,
+                        opcode: IrOpCode::Xor,
                         op1,
-                        op2,
+                        op2: create_bool_ir_operand(true),
                         span: unary.span,
                         ..Default::default()
                     });
@@ -865,8 +899,11 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                         _ => IrOpCode::Nop,
                     };
 
-                    op1 = build_ir_from_expr(ib, &binary.left);
-                    op2 = build_ir_from_expr(ib, &binary.right);
+                    if let IrOpCode::Nop = opcode {
+                    } else {
+                        op1 = build_ir_from_expr(ib, &binary.left);
+                        op2 = build_ir_from_expr(ib, &binary.right);
+                    }
                     opcode
                 }
                 _ => IrOpCode::Nop,
@@ -875,10 +912,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
             if let IrOpCode::Nop = opcode {
                 opcode = IrOpCode::IfEq;
                 op1 = build_ir_from_expr(ib, &while_expr.cond);
-                op2 = IrOperand {
-                    ty: IrType::I8,
-                    kind: IrOperandKind::Constant(IrValue::Bool(false)),
-                };
+                op2 = create_bool_ir_operand(false);
             }
 
             ib.instructions.push(IrInstruction {
