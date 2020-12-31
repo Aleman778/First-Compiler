@@ -1,11 +1,21 @@
 fn main() -> i32 {
-    let mut z: i32 = 10;
-    
-    let y: &mut i32 = &mut z;
-    let x: bool = z < 20;
+    let mut i: i32 = 115;
+    let run: bool = true;
+    while run {
+        let mut j: i32 = 1;
+        while j < i - 1 {
+            j = j + 1;
+            if i % j == 0 {
+                break;
+            }
+        }
 
-    if !x {
-        *y = 20;
+        if i % j == 0 {
+            i = i + 1;
+            continue;
+        }
+
+        break;
     }
-    return *y;
+    i
 }

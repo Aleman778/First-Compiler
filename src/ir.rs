@@ -108,6 +108,8 @@ pub struct IrBlockContext {
     next_stack_offset: usize,
     next_register: usize,
     largest_stack_size: usize,
+    enter_label: Option<IrLabel>,
+    exit_label: Option<IrLabel>,
 }
 
 /**
@@ -266,12 +268,14 @@ pub fn create_ir_operand() -> IrOperand {
     }
 }
 
-fn create_ir_block_context() -> IrBlockContext {
+fn create_ir_block_context(enter_label: Option<IrLabel>, exit_label: Option<IrLabel>) -> IrBlockContext {
     IrBlockContext {
         stack_entries: HashMap::new(),
         next_stack_offset: 0,
         next_register: 0,
         largest_stack_size: 0,
+        enter_label,
+        exit_label,
     }
 }
 
@@ -396,10 +400,11 @@ pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
 pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
     match item {
         Item::Fn(func) => {
-            let label = create_ir_label(ib, func.ident.sym, Some(0));
+            let enter_label = create_ir_label(ib, func.ident.sym, Some(0));
+            let exit_label = create_ir_label(ib, func.ident.sym, Some(1));
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Label,
-                op1: create_label_ir_operand(label),
+                op1: create_label_ir_operand(enter_label),
                 span: func.span,
                 ..Default::default()
             });
@@ -411,9 +416,7 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
                 ..Default::default()
             });
 
-            let (_, block_context) = build_ir_from_block(ib, &func.block);
-
-            let exit_label = create_ir_label(ib, func.ident.sym, Some(1));
+            let (_, block_context) = build_ir_from_block(ib, &func.block, Some(enter_label), Some(exit_label));
 
             let epilogue = ib.instructions.len();
             ib.instructions.push(IrInstruction {
@@ -434,13 +437,19 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
                 required_stack_size: block_context.largest_stack_size,
             };
 
-            ib.functions.insert(label, basic_block);
+            ib.functions.insert(enter_label, basic_block);
         }
         _ => { }
     }
 }
 
-pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOperand, IrBlockContext) {
+pub fn build_ir_from_block<'a>(
+    ib: &mut IrBuilder<'a>,
+    block: &Block,
+    enter_label: Option<IrLabel>,
+    exit_label: Option<IrLabel>
+) -> (IrOperand, IrBlockContext) {
+    
     let blocks_len = ib.blocks.len();
     let mut next_stack_offset = 0;
     let mut next_register = 0;
@@ -451,7 +460,7 @@ pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOper
         current_largest_stack_size = ib.blocks[blocks_len - 1].largest_stack_size;
     }
 
-    let mut block_context = create_ir_block_context();
+    let mut block_context = create_ir_block_context(enter_label, exit_label);
     block_context.next_stack_offset = next_stack_offset;
     block_context.next_register = next_register;
     ib.blocks.push(block_context);
@@ -467,22 +476,19 @@ pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOper
             ib.blocks[blocks_len - 2].largest_stack_size = ib.blocks[blocks_len - 1].largest_stack_size;
         }
     }
-
     let block_context = ib.blocks.pop().unwrap();
-
+    
     if let Some(Stmt::Expr(_)) = block.stmts.last() {
         if let IrOperandKind::None = last_op.kind {
             (create_ir_operand(), block_context)
         } else {
-            let op1 = allocate_register(ib, last_op.ty);
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Copy,
-                op1: op1,
-                op2: last_op,
+                opcode: IrOpCode::Return,
+                op1: last_op,
                 span: block.span,
                 ..Default::default()
             });
-            (op1, block_context)
+            (last_op, block_context)
         }
     } else {
         (create_ir_operand(), block_context)
@@ -604,9 +610,33 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
             }
         }
 
-        Expr::Block(block) => build_ir_from_block(ib, &block.block).0,
+        Expr::Block(block) => build_ir_from_block(ib, &block.block, None, None).0,
 
-        Expr::Break(_break_expr) => {
+        Expr::Break(_) |
+        Expr::Continue(_) => {
+            let entry_symbol = intern_string("while_enter");
+            for block in ib.blocks.iter().rev() {
+                if let Some(enter_label) = block.enter_label {
+                    if entry_symbol == enter_label.symbol {
+                        if let Expr::Continue(cont_expr) = expr {
+                            ib.instructions.push(IrInstruction {
+                                opcode: IrOpCode::Jump,
+                                op1: create_label_ir_operand(enter_label),
+                                span: cont_expr.span,
+                                ..Default::default()
+                            });
+                        } else if let Expr::Break(break_expr) = expr {
+                            ib.instructions.push(IrInstruction {
+                                opcode: IrOpCode::Jump,
+                                op1: create_label_ir_operand(block.exit_label.unwrap()),
+                                span: break_expr.span,
+                                ..Default::default()
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
             create_ir_operand()
         }
 
@@ -636,28 +666,24 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
             create_ir_operand()
         }
 
-        Expr::Continue(_continue_expr) => {
-            create_ir_operand()
-        }
-
         Expr::Ident(ident) => {
-            lookup_stack(ib, ident.sym) // NOTE(alexander): this may cause stack read/write in same insn
-            // let op2 = lookup_stack(ib, ident.sym);
-            // let op1 = allocate_register(ib, op2.ty);
+            // lookup_stack(ib, ident.sym) // NOTE(alexander): this may cause stack read/write in same insn
+            let op2 = lookup_stack(ib, ident.sym);
+            let op1 = allocate_register(ib, op2.ty);
 
-            // if let IrOperandKind::None = op2.kind {
-                // panic!("failed to lookup identifier `{}`", resolve_symbol(ident.sym));
-            // }
+            if let IrOperandKind::None = op2.kind {
+                panic!("failed to lookup identifier `{}`", resolve_symbol(ident.sym));
+            }
 
-            // ib.instructions.push(IrInstruction {
-                // opcode: IrOpCode::Copy,
-                // op1,
-                // op2,
-                // span: ident.span,
-                // ..Default::default()
-            // });
-            // 
-            // op1
+            ib.instructions.push(IrInstruction {
+                opcode: IrOpCode::Copy,
+                op1,
+                op2,
+                span: ident.span,
+                ..Default::default()
+            });
+            
+            op1
         }
 
         Expr::If(if_expr) => {
@@ -712,7 +738,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                 span: if_expr.span,
             });
 
-            build_ir_from_block(ib, &if_expr.then_block);
+            build_ir_from_block(ib, &if_expr.then_block, None, Some(else_label.unwrap_or(exit_label)));
 
             if let Some(label) = else_label {
                 ib.instructions.push(IrInstruction {
@@ -729,7 +755,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
             }
 
             if let Some(block) = &if_expr.else_block {
-                build_ir_from_block(ib, &block);
+                build_ir_from_block(ib, &block, else_label, Some(exit_label));
             }
 
             ib.instructions.push(IrInstruction {
@@ -923,7 +949,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                 span: while_expr.span,
             });
 
-            build_ir_from_block(ib, &while_expr.block);
+            build_ir_from_block(ib, &while_expr.block, Some(enter_label), Some(exit_label));
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Jump,

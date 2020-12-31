@@ -641,7 +641,8 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             x86.instructions.push(insn);
         }
 
-        IrOpCode::Div => {
+        IrOpCode::Div |
+        IrOpCode::Mod => {
             // TODO(alexander): save rdx & rax
 
             let mut insn = create_x86_instruction();
@@ -705,6 +706,11 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             x86.instructions.push(insn.clone());
 
             // Now save the result back in the correct register
+            let target = match ir_insn.opcode {
+                IrOpCode::Div => X86Reg::RAX,
+                IrOpCode::Mod => X86Reg::RDX,
+                _ => unreachable!(),
+            };
             target_insn.opcode = X86OpCode::MOV;
             match target_insn.encoding {
                 X86OpEn::MR => {
@@ -713,7 +719,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
                             return;
                         }
                     }
-                    target_insn.modrm_reg = X86Reg::RAX;
+                    target_insn.modrm_reg = target;
                 }
 
                 X86OpEn::RM => {
@@ -721,7 +727,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
                         return;
                     }
                     target_insn.modrm_addr_mode = X86AddrMode::Direct;
-                    target_insn.modrm_rm = X86Reg::RAX;
+                    target_insn.modrm_rm = target;
                 }
 
                 X86OpEn::MI => {
@@ -732,13 +738,17 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
                     }
                     target_insn.immediate = X86Value::None;
                     target_insn.encoding = X86OpEn::MR;
-                    target_insn.modrm_reg = X86Reg::RAX;
+                    target_insn.modrm_reg = target;
                 }
 
                 _ => return,
             }
             x86.instructions.push(target_insn);
         }
+
+        IrOpCode::Pow => {
+
+        },
 
         IrOpCode::And => {
             let mut insn = create_x86_instruction();
@@ -750,6 +760,13 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         IrOpCode::Or => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::OR;
+            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
+            x86.instructions.push(insn);
+        }
+
+        IrOpCode::Xor => {
+            let mut insn = create_x86_instruction();
+            insn.opcode = X86OpCode::XOR;
             compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
             x86.instructions.push(insn);
         }
@@ -811,13 +828,6 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
 
             // insn.immediate = X86Value::Int8(1);
             // x86.instructions.push(insn);
-        }
-
-        IrOpCode::Xor => {
-            let mut insn = create_x86_instruction();
-            insn.opcode = X86OpCode::XOR;
-            compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
-            x86.instructions.push(insn);
         }
 
         IrOpCode::IfLt |

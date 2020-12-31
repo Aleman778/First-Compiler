@@ -91,16 +91,16 @@ pub fn type_check_function<'a>(tc: &mut TypeContext<'a>, func: &'a FnItem) -> Ty
                     tc,
                     ErrorLevel::Note,
                     func.ident.span,
-                    "implicitly returns `()` as its body has no tail or `return` expression",
-                    "")));
+                    "",
+                    "implicitly returns `()` as its body has no tail or `return` expression")));
 
             } else {
                 msg.next = Some(Box::new(create_error_msg(
                     tc,
                     ErrorLevel::Note,
                     ret_ty.span,
-                    "return type is not ()",
-                    "")));
+                    "",
+                    "return type is not ()")));
             }
 
             print_error_msg(&msg);
