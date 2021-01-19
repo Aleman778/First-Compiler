@@ -175,7 +175,7 @@ fn run_compiler(config: Config) {
     let mut ir_builder = create_ir_builder();
     
     // insert breakpoint at the beginning
-    // push_ir_breakpoint(&mut ir_builder);
+    push_ir_breakpoint(&mut ir_builder);
     
     // build lir
     build_ir_from_ast(&mut ir_builder, &ast);

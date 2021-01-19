@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use crate::ast::*;
+use crate::intrinsics;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum IrOpCode {
@@ -34,8 +35,8 @@ pub enum IrOpCode {
     IfNe,
     Jump,     // jump op1
     Label,    // label op1
-    Param,    // params (assigned left-to-right)
-    Call,     // jump op1 with op2 = the number of params
+    Param,    // param op1 (each param are insn. ordered left-to-right)
+    Call,     // jump op1 with op2 = the number of params, return value stored in r0
     Return,   // return op1 (where op1 is optional, may be None)
     Prologue, // marks beginning of function, op1 holds the required stack space
     Epilogue, // marks end of function
@@ -49,7 +50,7 @@ pub struct IrOperand {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IrOperandKind {
-    Stack(usize),
+    Stack(isize),
     Register(usize),
     Label(IrLabel),
     Constant(IrValue),
@@ -59,6 +60,8 @@ pub enum IrOperandKind {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum IrValue {
     I32(i32),
+    U32(u32),
+    U64(u64),
     Bool(bool),
 }
 
@@ -66,6 +69,8 @@ pub enum IrValue {
 pub enum IrType {
     I8,
     I32,
+    U32,
+    U64,
     PtrI8(usize), // NOTE(alexander): argument defines the numbers of indirections
     PtrI32(usize),
     None,
@@ -75,6 +80,7 @@ pub enum IrType {
 pub struct IrLabel {
     pub symbol: Symbol,
     pub index: u32, // used to distinguish labels with the same symbol.
+    pub function: bool, // separate function labels from regular labels
 }
 
 /**
@@ -97,19 +103,21 @@ pub struct IrInstruction {
 pub struct IrBasicBlock {
     pub prologue: usize, // index into IrBuilder instruction vector
     pub epilogue: usize,
-    pub required_stack_size: usize, // needed for pre allocating stack space in prologue
+    pub required_stack_size: isize, // needed for pre allocating stack space in prologue
+    pub return_type: IrType,
 }
 
 /**
  * Used to maintain information about the stack offsets and available registers.
  */
 pub struct IrBlockContext {
-    stack_entries: HashMap<Symbol, (IrType, usize)>,
-    next_stack_offset: usize,
+    stack_entries: HashMap<Symbol, (IrType, isize)>,
     next_register: usize,
-    largest_stack_size: usize,
+    next_stack_offset: isize,
+    largest_stack_size: isize,
     enter_label: Option<IrLabel>,
     exit_label: Option<IrLabel>,
+    return_type: IrType,
 }
 
 /**
@@ -119,7 +127,8 @@ pub struct IrBuilder<'a> {
     pub file: Option<&'a File>,
     pub instructions: Vec<IrInstruction>,
     pub functions: HashMap<IrLabel, IrBasicBlock>,
-    pub addr_size: usize, // address size in bytes on target architecture
+    pub intrinsics: HashMap<Symbol, usize>, // NOTE(alexander): function pointer address.
+    pub addr_size: isize, // address size in bytes on target architecture
     pub unique_index: HashMap<Symbol, u32>,
     blocks: Vec<IrBlockContext>,
 }
@@ -152,7 +161,7 @@ impl fmt::Display for IrInstruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:<15} {}", format!("{}", self.opcode), self.op1)?;
         match self.op2.kind {
-            IrOperandKind::None => { }
+            IrOperandKind::None => {}
             _ => {
                 write!(f, ", {}", self.op2)?;
                 match self.op3.kind {
@@ -214,6 +223,8 @@ impl fmt::Display for IrType {
         match self {
             IrType::I8        => write!(f, "i8"),
             IrType::I32       => write!(f, "i32"),
+            IrType::U32       => write!(f, "u32"),
+            IrType::U64       => write!(f, "u64"),
             IrType::PtrI8(i)  => write!(f, "i8{}", "*".repeat(*i as usize)),
             IrType::PtrI32(i) => write!(f, "i32{}", "*".repeat(*i as usize)),
             IrType::None      => write!(f, ""),
@@ -243,6 +254,8 @@ impl fmt::Display for IrOperand {
             IrOperandKind::Label(label) => write!(f, "{}", label),
             IrOperandKind::Constant(val) => match val {
                 IrValue::I32(v) => write!(f, "{}", v),
+                IrValue::U32(v) => write!(f, "{}", v),
+                IrValue::U64(v) => write!(f, "{}", v),
                 IrValue::Bool(v) => write!(f, "{}", v),
             }
             IrOperandKind::None => write!(f, ""),
@@ -255,7 +268,8 @@ pub fn create_ir_builder<'a>() -> IrBuilder<'a> {
         file: None,
         instructions: Vec::new(),
         functions: HashMap::new(),
-        addr_size: std::mem::size_of::<usize>(),
+        intrinsics: HashMap::new(),
+        addr_size: std::mem::size_of::<usize>() as isize,
         blocks: Vec::new(),
         unique_index: HashMap::new(),
     }
@@ -268,7 +282,12 @@ pub fn create_ir_operand() -> IrOperand {
     }
 }
 
-fn create_ir_block_context(enter_label: Option<IrLabel>, exit_label: Option<IrLabel>) -> IrBlockContext {
+fn create_ir_block_context(
+    enter_label: Option<IrLabel>,
+    exit_label: Option<IrLabel>,
+    return_type: IrType
+) -> IrBlockContext {
+
     IrBlockContext {
         stack_entries: HashMap::new(),
         next_stack_offset: 0,
@@ -276,10 +295,26 @@ fn create_ir_block_context(enter_label: Option<IrLabel>, exit_label: Option<IrLa
         largest_stack_size: 0,
         enter_label,
         exit_label,
+        return_type,
     }
 }
 
-fn create_ir_label<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol, label_index: Option<u32>) -> IrLabel {
+fn create_ir_basic_block(return_type: IrType) -> IrBasicBlock {
+    IrBasicBlock {
+        prologue: 0,
+        epilogue: 0,
+        required_stack_size: 0,
+        return_type,
+    }
+}
+
+fn create_ir_label<'a>(
+    ib: &mut IrBuilder<'a>,
+    symbol: Symbol,
+    label_index: Option<u32>,
+    function: bool
+) -> IrLabel {
+
     let index = match label_index {
         Some(index) => index,
         None => {
@@ -297,10 +332,11 @@ fn create_ir_label<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol, label_index: Opti
             }
         }
     };
-    
+
     IrLabel {
         symbol,
         index,
+        function,
     }
 }
 
@@ -311,13 +347,7 @@ fn allocate_stack<'a>(ib: &mut IrBuilder<'a>, symbol: Symbol, ty: IrType) -> IrO
 
     let len = ib.blocks.len();
     let frame = &mut ib.blocks[len - 1];
-    frame.next_stack_offset += match ty {
-        IrType::I8 => 1,
-        IrType::I32 => 4,
-        IrType::PtrI8(_) |
-        IrType::PtrI32(_) => ib.addr_size,
-        IrType::None => panic!("missing type"),
-    };
+    frame.next_stack_offset += size_of_ir_type(ty, ib.addr_size);
     let offset = frame.next_stack_offset;
     frame.stack_entries.insert(symbol, (ty, offset));
     if frame.next_stack_offset > frame.largest_stack_size {
@@ -367,7 +397,7 @@ fn to_ir_ptr_type(ty: &Ty, indirections: &mut usize) -> IrType {
             *indirections += 1;
             to_ir_ptr_type(&type_ref.elem, indirections)
         }
-        
+
         _ => panic!("unexpected type"),
     }
 }
@@ -382,6 +412,18 @@ fn to_ir_type(ty: &Ty) -> IrType {
     }
 }
 
+pub fn size_of_ir_type(ty: IrType, addr_size: isize) -> isize {
+    match ty {
+        IrType::I8 => 1,
+        IrType::I32 => 4,
+        IrType::U32 => 4,
+        IrType::U64 => 8,
+        IrType::PtrI8(_) |
+        IrType::PtrI32(_) => addr_size,
+        IrType::None => 0,
+    }
+}
+
 pub fn push_ir_breakpoint<'a>(ib: &mut IrBuilder<'a>) {
     ib.instructions.push(IrInstruction {
         opcode: IrOpCode::Breakpoint,
@@ -392,6 +434,55 @@ pub fn push_ir_breakpoint<'a>(ib: &mut IrBuilder<'a>) {
 pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
     ib.file = Some(file);
 
+    fn register_ast_items<'a>(ib: &mut IrBuilder<'a>, items: &Vec<Item>) {
+        for item in items {
+            match item {
+                Item::Fn(func) => {
+                    let basic_block = create_ir_basic_block(to_ir_type(&func.decl.output));
+                    let enter_label = create_ir_label(ib, func.ident.sym, Some(0), true);
+                    ib.functions.insert(enter_label, basic_block);
+                }
+
+                Item::ForeignFn(func) => {
+                    let func_ident = resolve_symbol(func.ident.sym);
+                    let func_address = match func_ident {
+                        "print_int" => {
+                            intrinsics::print_int as *const () as usize
+                        }
+
+                        "print_bool" => {
+                            intrinsics::print_bool as *const () as usize
+                        }
+
+                        "assert" => {
+                            intrinsics::assert as *const () as usize
+                        }
+
+                        "assert_eq_int" => {
+                            intrinsics::assert_eq_int as *const () as usize
+                        }
+
+                        "assert_eq_bool" => {
+                            intrinsics::assert_eq_bool as *const () as usize
+                        }
+
+                        "trace" => {
+                            0usize // NOTE(alexander): ignore trace, interpreter only function!
+                        }
+
+                        _ => panic!("unknown foreign function {}", func_ident),
+                    };
+                    ib.intrinsics.insert(func.ident.sym, func_address);
+                }
+
+                Item::ForeignMod(module) => register_ast_items(ib, &module.items),
+            }
+        }
+    }
+
+    // First register all items made available from the AST
+    register_ast_items(ib, &file.items);
+
     for item in &file.items {
         build_ir_from_item(ib, &item);
     }
@@ -400,8 +491,25 @@ pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
 pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
     match item {
         Item::Fn(func) => {
-            let enter_label = create_ir_label(ib, func.ident.sym, Some(0));
-            let exit_label = create_ir_label(ib, func.ident.sym, Some(1));
+            let block_context = create_ir_block_context(None, None, to_ir_type(&func.decl.output));
+            ib.blocks.push(block_context);
+
+            let enter_label = create_ir_label(ib, func.ident.sym, Some(0), true);
+            let exit_label = create_ir_label(ib, func.ident.sym, Some(1), true);
+
+            // Setup function arguments
+            {
+                let len = ib.blocks.len();
+                let frame = &mut ib.blocks[len - 1];
+                let mut offset = -ib.addr_size*2; // NOTE(alexander): jump over return addr and base pointer.
+                for arg in &func.decl.inputs {
+                    let ty = to_ir_type(&arg.ty);
+                    let size = size_of_ir_type(ty, ib.addr_size);
+                    frame.stack_entries.insert(arg.ident.sym, (ty, offset));
+                    offset -= size;
+                }
+            }
+
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Label,
                 op1: create_label_ir_operand(enter_label),
@@ -425,19 +533,30 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
                 span: func.span,
                 ..Default::default()
             });
-            
+
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Epilogue,
                 ..Default::default()
             });
 
-            let basic_block = IrBasicBlock {
-                prologue,
-                epilogue,
-                required_stack_size: block_context.largest_stack_size,
-            };
+            match ib.functions.get_mut(&enter_label) {
+                Some(block) => {
+                    block.prologue = prologue;
+                    block.epilogue = epilogue;
+                    block.required_stack_size = block_context.largest_stack_size;
+                }
+                None => {
+                    let basic_block = IrBasicBlock {
+                        prologue,
+                        epilogue,
+                        required_stack_size: block_context.largest_stack_size,
+                        return_type: to_ir_type(&func.decl.output),
+                    };
+                    ib.functions.insert(enter_label, basic_block);
+                }
+            }
 
-            ib.functions.insert(enter_label, basic_block);
+            ib.blocks.pop();
         }
         _ => { }
     }
@@ -449,7 +568,7 @@ pub fn build_ir_from_block<'a>(
     enter_label: Option<IrLabel>,
     exit_label: Option<IrLabel>
 ) -> (IrOperand, IrBlockContext) {
-    
+
     let blocks_len = ib.blocks.len();
     let mut next_stack_offset = 0;
     let mut next_register = 0;
@@ -460,7 +579,8 @@ pub fn build_ir_from_block<'a>(
         current_largest_stack_size = ib.blocks[blocks_len - 1].largest_stack_size;
     }
 
-    let mut block_context = create_ir_block_context(enter_label, exit_label);
+    let return_type = ib.blocks.last().map(|ibc| ibc.return_type).unwrap_or(IrType::None);
+    let mut block_context = create_ir_block_context(enter_label, exit_label, return_type);
     block_context.next_stack_offset = next_stack_offset;
     block_context.next_register = next_register;
     ib.blocks.push(block_context);
@@ -477,7 +597,7 @@ pub fn build_ir_from_block<'a>(
         }
     }
     let block_context = ib.blocks.pop().unwrap();
-    
+
     if let Some(Stmt::Expr(_)) = block.stmts.last() {
         if let IrOperandKind::None = last_op.kind {
             (create_ir_operand(), block_context)
@@ -529,7 +649,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
     match expr {
         Expr::Assign(assign) => {
             let mut opcode = IrOpCode::Copy;
-            
+
             let op2 = build_ir_from_expr(ib, &assign.right);
             let op1 = match &*assign.left {
                 Expr::Ident(ident) => lookup_stack(ib, ident.sym),
@@ -641,29 +761,103 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         }
 
         Expr::Call(call) => {
-            let mut param_size = 0;
-            for arg in &call.args {
-                let op1 = build_ir_from_expr(ib, &arg);
-                ib.instructions.push(IrInstruction {
-                    opcode: IrOpCode::Param,
-                    op1,
-                    span: arg.get_span(),
-                    ..Default::default()
-                });
+            // let mut param_size = 0;
+            // for arg in &call.args {
+            //     let op1 = build_ir_from_expr(ib, &arg);
+            //     ib.instructions.push(IrInstruction {
+            //         opcode: IrOpCode::Param,
+            //         op1,
+            //         span: arg.get_span(),
+            //         ..Default::default()
+            //     });
 
-                param_size += 1;
+            //     param_size += 1;
+            // }
+
+            match ib.intrinsics.get(&call.ident.sym) {
+                Some(func_address) => {
+                    let (ty, val) = if ib.addr_size == 4 {
+                        (IrType::U32, IrValue::U32(*func_address as u32))
+                    } else if ib.addr_size == 8 {
+                        (IrType::U64, IrValue::U64(*func_address as u64))
+                    } else {
+                        panic!("unsupported address size: `{}-bit`, expected 32- or 64-bit", ib.addr_size*8);
+                    };
+
+                    let op1 = allocate_register(ib, ty);
+                    let op2 = IrOperand {
+                        ty,
+                        kind: IrOperandKind::Constant(val),
+                    };
+
+                    let mut param_size = 0;
+                    for arg in &call.args {
+                        let op1 = build_ir_from_expr(ib, &arg);
+                        ib.instructions.push(IrInstruction {
+                            opcode: IrOpCode::Param,
+                            op1,
+                            span: arg.get_span(),
+                            ..Default::default()
+                        });
+
+                        param_size += 1;
+                    }
+
+                    ib.instructions.push(IrInstruction {
+                        opcode: IrOpCode::Copy,
+                        op1,
+                        op2, 
+                        span: call.span,
+                        ..Default::default()
+
+                    });
+
+                    ib.instructions.push(IrInstruction {
+                        opcode: IrOpCode::Call,
+                        op1,
+                        op2: create_i32_ir_operand(param_size),
+                        span: call.span,
+                        ..Default::default()
+                    });
+
+                    IrOperand {
+                        ty: IrType::None,
+                        kind: IrOperandKind::Register(0),
+                    }
+                }
+
+                None => {
+                    let mut param_size = 0;
+                    for arg in &call.args {
+                        let op1 = build_ir_from_expr(ib, &arg);
+                        ib.instructions.push(IrInstruction {
+                            opcode: IrOpCode::Param,
+                            op1,
+                            span: arg.get_span(),
+                            ..Default::default()
+                        });
+
+                        param_size += 1;
+                    }
+
+                    
+                    let function_label = create_ir_label(ib, call.ident.sym, Some(0), true);
+                    let op1 = create_label_ir_operand(function_label);
+
+                    ib.instructions.push(IrInstruction {
+                        opcode: IrOpCode::Call,
+                        op1,
+                        op2: create_i32_ir_operand(param_size),
+                        span: call.span,
+                        ..Default::default()
+                    });
+
+                    IrOperand {
+                        ty: ib.functions.get(&function_label).map(|ibc| ibc.return_type).unwrap_or(IrType::I32),
+                        kind: IrOperandKind::Register(0),
+                    }
+                }
             }
-
-            let op1 = create_label_ir_operand(create_ir_label(ib, call.ident.sym, Some(0)));
-            
-            ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Call,
-                op1,
-                op2: create_i32_ir_operand(param_size),
-                span: call.span,
-                ..Default::default()
-            });
-            create_ir_operand()
         }
 
         Expr::Ident(ident) => {
@@ -682,26 +876,26 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                 span: ident.span,
                 ..Default::default()
             });
-            
+
             op1
         }
 
         Expr::If(if_expr) => {
-            let exit_label = create_ir_label(ib, intern_string("if_exit"), None);
+            let exit_label = create_ir_label(ib, intern_string("if_exit"), None, false);
             let mut else_label: Option<IrLabel> = None;
 
             let mut op1 = create_ir_operand();
             let mut op2 = create_ir_operand();
             let op3 = match if_expr.else_block {
                 Some(_) => {
-                    let label = create_ir_label(ib, intern_string("if_else"), None);
+                    let label = create_ir_label(ib, intern_string("if_else"), None, false);
                     else_label = Some(label);
                     create_label_ir_operand(label)
                 }
 
                 None => create_label_ir_operand(exit_label),
             };
-            
+
             let mut opcode = match &*if_expr.cond {
                 Expr::Binary(binary) => {
                     let opcode = match binary.op {
@@ -793,15 +987,16 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
             //     });
             //     op1
             // };
-            
+
             op1.ty = match op1.ty {
                 IrType::I8        => IrType::PtrI8(1),
                 IrType::I32       => IrType::PtrI32(1),
                 IrType::PtrI8(i)  => IrType::PtrI8(i + 1),
                 IrType::PtrI32(i) => IrType::PtrI32(i + 1),
                 IrType::None      => panic!("missing type info"),
+                _                 => panic!("unsupported type"),
             };
-            
+
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::CopyFromRef,
                 op1,
@@ -844,7 +1039,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpCode::Sub,
                         op1,
-                        op2, 
+                        op2,
                         span: unary.span,
                         ..Default::default()
                     });
@@ -868,23 +1063,25 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                 UnOp::Deref => {
                     let op2 = build_ir_from_expr(ib, &unary.expr);
                     let mut op1 = allocate_register(ib, op2.ty);
-                    
+
                     op1.ty = match op1.ty {
-                        IrType::I8 | 
-                        IrType::I32 => panic!("cannot dereference non ref type"),
-                        
+                        IrType::I8  |
+                        IrType::I32 |
+                        IrType::U32 |
+                        IrType::U64 => panic!("cannot dereference non ref type"),
+
                         IrType::PtrI8(i) => if i > 1 {
                             IrType::PtrI8(i - 1)
                         } else {
                             IrType::I8
                         }
-                        
+
                         IrType::PtrI32(i) => if i > 1 {
                             IrType::PtrI32(i - 1)
                         } else {
                             IrType::I32
                         }
-                        
+
                         IrType::None => panic!("missing type info"),
                     };
                     ib.instructions.push(IrInstruction {
@@ -901,9 +1098,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
         }
 
         Expr::While(while_expr) => {
-            let enter_label = create_ir_label(ib, intern_string("while_enter"), None);
-            let exit_label = create_ir_label(ib, intern_string("while_exit"),  None);
-            
+            let enter_label = create_ir_label(ib, intern_string("while_enter"), None, false);
+            let exit_label = create_ir_label(ib, intern_string("while_exit"),  None, false);
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Label,

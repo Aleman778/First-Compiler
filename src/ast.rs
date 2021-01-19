@@ -275,8 +275,8 @@ impl fmt::Display for TyKind {
             TyKind::Int => write!(f, "i32"),
             TyKind::Bool => write!(f, "bool"),
             TyKind::Ref(r) => write!(f, "{}", r),
-            TyKind::Error => panic!(),
-            TyKind::None => write!(f, "()")
+            TyKind::Error => write!(f, "()"),
+            TyKind::None => write!(f, "()"),
         }
     }
 }

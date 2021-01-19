@@ -180,34 +180,34 @@ pub fn trace(ic: &mut InterpContext) {
 /**
  * Prints the given integer.
  */
-pub fn print_int(val: i32) {
+pub extern "C" fn print_int(val: i32) {
     println!("{}", val);
 }
 
 /**
  * Prints the given boolean.
  */
-pub fn print_bool(val: bool) {
+pub extern "C" fn print_bool(val: bool) {
     println!("{}", val);
 }
 
 /**
  * Simple equals assertion.
  */
-pub fn assert(val: bool) {
+pub extern "C" fn assert(val: bool) {
     assert!(val);
 }
 
 /**
  * Simple equals assertion.
  */
-pub fn assert_eq_int(left: i32, right: i32) {
+pub extern "C" fn assert_eq_int(left: i32, right: i32) {
     assert_eq!(left, right);
 }
 
 /**
  * Simple equals assertion.
  */
-pub fn assert_eq_bool(left: bool, right: bool) {
+pub extern "C" fn assert_eq_bool(left: bool, right: bool) {
     assert_eq!(left, right);
 }

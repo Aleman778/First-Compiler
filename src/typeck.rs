@@ -75,8 +75,19 @@ pub fn type_check_item<'a>(tc: &mut TypeContext<'a>, item: &'a Item) {
 }
 
 pub fn type_check_function<'a>(tc: &mut TypeContext<'a>, func: &'a FnItem) -> Ty {
-    let ret_ty = type_check_block(tc, &func.block, false);
+    tc.locals.push(create_type_table(false));
+    
+    let len = tc.locals.len();
+    for arg in &func.decl.inputs {
+        let mut ty = arg.ty.clone();
+        ty.mutable = arg.mutable;
+        ty.first_declared_span = arg.span;
+        ty.assigned = true;
+        tc.locals[len - 1].types.insert(arg.ident.sym, ty);
+    }
 
+    let ret_ty = type_check_block(tc, &func.block, false);
+    
     if func.decl.output != ret_ty {
         if ret_ty.is_none() {
             let mut msg = create_error_msg(
@@ -110,6 +121,7 @@ pub fn type_check_function<'a>(tc: &mut TypeContext<'a>, func: &'a FnItem) -> Ty
             mismatched_types_error(tc, ret_ty.span, &func.decl.output.kind, &ret_ty);
         }
     }
+    tc.locals.pop();
 
     Ty::default()
 }

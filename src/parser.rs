@@ -878,7 +878,6 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
 fn parse_error<'a>(error: ParseError, source: &str, filename: &str, lines: &Vec<u32>) {
     match error.errors.first() {
         Some(err) => {
-            println!("{:#?}", err.kind);
             let error_msg = match &err.kind {
                 ErrorKind::ParseIntError(e) => e.to_string(),
                 ErrorKind::Nom(e) => (*e).description().to_string(),
@@ -890,8 +889,6 @@ fn parse_error<'a>(error: ParseError, source: &str, filename: &str, lines: &Vec<
                 },
             };
 
-            println!("span: {:#?}", err.span);
-            
             print_error_msg(&create_error_msg_from_span(ErrorLevel::Error,
                                                         lines,
                                                         err.span,
