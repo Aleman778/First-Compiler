@@ -181,7 +181,7 @@ pub fn trace(ic: &mut InterpContext) {
  * Prints the given integer.
  */
 #[no_mangle]
-pub extern "cdecl" fn print_int(val: i32) {
+pub extern "C" fn print_int(val: i32) {
     println!("{}", val);
 }
 
