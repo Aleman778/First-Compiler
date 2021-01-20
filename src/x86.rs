@@ -528,16 +528,6 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::MOV;
             compile_x86_ir_operand(x86, &mut insn, ir_insn.op1, ir_insn.op2);
-            if let IrOperandKind::Constant(val) = ir_insn.op2.kind {
-                if let IrValue::U64(_) = val {
-                    insn.encoding = X86OpEn::OI; // can only be used with 64-bit wide immediate
-                    insn.rex = true;
-                    insn.rex_w = true;
-                    if let IrOperandKind::Stack(_) = ir_insn.op1.kind {
-                        panic!("unsupported: mov stack imm64");
-                    }
-                }
-            }
             x86.instructions.push(insn);
         }
 
@@ -963,75 +953,139 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         }
 
         IrOpCode::Call => {
-            // Begin function call (cdecl calling convention)
+            let is_intrinsic_call = match ir_insn.op1.kind {
+                IrOperandKind::Constant(_) => true,
+                _ => false,
+            };
+
+            // Begin function call (cdecl or C calling convention)
+            let mut stack_space_used = 0isize;
             match &x86.curr_call_frame {
                 Some(frame) => {
-                    let mut insn = create_x86_instruction();
-                    insn.opcode = X86OpCode::SUB;
-                    insn.encoding = X86OpEn::MI;
-                    insn.modrm_addr_mode = X86AddrMode::Direct;
-                    insn.modrm_rm = X86Reg::RSP;
-                    insn.rex = true;
-                    insn.rex_w = true;
-                    insn.immediate = X86Value::Int32(frame.size as i32);
-                    x86.instructions.push(insn);
-
-                    // Push arguments according to the cdecl calling convention
-                    let mut curr_disp = 0;
-                    for insn in frame.arguments.iter().rev() {
-                        let disp = match insn.displacement {
-                            X86Value::Int8(v) => v as isize,
-                            X86Value::Int32(v) => v as isize,
-                            _ => 0isize,
-                        };
-                        let mut insn = insn.clone();
-                        compile_x86_stack_operand(&mut insn, curr_disp);
-                        insn.modrm_rm = X86Reg::RSP;
+                    if is_intrinsic_call {
+                        // mov rbp rsp
+                        // NOTE(alexander): this seams to be a requirement however not sure if it's documented.
+                        let mut insn = create_x86_instruction();
+                        insn.opcode = X86OpCode::MOV;
+                        insn.modrm_addr_mode = X86AddrMode::Direct;
+                        insn.modrm_reg = X86Reg::RBP;
+                        insn.modrm_rm  = X86Reg::RSP;
+                        insn.encoding  = X86OpEn::RM;
+                        insn.rex = true;
+                        insn.rex_w = true;
                         x86.instructions.push(insn);
-                        curr_disp += disp;
+
+                        // Push arguments according to the C calling convention
+                        let mut curr_disp = 0;
+                        let registers = [X86Reg::RCX, X86Reg::RDX, X86Reg::R8, X86Reg::R9];
+                        for (i, insn) in frame.arguments.iter().enumerate() {
+                            let mut insn = insn.clone();
+                            insn.opcode = X86OpCode::MOV;
+
+                            if i < registers.len() {
+                                insn.modrm_rm = registers[i];
+                                insn.modrm_addr_mode = X86AddrMode::Direct;
+                                x86.instructions.push(insn);
+                            } else {
+                                // Push onto stack
+                                let disp = match insn.displacement {
+                                    X86Value::Int8(v) => v as isize,
+                                    X86Value::Int32(v) => v as isize,
+                                    _ => 0isize,
+                                };
+                                let mut insn = insn.clone();
+                                compile_x86_stack_operand(&mut insn, curr_disp);
+                                insn.modrm_rm = X86Reg::RSP;
+                                x86.instructions.push(insn);
+
+                                curr_disp += disp;
+                            }
+                        }
+                        stack_space_used = curr_disp;
+
+                    } else {
+                        let mut insn = create_x86_instruction();
+                        insn.opcode = X86OpCode::SUB;
+                        insn.encoding = X86OpEn::MI;
+                        insn.modrm_addr_mode = X86AddrMode::Direct;
+                        insn.modrm_rm = X86Reg::RSP;
+                        insn.rex = true;
+                        insn.rex_w = true;
+                        insn.immediate = X86Value::Int32(frame.size as i32);
+                        x86.instructions.push(insn);
+
+                        // Push arguments according to the cdecl calling convention
+                        let mut curr_disp = 0;
+                        for insn in frame.arguments.iter().rev() {
+                            let disp = match insn.displacement {
+                                X86Value::Int8(v) => v as isize,
+                                X86Value::Int32(v) => v as isize,
+                                _ => 0isize,
+                            };
+                            let mut insn = insn.clone();
+                            compile_x86_stack_operand(&mut insn, curr_disp);
+                            insn.modrm_rm = X86Reg::RSP;
+                            x86.instructions.push(insn);
+                            curr_disp += disp;
+                        }
+                        stack_space_used = curr_disp;
                     }
                 }
                 _  => {}
             }
 
             // Call the function
-            let mut insn = create_x86_instruction();
-            insn.opcode = X86OpCode::CALL;
-
             match ir_insn.op1.kind {
                 IrOperandKind::Label(label) => {
+                    let mut insn = create_x86_instruction();
+                    insn.opcode = X86OpCode::CALL;
                     insn.encoding = X86OpEn::D;
                     insn.immediate = X86Value::Int32(0);
+
                     let insn_index = x86.instructions.len();
                     let jt = get_mut_x86_jump_target(x86, label);
                     jt.jumps.push(insn_index);
+
+                    x86.instructions.push(insn);
                 }
 
-                IrOperandKind::Register(register) => {
-                    insn.encoding = X86OpEn::M;
-                    insn.modrm_rm = get_scratch_register(x86, register);
+                IrOperandKind::Constant(val) => {
+                    let mut insn = create_x86_instruction();
+                    insn.opcode = X86OpCode::MOV;
+                    insn.modrm_rm = X86Reg::RAX;
+                    insn.modrm_reg = X86Reg::RAX;
                     insn.modrm_addr_mode = X86AddrMode::Direct;
+                    insn.immediate = ir_value_to_x86_value(val);
+
+                    if let IrValue::U64(_) = val {
+                        insn.encoding = X86OpEn::OI;
+                        insn.rex = true;
+                        insn.rex_w = true;
+                    }
+                    x86.instructions.push(insn);
+
+                    let mut insn = create_x86_instruction();
+                    insn.opcode = X86OpCode::CALL;
+                    insn.encoding = X86OpEn::M;
+                    insn.modrm_rm = X86Reg::RAX;
+                    insn.modrm_addr_mode = X86AddrMode::Direct;
+                    x86.instructions.push(insn);
                 }
                 
                 _ => panic!("expected label or register in call instruction"),
             }
-            
-            x86.instructions.push(insn);
 
             // Cleanup call frame
-            match &x86.curr_call_frame {
-                Some(frame) => {
-                    let mut insn = create_x86_instruction();
-                    insn.opcode = X86OpCode::ADD;
-                    insn.encoding = X86OpEn::MI;
-                    insn.modrm_addr_mode = X86AddrMode::Direct;
-                    insn.modrm_rm = X86Reg::RSP;
-                    insn.rex = true;
-                    insn.rex_w = true;
-                    insn.immediate = X86Value::Int32(frame.size as i32);
-                    x86.instructions.push(insn);
-                }
-                _ => {}
+            if stack_space_used > 0 {
+                let mut insn = create_x86_instruction();
+                insn.opcode = X86OpCode::ADD;
+                insn.encoding = X86OpEn::MI;
+                insn.modrm_addr_mode = X86AddrMode::Direct;
+                insn.modrm_rm = X86Reg::RSP;
+                insn.rex = true;
+                insn.rex_w = true;
+                insn.immediate = X86Value::Int32(stack_space_used as i32);
+                x86.instructions.push(insn);
             }
             x86.curr_call_frame = None;
         }

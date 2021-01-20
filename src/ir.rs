@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt;
+use std::mem;
 use crate::ast::*;
 use crate::intrinsics;
 
@@ -447,7 +448,10 @@ pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
                     let func_ident = resolve_symbol(func.ident.sym);
                     let func_address = match func_ident {
                         "print_int" => {
-                            intrinsics::print_int as *const () as usize
+                            unsafe {
+                                mem::transmute(intrinsics::print_int as extern "cdecl" fn(i32))
+                            }
+                            // intrinsics::print_int as *const () as usize
                         }
 
                         "print_bool" => {
@@ -784,12 +788,6 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
                         panic!("unsupported address size: `{}-bit`, expected 32- or 64-bit", ib.addr_size*8);
                     };
 
-                    let op1 = allocate_register(ib, ty);
-                    let op2 = IrOperand {
-                        ty,
-                        kind: IrOperandKind::Constant(val),
-                    };
-
                     let mut param_size = 0;
                     for arg in &call.args {
                         let op1 = build_ir_from_expr(ib, &arg);
@@ -802,15 +800,11 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> IrOperand 
 
                         param_size += 1;
                     }
-
-                    ib.instructions.push(IrInstruction {
-                        opcode: IrOpCode::Copy,
-                        op1,
-                        op2, 
-                        span: call.span,
-                        ..Default::default()
-
-                    });
+                    
+                    let op1 = IrOperand {
+                        ty,
+                        kind: IrOperandKind::Constant(val),
+                    };
 
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpCode::Call,

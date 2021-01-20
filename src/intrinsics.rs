@@ -180,13 +180,15 @@ pub fn trace(ic: &mut InterpContext) {
 /**
  * Prints the given integer.
  */
-pub extern "C" fn print_int(val: i32) {
+#[no_mangle]
+pub extern "cdecl" fn print_int(val: i32) {
     println!("{}", val);
 }
 
 /**
  * Prints the given boolean.
  */
+#[no_mangle]
 pub extern "C" fn print_bool(val: bool) {
     println!("{}", val);
 }
@@ -194,6 +196,7 @@ pub extern "C" fn print_bool(val: bool) {
 /**
  * Simple equals assertion.
  */
+#[no_mangle]
 pub extern "C" fn assert(val: bool) {
     assert!(val);
 }
@@ -201,6 +204,7 @@ pub extern "C" fn assert(val: bool) {
 /**
  * Simple equals assertion.
  */
+#[no_mangle]
 pub extern "C" fn assert_eq_int(left: i32, right: i32) {
     assert_eq!(left, right);
 }
@@ -208,6 +212,7 @@ pub extern "C" fn assert_eq_int(left: i32, right: i32) {
 /**
  * Simple equals assertion.
  */
+#[no_mangle]
 pub extern "C" fn assert_eq_bool(left: bool, right: bool) {
     assert_eq!(left, right);
 }
