@@ -7,10 +7,9 @@ use crate::ir::*;
 pub struct X86Assembler {
     pub machine_code: Vec<u8>,
     pub instructions: Vec<X86Instruction>,
-    pub jump_targets: HashMap<IrLabel, X86JumpTarget>,
-    pub functions: HashMap<IrLabel, IrBasicBlock>, // NOTE(alexander): temp basic block might not be enough!
+    pub jump_targets: HashMap<IrIdent, X86JumpTarget>,
     pub curr_call_frame: Option<X86CallFrame>,
-    pub curr_function: IrLabel,
+    pub curr_function: IrIdent,
     pub x64_mode: bool,
 }
 
@@ -20,7 +19,7 @@ pub struct X86CallFrame {
 }
 
 pub struct X86JumpTarget {
-    pub label: IrLabel, // the target label
+    pub label: IrIdent, // the target label
     pub jumps: Vec<usize>, // jump instructions to this label
     pub pos: usize, // stores index into x86.instructions
 }
@@ -279,7 +278,7 @@ impl fmt::Display for X86Instruction {
     }
 }
 
-fn get_mut_x86_jump_target<'a>(x86: &'a mut X86Assembler, label: IrLabel) -> &'a mut X86JumpTarget {
+fn get_mut_x86_jump_target<'a>(x86: &'a mut X86Assembler, label: IrIdent) -> &'a mut X86JumpTarget {
     match x86.jump_targets.get(&label) {
         Some(_) => {}
         None => {
@@ -361,15 +360,13 @@ fn ir_value_to_x86_value(val: IrValue) -> X86Value {
     }
 }
 
-pub fn create_x86_assembler(functions: HashMap<IrLabel, IrBasicBlock>) -> X86Assembler {
-    
+pub fn create_x86_assembler() -> X86Assembler {
     X86Assembler {
         machine_code: Vec::new(),
         instructions: Vec::new(),
         jump_targets: HashMap::new(),
-        functions,
         curr_call_frame: None,
-        curr_function: IrLabel { symbol: intern_string("main"), index: 0, function: true },
+        curr_function: IrIdent { symbol: intern_string("main"), index: 0 },
         x64_mode: cfg!(target_arch="x86_64"),
     }
 }
@@ -448,36 +445,36 @@ fn compile_x86_ir_operand(x86: &mut X86Assembler, insn: &mut X86Instruction, op1
     }
 
     match op1.kind {
-        IrOperandKind::Stack(offset) => compile_x86_stack_operand(insn, offset),
-        IrOperandKind::Register(register) => {
+        IrOperand::Stack(offset) => compile_x86_stack_operand(insn, offset),
+        IrOperand::Register(register) => {
             insn.modrm_addr_mode = X86AddrMode::Direct;
             insn.modrm_reg = get_scratch_register(x86, register);
         },
 
-        IrOperandKind::Constant(_) => panic!("cannot encode constant as first operand"),
+        IrOperand::Value(_) => panic!("cannot encode constant as first operand"),
 
         _ => return,
     }
 
     match op2.kind {
-        IrOperandKind::Stack(offset) => {
+        IrOperand::Stack(offset) => {
             insn.encoding = X86OpEn::RM;
             match op1.kind {
-                IrOperandKind::Stack(_) => panic!("cannot encode memory access for both operands!"),
-                IrOperandKind::Register(_) => {},
+                IrOperand::Stack(_) => panic!("cannot encode memory access for both operands!"),
+                IrOperand::Register(_) => {},
                 _ => panic!("unexpected first operand"),
             };
 
             compile_x86_stack_operand(insn, offset);
         }
-        IrOperandKind::Register(reg) => {
+        IrOperand::Register(reg) => {
             match op1.kind {
-                IrOperandKind::Stack(_) => {
+                IrOperand::Stack(_) => {
                     insn.modrm_reg = get_scratch_register(x86, reg);
                     insn.encoding = X86OpEn::MR;
                 }
 
-                IrOperandKind::Register(_) => {
+                IrOperand::Register(_) => {
                     insn.modrm_rm = get_scratch_register(x86, reg);
                     insn.encoding = X86OpEn::RM;
                 }
@@ -486,9 +483,9 @@ fn compile_x86_ir_operand(x86: &mut X86Assembler, insn: &mut X86Instruction, op1
             };
         }
 
-        IrOperandKind::Constant(val) => {
+        IrOperand::Value(val) => {
             match op1.kind {
-                IrOperandKind::Register(_) => {
+                IrOperand::Register(_) => {
                     insn.modrm_rm = insn.modrm_reg;
                     // NOTE(alexander): insn.modrm_reg gets set later.
                 }
@@ -820,11 +817,11 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             }
 
             match ir_insn.op1.kind {
-                IrOperandKind::Register(register) => {
+                IrOperand::Register(register) => {
                     insn.modrm_addr_mode = X86AddrMode::Direct;
                     insn.modrm_rm = get_scratch_register(x86, register);
                 },
-                IrOperandKind::Stack(offset) => compile_x86_stack_operand(&mut insn, offset),
+                IrOperand::Stack(offset) => compile_x86_stack_operand(&mut insn, offset),
                 _ => panic!("unexpected operand"),
             }
             insn.byte_operands = true;
@@ -836,7 +833,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             // insn.encoding = X86OpEn::MI;
             // insn.byte_operands = true;
             // match ir_insn.op1.kind {
-            //     IrOperandKind::Register(register) => {
+            //     IrOperand::Register(register) => {
             //         insn.modrm_addr_mode = X86AddrMode::Direct;
             //         insn.modrm_rm = get_scratch_register(x86, register);
             //     },
@@ -870,7 +867,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             }
             x86.instructions.push(cmp_insn);
 
-            if let IrOperandKind::Label(label) = ir_insn.op3.kind {
+            if let IrOperand::Ident(label) = ir_insn.op3.kind {
                 let insn_index = x86.instructions.len();
                 let jt = get_mut_x86_jump_target(x86, label);
                 jt.jumps.push(insn_index);
@@ -894,7 +891,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         }
 
         IrOpCode::Jump => {
-            if let IrOperandKind::Label(label) = ir_insn.op1.kind {
+            if let IrOperand::Ident(label) = ir_insn.op1.kind {
                 let insn_index = x86.instructions.len();
                 let jt = get_mut_x86_jump_target(x86, label);
                 jt.jumps.push(insn_index);
@@ -911,7 +908,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         }
 
         IrOpCode::Label => {
-            if let IrOperandKind::Label(label) = ir_insn.op1.kind {
+            if let IrOperand::Ident(label) = ir_insn.op1.kind {
                 let insn_index = x86.instructions.len();
                 let jt = get_mut_x86_jump_target(x86, label);
                 jt.pos = insn_index;
@@ -929,10 +926,11 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
                 4isize
             };
             let type_size = size_of_ir_type(ir_insn.op1.ty, addr_size);
-            let assign_op = IrOperand {
-                ty: ir_insn.op1.ty,
-                kind: IrOperandKind::Stack(type_size), // fill out displacement later
-            };
+            let assign_op = IrOperand::None; // FIXME(alexander)
+            // let assign_op = IrOperand {
+                // ty: ir_insn.op1.ty,
+                // kind: IrOperand::Stack(type_size), // fill out displacement later
+            // };
 
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::MOV;
@@ -954,7 +952,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
 
         IrOpCode::Call => {
             let is_intrinsic_call = match ir_insn.op1.kind {
-                IrOperandKind::Constant(_) => true,
+                IrOperand::Value(_) => true,
                 _ => false,
             };
 
@@ -1036,7 +1034,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
 
             // Call the function
             match ir_insn.op1.kind {
-                IrOperandKind::Label(label) => {
+                IrOperand::Ident(label) => {
                     let mut insn = create_x86_instruction();
                     insn.opcode = X86OpCode::CALL;
                     insn.encoding = X86OpEn::D;
@@ -1049,7 +1047,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
                     x86.instructions.push(insn);
                 }
 
-                IrOperandKind::Constant(val) => {
+                IrOperand::Value(val) => {
                     let mut insn = create_x86_instruction();
                     insn.opcode = X86OpCode::MOV;
                     insn.modrm_rm = X86Reg::RAX;
@@ -1093,22 +1091,18 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
         IrOpCode::Return => {
             let assign_rax: bool;
             match (ir_insn.op1.kind, ir_insn.op1.ty) {
-                (IrOperandKind::None, _) => assign_rax = false,
-                (IrOperandKind::Register(0), IrType::I32) => assign_rax = false,
+                (IrOperand::None, _) => assign_rax = false,
+                (IrOperand::Register(0), IrType::I32) => assign_rax = false,
                 _ => assign_rax = true,
             };
 
             if assign_rax {
-                let op1 = IrOperand {
-                    ty: ir_insn.op1.ty,
-                    kind: IrOperandKind::Register(0)
-                };
-
+                let op1 = IrOperand::None; // TODO(alexander): move to RAX
                 let mut insn = create_x86_instruction();
                 compile_x86_ir_operand(x86, &mut insn, op1, ir_insn.op1);
                 
                 if let IrType::I8 = ir_insn.op1.ty {
-                    if let IrOperandKind::Constant(_) = ir_insn.op1.kind {
+                    if let IrOperand::Value(_) = ir_insn.op1.kind {
                         insn.opcode = X86OpCode::MOV;
                     } else {
                         insn.opcode = X86OpCode::MOVSX;
@@ -1124,7 +1118,7 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             jump_insn.opcode = X86OpCode::JMP;
             jump_insn.encoding = X86OpEn::D;
             jump_insn.immediate = X86Value::Int8(0);
-            let label = IrLabel { symbol: x86.curr_function.symbol, index: 1, function: true };
+            let label = create_ir_ident(x86.curr_function.symbol, 1);
             let insn_index = x86.instructions.len();
             let jt = get_mut_x86_jump_target(x86, label);
             jt.jumps.push(insn_index);

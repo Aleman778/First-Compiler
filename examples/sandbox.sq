@@ -45,12 +45,12 @@
 
 fn main() -> i32 {
     print_int(10);
-    return 0;
-    // let x: i32 = multiply(10, 10);
-    // print_int(x);
     // return 0;
+    let x: i32 = multiply(10, 10);
+    print_int(x);
+    return 0;
 }
-// fn multiply(x: i32, y: i32) -> i32 {
-    // return x * y;
-// }
+fn multiply(x: i32, y: i32) -> i32 {
+    return x * y;
+}
 
