@@ -1,3 +1,9 @@
+fn main() -> i32 {
+    let x: i32 = 10;
+    return 10;
+}
+
+
 // fn main() -> i32 {
 //     let mut i: i32 = 115;
 //     let run: bool = true;
@@ -43,14 +49,13 @@
 //     return true;
 // }
 
-fn main() -> i32 {
-    print_int(10);
-    // return 0;
-    let x: i32 = multiply(10, 10);
-    print_int(x);
-    return 0;
-}
-fn multiply(x: i32, y: i32) -> i32 {
-    return x * y;
-}
+// fn main() -> i32 {
+//     print_int(10);
+//     let x: i32 = multiply(10, 10);
+//     print_int(x);
+//     return 0;
+// }
+// fn multiply(x: i32, y: i32) -> i32 {
+//     return x * y;
+// }
 

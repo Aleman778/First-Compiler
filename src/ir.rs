@@ -32,10 +32,13 @@ pub struct IrBuilder<'a> {
  * to store context information about a particular block scope.
  */
 pub struct IrBasicBlock {
+    pub prologue_index: usize,
+    pub epilogue_index: usize,
     pub enter_label: IrIdent,
     pub exit_label: IrIdent,
     pub return_type: IrType,
     pub func_address: Option<usize>, // used by jitter to call foreign functions
+    pub is_foreign: bool,
 }
 
 /**
@@ -117,6 +120,7 @@ pub enum IrValue {
 pub enum IrType {
     I8,
     I32,
+    I64,
     U32,
     U64,
     PtrI8(usize), // NOTE(alexander): argument defines the numbers of indirections
@@ -320,7 +324,8 @@ pub fn create_ir_ident(symbol: Symbol, index: u32) -> IrIdent {
 fn create_ir_basic_block<'a>(
     ib: &mut IrBuilder<'a>,
     enter: Option<IrIdent>, 
-    exit: Option<IrIdent>
+    exit: Option<IrIdent>,
+    is_foreign: bool
 ) -> IrBasicBlock {
     
     fn unique_bb_label<'a>(ib: &mut IrBuilder<'a>) -> IrIdent {
@@ -333,10 +338,13 @@ fn create_ir_basic_block<'a>(
     }
     
     IrBasicBlock {
+        prologue_index: 0,
+        epilogue_index: 0,
         enter_label: enter.unwrap_or(unique_bb_label(ib)),
         exit_label: exit.unwrap_or(unique_bb_label(ib)),
         return_type: IrType::None,
         func_address: None,
+        is_foreign
     }
 }
 
@@ -398,11 +406,10 @@ pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
         for item in items {
             match item {
                 Item::Fn(func) => {
-                    
                     let enter_label = create_ir_ident(func.ident.sym, 0);
                     let exit_label = create_ir_ident(func.ident.sym, 1);
                     let ident = create_ir_ident(func.ident.sym, 0);
-                    let mut block = create_ir_basic_block(ib, Some(enter_label), Some(exit_label));
+                    let mut block = create_ir_basic_block(ib, Some(enter_label), Some(exit_label), false);
                     block.return_type = to_ir_type(&func.decl.output);
                     ib.functions.insert(ident, block);
                 }
@@ -438,7 +445,7 @@ pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
                     };
 
                     let ident = create_ir_ident(func.ident.sym, 0);
-                    let mut block = create_ir_basic_block(ib, None, None);
+                    let mut block = create_ir_basic_block(ib, None, None, true);
                     block.return_type = to_ir_type(&func.decl.output);
                     block.func_address = Some(func_address);
                     ib.functions.insert(ident, block);
@@ -473,7 +480,7 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
                 ..Default::default()
             });
 
-            // let prologue = ib.instructions.len();
+            let prologue_index = ib.instructions.len();
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Prologue,
                 ..Default::default()
@@ -481,7 +488,7 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
 
             build_ir_from_block(ib, &func.block);
 
-            // let epilogue = ib.instructions.len();
+            
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Label,
                 op1: IrOperand::Ident(exit_label),
@@ -489,12 +496,23 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
                 ..Default::default()
             });
 
+            let epilogue_index = ib.instructions.len();
             ib.instructions.push(IrInstruction {
                 opcode: IrOpCode::Epilogue,
                 ..Default::default()
             });
+
+            let func_label = create_ir_ident(func.ident.sym, 0);
+            match ib.functions.get_mut(&func_label) {
+                Some(bb) => {
+                    bb.prologue_index = prologue_index;
+                    bb.epilogue_index = epilogue_index;
+                }
+
+                None => panic!("`{}` is not a registered function", func_label),
+            }
         }
-        _ => { }
+        _ => {}
     }
 }
 
