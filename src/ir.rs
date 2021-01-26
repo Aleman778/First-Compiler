@@ -47,7 +47,7 @@ pub struct IrBasicBlock {
  */
 #[derive(Debug, Clone, PartialEq)]
 pub struct IrInstruction {
-    pub opcode: IrOpCode,
+    pub opcode: IrOpcode,
     pub op1: IrOperand,
     pub op2: IrOperand,
     pub op3: IrOperand,
@@ -56,7 +56,7 @@ pub struct IrInstruction {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum IrOpCode {
+pub enum IrOpcode {
     Nop,
     Alloca, // op1 := alloca(op2)
     Copy, // op1 := op2
@@ -127,172 +127,6 @@ pub enum IrType {
     None,
 }
 
-impl Default for IrInstruction {
-    fn default() -> Self {
-        IrInstruction {
-            opcode: IrOpCode::Nop,
-            op1: IrOperand::None,
-            op2: IrOperand::None,
-            op3: IrOperand::None,
-            ty: IrType::None,
-            span: Span::new(),
-        }
-    }
-}
-
-impl fmt::Display for IrBuilder<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for insn in &self.instructions {
-            match insn.opcode {
-                IrOpCode::Label => if let IrOperand::Ident(ident) = insn.op1 {
-                    write!(f, "{}:\n", ident)?;
-                } else {
-                    write!(f, "{}:\n", insn.op1)?;
-                }
-                
-                _ => write!(f, "    {}\n", insn)?,
-            }
-        }
-        Ok(())
-    }
-}
-
-impl fmt::Display for IrInstruction {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.opcode {
-            IrOpCode::Nop        |
-            IrOpCode::IfLt       |
-            IrOpCode::IfGt       |
-            IrOpCode::IfLe       |
-            IrOpCode::IfGe       |
-            IrOpCode::IfEq       |
-            IrOpCode::IfNe       |
-            IrOpCode::Param      |
-            IrOpCode::Return     |
-            IrOpCode::Label      |
-            IrOpCode::Jump       |
-            IrOpCode::Prologue   |
-            IrOpCode::Epilogue   => {
-                write!(f, "{}", self.opcode)?;
-                if let IrType::None = self.ty {
-                } else {
-                    write!(f, " {}", self.ty)?;
-                }
-                write!(f, " {}", self.op1)?;
-                if let IrOperand::None = self.op2 {
-                } else {
-                    write!(f, ", {}", self.op2)?;
-                    if let IrOperand::None = self.op3 {
-                    } else {
-                        write!(f, ", {}", self.op3)?;
-                    }
-                }
-            }
-
-            _ => {
-                write!(f, "{} = {}", self.op1, self.opcode)?;
-                if let IrType::None = self.ty {
-                } else {
-                    write!(f, " {}", self.ty)?;
-                }
-                if let IrOperand::None = self.op2 {
-                } else {
-                    write!(f, " {}", self.op2)?;
-                    if let IrOperand::None = self.op3 {
-                    } else {
-                        write!(f, ", {}", self.op3)?;
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-}
-
-impl fmt::Display for IrType {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            IrType::I8        => write!(f, "i8"),
-            IrType::I32       => write!(f, "i32"),
-            IrType::I64       => write!(f, "i64"),
-            IrType::U32       => write!(f, "u32"),
-            IrType::U64       => write!(f, "u64"),
-            IrType::PtrI8(i)  => write!(f, "i8{}", "*".repeat(*i as usize)),
-            IrType::PtrI32(i) => write!(f, "i32{}", "*".repeat(*i as usize)),
-            IrType::None      => write!(f, ""),
-        }
-    }
-}
-
-impl fmt::Display for IrIdent {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = resolve_symbol(self.symbol);
-        if self.index > 0 || s.len() == 0  {
-            write!(f, "{}{}", s, self.index)
-        } else {
-            write!(f, "{}", s)
-        }
-    }
-}
-
-impl fmt::Display for IrOperand {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self {
-            IrOperand::Ident(label) => write!(f, "%{}", label),
-            IrOperand::Value(val) => match val {
-                IrValue::I32(v) => write!(f, "{}", v),
-                IrValue::U32(v) => write!(f, "{}", v),
-                IrValue::U64(v) => write!(f, "{}", v),
-                IrValue::Bool(v) => write!(f, "{}", v),
-            }
-            IrOperand::None => write!(f, ""),
-        }
-    }
-}
-
-impl fmt::Display for IrOpCode {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            IrOpCode::Nop           => write!(f, "nop"),
-            IrOpCode::Alloca        => write!(f, "alloca"),
-            IrOpCode::Copy          => write!(f, "copy"),
-            IrOpCode::CopyFromRef   => write!(f, "copy_from_ref"),
-            IrOpCode::CopyFromDeref => write!(f, "copy_from_deref"),
-            IrOpCode::CopyToDeref   => write!(f, "copy_to_deref"),
-            IrOpCode::Clear         => write!(f, "clear"),
-            IrOpCode::Add           => write!(f, "add"),
-            IrOpCode::Sub           => write!(f, "sub"),
-            IrOpCode::Mul           => write!(f, "mul"),
-            IrOpCode::Div           => write!(f, "div"),
-            IrOpCode::Pow           => write!(f, "pow"),
-            IrOpCode::Mod           => write!(f, "mod"),
-            IrOpCode::And           => write!(f, "and"),
-            IrOpCode::Or            => write!(f, "or"),
-            IrOpCode::Xor           => write!(f, "xor"),
-            IrOpCode::Eq            => write!(f, "eq"),
-            IrOpCode::Ne            => write!(f, "ne"),
-            IrOpCode::Lt            => write!(f, "lt"),
-            IrOpCode::Le            => write!(f, "le"),
-            IrOpCode::Gt            => write!(f, "gt"),
-            IrOpCode::Ge            => write!(f, "ge"),
-            IrOpCode::IfLt          => write!(f, "iflt"),
-            IrOpCode::IfGt          => write!(f, "ifgt"),
-            IrOpCode::IfLe          => write!(f, "ifle"),
-            IrOpCode::IfGe          => write!(f, "ifge"),
-            IrOpCode::IfEq          => write!(f, "ifeq"),
-            IrOpCode::IfNe          => write!(f, "ifne"),
-            IrOpCode::Param         => write!(f, "param"),
-            IrOpCode::Call          => write!(f, "call"),
-            IrOpCode::Return        => write!(f, "return"),
-            IrOpCode::Label         => write!(f, "label"),
-            IrOpCode::Jump          => write!(f, "jump"),
-            IrOpCode::Prologue      => write!(f, "prologue"),
-            IrOpCode::Epilogue      => write!(f, "epilogue\n"),
-        }
-    }
-}
-
 pub fn create_ir_builder<'a>() -> IrBuilder<'a> {
     IrBuilder {
         file: None,
@@ -321,11 +155,11 @@ pub fn create_ir_ident(symbol: Symbol, index: u32) -> IrIdent {
 
 fn create_ir_basic_block<'a>(
     ib: &mut IrBuilder<'a>,
-    enter: Option<IrIdent>, 
+    enter: Option<IrIdent>,
     exit: Option<IrIdent>,
     is_foreign: bool
 ) -> IrBasicBlock {
-    
+
     fn unique_bb_label<'a>(ib: &mut IrBuilder<'a>) -> IrIdent {
         let label = IrIdent {
             symbol: ib.basic_block_symbol,
@@ -334,7 +168,7 @@ fn create_ir_basic_block<'a>(
         ib.basic_block_index += 1;
         return label;
     }
-    
+
     IrBasicBlock {
         prologue_index: 0,
         epilogue_index: 0,
@@ -439,7 +273,7 @@ pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
                         "debug_break" => {
                             continue; // dont't generate NULL function address, should be callable
                         }
-                        
+
                         // NOTE: trace - interpreter level intrinsic
                         "trace" => {
                             0usize // should never be called, NULL function address
@@ -478,7 +312,7 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
             ib.register_index = 0;
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Label,
+                opcode: IrOpcode::Label,
                 op1: IrOperand::Ident(enter_label),
                 span: func.decl.span,
                 ..Default::default()
@@ -486,15 +320,14 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
 
             let prologue_index = ib.instructions.len();
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Prologue,
+                opcode: IrOpcode::Prologue,
                 ..Default::default()
             });
 
             build_ir_from_block(ib, &func.block);
 
-            
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Label,
+                opcode: IrOpcode::Label,
                 op1: IrOperand::Ident(exit_label),
                 span: func.span,
                 ..Default::default()
@@ -502,7 +335,7 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
 
             let epilogue_index = ib.instructions.len();
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Epilogue,
+                opcode: IrOpcode::Epilogue,
                 ..Default::default()
             });
 
@@ -534,7 +367,7 @@ pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOper
             (IrOperand::None, IrType::None)
         } else {
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Return,
+                opcode: IrOpcode::Return,
                 op1: last_op,
                 ty: last_ty,
                 span: block.span,
@@ -558,7 +391,7 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
             };
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Alloca,
+                opcode: IrOpcode::Alloca,
                 op1,
                 op2,
                 ty: init_type,
@@ -582,27 +415,27 @@ fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, 
     let mut opcode = match cond {
         Expr::Binary(binary) => {
             let opcode = match binary.op {
-                BinOp::Lt => IrOpCode::IfGe,
-                BinOp::Gt => IrOpCode::IfLe,
-                BinOp::Le => IrOpCode::IfGt,
-                BinOp::Ge => IrOpCode::IfLt,
-                BinOp::Eq => IrOpCode::IfNe,
-                BinOp::Ne => IrOpCode::IfEq,
-                _ => IrOpCode::Nop,
+                BinOp::Lt => IrOpcode::IfGe,
+                BinOp::Gt => IrOpcode::IfLe,
+                BinOp::Le => IrOpcode::IfGt,
+                BinOp::Ge => IrOpcode::IfLt,
+                BinOp::Eq => IrOpcode::IfNe,
+                BinOp::Ne => IrOpcode::IfEq,
+                _ => IrOpcode::Nop,
             };
 
-            if let IrOpCode::Nop = opcode {
+            if let IrOpcode::Nop = opcode {
             } else {
                 op1 = build_ir_from_expr(ib, &binary.left).0;
                 op2 = build_ir_from_expr(ib, &binary.right).0;
             }
             opcode
         }
-        _ => IrOpCode::Nop,
+        _ => IrOpcode::Nop,
     };
 
-    if let IrOpCode::Nop = opcode {
-        opcode = IrOpCode::IfEq;
+    if let IrOpcode::Nop = opcode {
+        opcode = IrOpcode::IfEq;
         op1 = build_ir_from_expr(ib, cond).0;
         op2 = IrOperand::Value(IrValue::Bool(false));
     }
@@ -620,14 +453,14 @@ fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, 
 pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand, IrType) {
     match expr {
         Expr::Assign(assign) => {
-            let mut opcode = IrOpCode::Copy;
+            let mut opcode = IrOpcode::Copy;
 
             let (op2, ty) = build_ir_from_expr(ib, &assign.right);
             let op1 = match &*assign.left {
                 Expr::Ident(ident) => IrOperand::Ident(create_ir_ident(ident.sym, 0)),
                 Expr::Unary(unary) => {
                     if let UnOp::Deref = unary.op {
-                        opcode = IrOpCode::CopyToDeref;
+                        opcode = IrOpcode::CopyToDeref;
                     } else {
                         panic!("expected dereference");
                     }
@@ -652,20 +485,20 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             let op2 = build_ir_from_expr(ib, &binary.left).0;
             let op3 = build_ir_from_expr(ib, &binary.right).0;
             let (opcode, ty) = match binary.op {
-                BinOp::Add => (IrOpCode::Add, IrType::I32),
-                BinOp::Sub => (IrOpCode::Sub, IrType::I32),
-                BinOp::Mul => (IrOpCode::Mul, IrType::I32),
-                BinOp::Div => (IrOpCode::Div, IrType::I32),
-                BinOp::Pow => (IrOpCode::Pow, IrType::I32),
-                BinOp::Mod => (IrOpCode::Mod, IrType::I32),
-                BinOp::And => (IrOpCode::And, IrType::I8),
-                BinOp::Or  => (IrOpCode::Or,  IrType::I8),
-                BinOp::Eq  => (IrOpCode::Eq,  IrType::I8),
-                BinOp::Ne  => (IrOpCode::Ne,  IrType::I8),
-                BinOp::Lt  => (IrOpCode::Lt,  IrType::I8),
-                BinOp::Le  => (IrOpCode::Le,  IrType::I8),
-                BinOp::Gt  => (IrOpCode::Gt,  IrType::I8),
-                BinOp::Ge  => (IrOpCode::Ge,  IrType::I8),
+                BinOp::Add => (IrOpcode::Add, IrType::I32),
+                BinOp::Sub => (IrOpcode::Sub, IrType::I32),
+                BinOp::Mul => (IrOpcode::Mul, IrType::I32),
+                BinOp::Div => (IrOpcode::Div, IrType::I32),
+                BinOp::Pow => (IrOpcode::Pow, IrType::I32),
+                BinOp::Mod => (IrOpcode::Mod, IrType::I32),
+                BinOp::And => (IrOpcode::And, IrType::I8),
+                BinOp::Or  => (IrOpcode::Or,  IrType::I8),
+                BinOp::Eq  => (IrOpcode::Eq,  IrType::I8),
+                BinOp::Ne  => (IrOpcode::Ne,  IrType::I8),
+                BinOp::Lt  => (IrOpcode::Lt,  IrType::I8),
+                BinOp::Le  => (IrOpcode::Le,  IrType::I8),
+                BinOp::Gt  => (IrOpcode::Gt,  IrType::I8),
+                BinOp::Ge  => (IrOpcode::Ge,  IrType::I8),
             };
 
             ib.instructions.push(IrInstruction {
@@ -676,7 +509,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 ty,
                 span: binary.span,
             });
-            
+
             (op1, ty)
         }
 
@@ -684,7 +517,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
         Expr::Break(break_expr) => {
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Jump,
+                opcode: IrOpcode::Jump,
                 op1: IrOperand::Ident(create_ir_ident(ib.while_exit_symbol, ib.while_exit_index - 1)),
                 span: break_expr.span,
                 ..Default::default()
@@ -694,7 +527,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
         Expr::Continue(cont_expr) => {
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Jump,
+                opcode: IrOpcode::Jump,
                 op1: IrOperand::Ident(create_ir_ident(ib.while_enter_symbol, ib.while_enter_index - 1)),
                 span: cont_expr.span,
                 ..Default::default()
@@ -708,7 +541,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             for arg in &call.args {
                 let (op1, ty) = build_ir_from_expr(ib, &arg);
                 ib.instructions.push(IrInstruction {
-                    opcode: IrOpCode::Param,
+                    opcode: IrOpcode::Param,
                     op1,
                     ty,
                     span: arg.get_span(),
@@ -738,10 +571,10 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
                 None => (IrOperand::Ident(function_label), IrType::None),
             };
-            
+
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Call,
-                op1, 
+                opcode: IrOpcode::Call,
+                op1,
                 op2,
                 op3: IrOperand::Value(IrValue::I32(param_size)),
                 ty: return_type,
@@ -775,13 +608,13 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
             if false_label == else_label {
                 ib.instructions.push(IrInstruction {
-                    opcode: IrOpCode::Jump,
+                    opcode: IrOpcode::Jump,
                     op1: IrOperand::Ident(exit_label),
                     ..Default::default()
                 });
 
                 ib.instructions.push(IrInstruction {
-                    opcode: IrOpCode::Label,
+                    opcode: IrOpcode::Label,
                     op1: IrOperand::Ident(false_label),
                     ..Default::default()
                 });
@@ -792,7 +625,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             }
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Label,
+                opcode: IrOpcode::Label,
                 op1: IrOperand::Ident(exit_label),
                 ..Default::default()
             });
@@ -821,7 +654,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             };
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::CopyFromRef,
+                opcode: IrOpcode::CopyFromRef,
                 op1,
                 op2,
                 ty: ref_ty,
@@ -839,7 +672,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             };
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Return,
+                opcode: IrOpcode::Return,
                 op1,
                 ty,
                 span: return_expr.span,
@@ -856,14 +689,14 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                     let op1 = allocate_register(ib);
 
                     ib.instructions.push(IrInstruction {
-                        opcode: IrOpCode::Clear,
+                        opcode: IrOpcode::Clear,
                         op1,
                         ty,
                         ..Default::default()
                     });
 
                     ib.instructions.push(IrInstruction {
-                        opcode: IrOpCode::Sub,
+                        opcode: IrOpcode::Sub,
                         op1,
                         op2,
                         ty,
@@ -877,7 +710,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 UnOp::Not => {
                     let (op1, ty) = build_ir_from_expr(ib, &unary.expr);
                     ib.instructions.push(IrInstruction {
-                        opcode: IrOpCode::Xor,
+                        opcode: IrOpcode::Xor,
                         op1,
                         op2: IrOperand::Value(IrValue::Bool(true)),
                         ty,
@@ -914,7 +747,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                         IrType::None => panic!("missing type info"),
                     };
                     ib.instructions.push(IrInstruction {
-                        opcode: IrOpCode::CopyFromDeref,
+                        opcode: IrOpcode::CopyFromDeref,
                         op1,
                         op2,
                         ty,
@@ -934,7 +767,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             ib.while_exit_index += 1;
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Label,
+                opcode: IrOpcode::Label,
                 op1: IrOperand::Ident(enter_label),
                 ..Default::default()
             });
@@ -944,18 +777,184 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             build_ir_from_block(ib, &while_expr.block);
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Jump,
+                opcode: IrOpcode::Jump,
                 op1: IrOperand::Ident(enter_label),
                 ..Default::default()
             });
 
             ib.instructions.push(IrInstruction {
-                opcode: IrOpCode::Label,
+                opcode: IrOpcode::Label,
                 op1: IrOperand::Ident(exit_label),
                 ..Default::default()
             });
 
             (IrOperand::None, IrType::None)
+        }
+    }
+}
+
+impl Default for IrInstruction {
+    fn default() -> Self {
+        IrInstruction {
+            opcode: IrOpcode::Nop,
+            op1: IrOperand::None,
+            op2: IrOperand::None,
+            op3: IrOperand::None,
+            ty: IrType::None,
+            span: Span::new(),
+        }
+    }
+}
+
+impl fmt::Display for IrBuilder<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for insn in &self.instructions {
+            match insn.opcode {
+                IrOpcode::Label => if let IrOperand::Ident(ident) = insn.op1 {
+                    write!(f, "{}:\n", ident)?;
+                } else {
+                    write!(f, "{}:\n", insn.op1)?;
+                }
+
+                _ => write!(f, "    {}\n", insn)?,
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for IrInstruction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.opcode {
+            IrOpcode::Nop        |
+            IrOpcode::IfLt       |
+            IrOpcode::IfGt       |
+            IrOpcode::IfLe       |
+            IrOpcode::IfGe       |
+            IrOpcode::IfEq       |
+            IrOpcode::IfNe       |
+            IrOpcode::Param      |
+            IrOpcode::Return     |
+            IrOpcode::Label      |
+            IrOpcode::Jump       |
+            IrOpcode::Prologue   |
+            IrOpcode::Epilogue   => {
+                write!(f, "{}", self.opcode)?;
+                if let IrType::None = self.ty {
+                } else {
+                    write!(f, " {}", self.ty)?;
+                }
+                write!(f, " {}", self.op1)?;
+                if let IrOperand::None = self.op2 {
+                } else {
+                    write!(f, ", {}", self.op2)?;
+                    if let IrOperand::None = self.op3 {
+                    } else {
+                        write!(f, ", {}", self.op3)?;
+                    }
+                }
+            }
+
+            _ => {
+                write!(f, "{} = {}", self.op1, self.opcode)?;
+                if let IrType::None = self.ty {
+                } else {
+                    write!(f, " {}", self.ty)?;
+                }
+                if let IrOperand::None = self.op2 {
+                } else {
+                    write!(f, " {}", self.op2)?;
+                    if let IrOperand::None = self.op3 {
+                    } else {
+                        write!(f, ", {}", self.op3)?;
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for IrType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IrType::I8        => write!(f, "i8"),
+            IrType::I32       => write!(f, "i32"),
+            IrType::I64       => write!(f, "i64"),
+            IrType::U32       => write!(f, "u32"),
+            IrType::U64       => write!(f, "u64"),
+            IrType::PtrI8(i)  => write!(f, "i8{}", "*".repeat(*i as usize)),
+            IrType::PtrI32(i) => write!(f, "i32{}", "*".repeat(*i as usize)),
+            IrType::None      => write!(f, ""),
+        }
+    }
+}
+
+impl fmt::Display for IrIdent {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = resolve_symbol(self.symbol);
+        if self.index > 0 || s.len() == 0  {
+            write!(f, "{}{}", s, self.index)
+        } else {
+            write!(f, "{}", s)
+        }
+    }
+}
+
+impl fmt::Display for IrOperand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self {
+            IrOperand::Ident(label) => write!(f, "%{}", label),
+            IrOperand::Value(val) => match val {
+                IrValue::I32(v) => write!(f, "{}", v),
+                IrValue::U32(v) => write!(f, "{}", v),
+                IrValue::U64(v) => write!(f, "{}", v),
+                IrValue::Bool(v) => write!(f, "{}", v),
+            }
+            IrOperand::None => write!(f, ""),
+        }
+    }
+}
+
+impl fmt::Display for IrOpcode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IrOpcode::Nop           => write!(f, "nop"),
+            IrOpcode::Alloca        => write!(f, "alloca"),
+            IrOpcode::Copy          => write!(f, "copy"),
+            IrOpcode::CopyFromRef   => write!(f, "copy_from_ref"),
+            IrOpcode::CopyFromDeref => write!(f, "copy_from_deref"),
+            IrOpcode::CopyToDeref   => write!(f, "copy_to_deref"),
+            IrOpcode::Clear         => write!(f, "clear"),
+            IrOpcode::Add           => write!(f, "add"),
+            IrOpcode::Sub           => write!(f, "sub"),
+            IrOpcode::Mul           => write!(f, "mul"),
+            IrOpcode::Div           => write!(f, "div"),
+            IrOpcode::Pow           => write!(f, "pow"),
+            IrOpcode::Mod           => write!(f, "mod"),
+            IrOpcode::And           => write!(f, "and"),
+            IrOpcode::Or            => write!(f, "or"),
+            IrOpcode::Xor           => write!(f, "xor"),
+            IrOpcode::Eq            => write!(f, "eq"),
+            IrOpcode::Ne            => write!(f, "ne"),
+            IrOpcode::Lt            => write!(f, "lt"),
+            IrOpcode::Le            => write!(f, "le"),
+            IrOpcode::Gt            => write!(f, "gt"),
+            IrOpcode::Ge            => write!(f, "ge"),
+            IrOpcode::IfLt          => write!(f, "iflt"),
+            IrOpcode::IfGt          => write!(f, "ifgt"),
+            IrOpcode::IfLe          => write!(f, "ifle"),
+            IrOpcode::IfGe          => write!(f, "ifge"),
+            IrOpcode::IfEq          => write!(f, "ifeq"),
+            IrOpcode::IfNe          => write!(f, "ifne"),
+            IrOpcode::Param         => write!(f, "param"),
+            IrOpcode::Call          => write!(f, "call"),
+            IrOpcode::Return        => write!(f, "return"),
+            IrOpcode::Label         => write!(f, "label"),
+            IrOpcode::Jump          => write!(f, "jump"),
+            IrOpcode::Prologue      => write!(f, "prologue"),
+            IrOpcode::Epilogue      => write!(f, "epilogue\n"),
         }
     }
 }

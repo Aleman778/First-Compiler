@@ -30,6 +30,42 @@ struct X86JumpTarget {
 }
 
 #[derive(Debug, Clone, Copy)]
+enum X86Opcode {
+    NOP,
+    MOV,
+    MOVSX,
+    LEA,
+    ADD,
+    SUB,
+    IMUL,
+    IDIV,
+    AND,
+    OR,
+    XOR,
+    CDQ,
+    CMP,
+    TEST,
+    SETL,
+    SETG,
+    SETLE,
+    SETGE,
+    SETE,
+    SETNE,
+    JL,
+    JLE,
+    JG,
+    JGE,
+    JE,
+    JNE,
+    JMP,
+    PUSH,
+    POP,
+    CALL,
+    RET,
+    INT3,
+}
+
+#[derive(Debug, Clone, Copy)]
 enum X86Operand {
     Stack(isize),
     Register(X86Reg),
@@ -156,7 +192,11 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     x86.machine_code.push(modrm(6, reg_id(X86Reg::RBP)));
 
     // mov rbp rsp
-    push_move(x86, IrType::I64, X86Operand::Register(X86Reg::RBP), X86Operand::Register(X86Reg::RSP));
+    push_instruction(x86,
+                     X86Opcode::MOV,
+                     IrType::I64,
+                     X86Operand::Register(X86Reg::RBP),
+                     X86Operand::Register(X86Reg::RSP));
 
     // sub rsp x (gets filled in later, if needed)
     let sub_byte_pos = x86.machine_code.len();
@@ -169,33 +209,50 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
     for (i, insn) in insns.iter().enumerate() {
         match insn.opcode {
-            IrOpCode::Nop => {
+            IrOpcode::Nop => {
                 x86.machine_code.push(0x90);
             }
 
-            IrOpCode::Alloca => {
+            IrOpcode::Alloca => {
                 curr_stack_offset -= size_of_ir_type(insn.ty, x86.addr_size);
                 let dst = X86Operand::Stack(curr_stack_offset);
                 let src = to_x86_operand(&variables, insn.op2);
-                push_move(x86, insn.ty, dst, src);
+                push_instruction(x86, X86Opcode::MOV, insn.ty, dst, src);
                 insert_variable(&mut variables, insn.op1, src);
             }
 
-            IrOpCode::Copy => {
+            IrOpcode::Copy => {
                 let dst = to_x86_operand(&variables, insn.op1);
                 let src = to_x86_operand(&variables, insn.op2);
-                push_move(x86, insn.ty, dst, src);
+                push_instruction(x86, X86Opcode::MOV, insn.ty, dst, src);
                 insert_variable(&mut variables, insn.op1, src);
             }
 
-            IrOpCode::Return => {
+            IrOpcode::Add => {
+                let lhs = to_x86_operand(&variables, insn.op2);
+                let rhs = to_x86_operand(&variables, insn.op3);
+                push_instruction(x86, X86Opcode::ADD, insn.ty, lhs, rhs);
+                insert_variable(&mut variables, insn.op1, lhs);
+            }
+
+            IrOpcode::Call => {
+                if let IrOperand::Ident(ident) = insn.op2 {
+                    if (ident.symbol == x86.debug_break_symbol) {
+                        x86.machine_code.push(0xcc);
+                    }
+                }
+
+            }
+
+
+            IrOpcode::Return => {
                 // Store return value in RAX
                 if let IrOperand::None = insn.op1 {
                 } else {
                     let src = to_x86_operand(&variables, insn.op1);
                     if let X86Operand::Register(X86Reg::RAX) = src {
                     } else {
-                        push_move(x86, insn.ty, X86Operand::Register(X86Reg::RAX), src);
+                        push_instruction(x86, X86Opcode::MOV, insn.ty, X86Operand::Register(X86Reg::RAX), src);
                     }
                 }
 
@@ -205,15 +262,6 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     let jt = get_mut_x86_jump_target(x86, bb.exit_label);
                     jt.jumps.push(pos);
                 }
-            }
-
-            IrOpCode::Call => {
-                if let IrOperand::Ident(ident) = insn.op2 {
-                    if (ident.symbol == x86.debug_break_symbol) {
-                        x86.machine_code.push(0xcc);
-                    }
-                }
-
             }
 
             _ => {},
@@ -256,7 +304,7 @@ fn get_mut_x86_jump_target<'a>(x86: &'a mut X86Assembler, label: IrIdent) -> &'a
  * Machine code builder helpers
  ***************************************************************************/
 
-fn push_move(x86: &mut X86Assembler, ty: IrType, dst: X86Operand, src: X86Operand) {
+fn push_instruction(x86: &mut X86Assembler, opcode: X86Opcode, ty: IrType, dst: X86Operand, src: X86Operand) {
     let opcode_offset = match ty {
         IrType::I8 => 1,
         IrType::I64 |
@@ -266,49 +314,94 @@ fn push_move(x86: &mut X86Assembler, ty: IrType, dst: X86Operand, src: X86Operan
         },
         _ => 0,
     };
+    
     match (dst, src) {
         (X86Operand::Stack(disp1), X86Operand::Stack(disp2)) => {
             let reg = X86Reg::RAX; // TODO(alexander): properly select a free scratch register
-            x86.machine_code.push(0x8b - opcode_offset); // RM
+            x86.machine_code.push(get_RM_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp2));
             push_displacement(x86, disp2);
 
-            x86.machine_code.push(0x89 - opcode_offset); // MR
+            x86.machine_code.push(get_MR_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp1));
             push_displacement(x86, disp1);
         }
         
         (X86Operand::Stack(disp), X86Operand::Register(reg)) => {
-            x86.machine_code.push(0x89 - opcode_offset); // MR
+            x86.machine_code.push(get_RM_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
             push_displacement(x86, disp);
         }
 
         (X86Operand::Stack(disp), X86Operand::Value(val)) => {
-            x86.machine_code.push(0xc7 - opcode_offset); // MI
-            x86.machine_code.push(modrm_disp(0, reg_id(X86Reg::RBP), disp));
+            let (opcode, opcode_reg) = get_MI_opcode(opcode, opcode_offset);
+            x86.machine_code.push(opcode);
+            x86.machine_code.push(modrm_disp(opcode_reg, reg_id(X86Reg::RBP), disp));
             push_displacement(x86, disp);
             push_immediate(x86, val);
         }
 
         (X86Operand::Register(reg), X86Operand::Stack(disp)) => {
-            x86.machine_code.push(0x8b - opcode_offset); // RM
+            x86.machine_code.push(get_RM_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
             push_displacement(x86, disp);
         }
 
         (X86Operand::Register(reg1), X86Operand::Register(reg2)) => {
-            x86.machine_code.push(0x8b - opcode_offset); // RM
+            x86.machine_code.push(get_RM_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm(reg_id(reg1), reg_id(reg2)));
         }
 
         (X86Operand::Register(reg), X86Operand::Value(val)) => {
-            x86.machine_code.push(0xc7 - opcode_offset); // MI
-            x86.machine_code.push(modrm(0, reg_id(reg)));
+            let (opcode, opcode_reg) = get_MI_opcode(opcode, opcode_offset);
+            x86.machine_code.push(opcode);
+            x86.machine_code.push(modrm(opcode_reg, reg_id(reg)));
             push_immediate(x86, val);
         }
 
-        _ => panic!("x86: cannot move to value operand"),
+        _ => panic!("x86: cannot store to value operand"),
+    }
+}
+
+fn get_MR_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8{
+    match opcode {
+        X86Opcode::MOV  => 0x89 - opcode_offset,
+        X86Opcode::ADD  => 0x01 - opcode_offset,
+        X86Opcode::SUB  => 0x29 - opcode_offset,
+        X86Opcode::AND  => 0x20 - opcode_offset,
+        X86Opcode::OR   => 0x08 - opcode_offset,
+        X86Opcode::XOR  => 0x31 - opcode_offset,
+        X86Opcode::CMP  => 0x39 - opcode_offset,
+        X86Opcode::TEST => 0x84 - opcode_offset,
+        _ => unimplemented!(),
+    }
+}
+
+fn get_RM_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8 {
+    match opcode {
+        X86Opcode::MOV  => 0x8b - opcode_offset,
+        X86Opcode::ADD  => 0x03 - opcode_offset,
+        X86Opcode::SUB  => 0x2b - opcode_offset,
+        X86Opcode::AND  => 0x22 - opcode_offset,
+        X86Opcode::OR   => 0x0a - opcode_offset,
+        X86Opcode::XOR  => 0x33 - opcode_offset,
+        X86Opcode::CMP  => 0x3b - opcode_offset,
+        X86Opcode::TEST => 0x84 - opcode_offset,
+        _ => unimplemented!(),
+    }
+}
+
+fn get_MI_opcode(opcode: X86Opcode, opcode_offset: u8) -> (u8, u8) {
+    match opcode {
+        X86Opcode::MOV  => (0xc7 - opcode_offset, 0),
+        X86Opcode::ADD  => (0x81 - opcode_offset, 0),
+        X86Opcode::SUB  => (0x81 - opcode_offset, 5),
+        X86Opcode::AND  => (0x81 - opcode_offset, 4),
+        X86Opcode::OR   => (0x81 - opcode_offset, 1),
+        X86Opcode::XOR  => (0x81 - opcode_offset, 6),
+        X86Opcode::CMP  => (0x81 - opcode_offset, 7),
+        X86Opcode::TEST => (0xf6 - opcode_offset, 0),
+        _ => unimplemented!(),
     }
 }
 

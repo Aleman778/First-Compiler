@@ -1,5 +1,7 @@
 fn main() -> i32 {
-    let x: i32 = 10;
+    let mut x: i32 = 10;
+    let mut y: i32 = 10;
+    x = x + y + 21;
     return x;
 }
 
