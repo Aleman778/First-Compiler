@@ -515,13 +515,6 @@ pub fn compile_x86_ir_instruction(x86: &mut X86Assembler, ir_insn: &IrInstructio
             // NOTE(alexander): is it even worth pushing a NOP?
         },
 
-        IrOpCode::Breakpoint => {
-            let mut insn = create_x86_instruction();
-            insn.opcode = X86OpCode::INT3;
-            insn.encoding = X86OpEn::ZO;
-            x86.instructions.push(insn);
-        }
-
         IrOpCode::Copy => {
             let mut insn = create_x86_instruction();
             insn.opcode = X86OpCode::MOV;

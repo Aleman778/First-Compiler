@@ -21,7 +21,22 @@ pub fn get_intrinsic_ast_items() -> Item {
                         span: Span::new(),
                     }
                 ),
-                
+
+                Item::ForeignFn(
+                    ForeignFnItem {
+                        ident: ExprIdent {
+                            sym: intern_string("debug_break"),
+                            span: Span::new(),
+                        },
+                        decl: FnDecl {
+                            inputs: vec![],
+                            output: Ty::default(),
+                            span: Span::new(),
+                        },
+                        span: Span::new(),
+                    }
+                ),
+
                 Item::ForeignFn(
                     ForeignFnItem {
                         ident: ExprIdent {

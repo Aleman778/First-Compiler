@@ -1,12 +1,14 @@
 use std::collections::HashMap;
 // use std::convert::TryInto;
-use crate::ast::intern_string;
+use crate::ast::{Symbol, intern_string};
 use crate::ir::*;
 
 struct X86Assembler {
     machine_code: Vec<u8>,
     functions: HashMap<IrIdent, X86Function>,
     jump_targets: HashMap<IrIdent, X86JumpTarget>,
+    debug_break_symbol: Symbol,
+    addr_size: isize,
 }
 
 struct X86Function {
@@ -69,6 +71,8 @@ pub fn compile_ir_to_x86_machine_code(
         machine_code: Vec::new(),
         functions: HashMap::new(),
         jump_targets: HashMap::new(),
+        debug_break_symbol: intern_string("debug_break"),
+        addr_size: std::mem::size_of::<usize>() as isize,
     };
 
     // Register all functions
@@ -123,6 +127,8 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             
             IrOperand::Value(value) => match value {
                 IrValue::I32(v)  => X86Operand::Value(X86Value::Int32(v)),
+                IrValue::U32(v)  => X86Operand::Value(X86Value::Int32(v as i32)),
+                IrValue::U64(v)  => X86Operand::Value(X86Value::Int64(v as i64)),
                 IrValue::Bool(v) => X86Operand::Value(X86Value::Int8(v as i8)),
             }
             
@@ -130,7 +136,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
         }
     }
 
-    fn insert_variable(variables: &HashMap<IrIdent, X86Operand>, dst: IrOperand, src: X86Operand) {
+    fn insert_variable(variables: &mut HashMap<IrIdent, X86Operand>, dst: IrOperand, src: X86Operand) {
         match dst {
             IrOperand::Ident(ident) => {
                 variables.insert(ident, src);
@@ -140,8 +146,9 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     }
 
     // Setup enter jump target
+    let base_pos = x86.machine_code.len();
     let jt = get_mut_x86_jump_target(x86, bb.enter_label);
-    jt.pos = x86.machine_code.len();
+    jt.pos = base_pos;
 
     // Prologue
     // push rbp
@@ -155,9 +162,9 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     let sub_byte_pos = x86.machine_code.len();
 
     // Function body
-    let require_stack_frame = false;
-    let curr_stack_offset = 0;
-    let variables = HashMap::new();
+    let mut variables = HashMap::new();
+    let mut require_stack_frame = false;
+    let mut curr_stack_offset = 0isize;
     let num_insns = insns.len();
 
     for (i, insn) in insns.iter().enumerate() {
@@ -166,11 +173,8 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 x86.machine_code.push(0x90);
             }
 
-            IrOpCode::Breakpoint => {
-                x86.machine_code.push(0xcc);
-            }
-
             IrOpCode::Alloca => {
+                curr_stack_offset -= size_of_ir_type(insn.ty, x86.addr_size);
                 let dst = X86Operand::Stack(curr_stack_offset);
                 let src = to_x86_operand(&variables, insn.op2);
                 push_move(x86, insn.ty, dst, src);
@@ -202,12 +206,24 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     jt.jumps.push(pos);
                 }
             }
+
+            IrOpCode::Call => {
+                if let IrOperand::Ident(ident) = insn.op2 {
+                    if (ident.symbol == x86.debug_break_symbol) {
+                        x86.machine_code.push(0xcc);
+                    }
+                }
+
+            }
+
+            _ => {},
         }
     }
 
     // Setup exit jump target
+    let return_pos = x86.machine_code.len();
     let jt = get_mut_x86_jump_target(x86, bb.exit_label);
-    jt.pos = x86.machine_code.len();
+    jt.pos = return_pos;
 
     // Epilogue
     // TODO(alexander) add rsp x
@@ -243,31 +259,42 @@ fn get_mut_x86_jump_target<'a>(x86: &'a mut X86Assembler, label: IrIdent) -> &'a
 fn push_move(x86: &mut X86Assembler, ty: IrType, dst: X86Operand, src: X86Operand) {
     let opcode_offset = match ty {
         IrType::I8 => 1,
+        IrType::I64 |
+        IrType::U64 => {
+            x86.machine_code.push(REX_W);
+            0
+        },
         _ => 0,
     };
-    match (src, dst) {
+    match (dst, src) {
         (X86Operand::Stack(disp1), X86Operand::Stack(disp2)) => {
-            // TODO(alexander): move first to auxillary register
-            unimplemented!();
+            let reg = X86Reg::RAX; // TODO(alexander): properly select a free scratch register
+            x86.machine_code.push(0x8b - opcode_offset); // RM
+            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp2));
+            push_displacement(x86, disp2);
+
+            x86.machine_code.push(0x89 - opcode_offset); // MR
+            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp1));
+            push_displacement(x86, disp1);
         }
         
         (X86Operand::Stack(disp), X86Operand::Register(reg)) => {
             x86.machine_code.push(0x89 - opcode_offset); // MR
-            x86.machine_code.push(modrm_disp(reg_id(X86Reg::RBP), reg_id(reg), disp));
-            push_displacement(disp);
+            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
+            push_displacement(x86, disp);
         }
 
         (X86Operand::Stack(disp), X86Operand::Value(val)) => {
             x86.machine_code.push(0xc7 - opcode_offset); // MI
-            x86.machine_code.push(modrm_disp(reg_id(X86Reg::RBP), 0, disp));
-            push_displacement(disp);
-            push_immeidate(val);
+            x86.machine_code.push(modrm_disp(0, reg_id(X86Reg::RBP), disp));
+            push_displacement(x86, disp);
+            push_immediate(x86, val);
         }
 
         (X86Operand::Register(reg), X86Operand::Stack(disp)) => {
             x86.machine_code.push(0x8b - opcode_offset); // RM
-            x86.machine_code.push(modrm_disp(reg_id(X86Reg::RBP), reg_id(reg), disp));
-            push_displacement(disp);
+            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
+            push_displacement(x86, disp);
         }
 
         (X86Operand::Register(reg1), X86Operand::Register(reg2)) => {
@@ -277,8 +304,8 @@ fn push_move(x86: &mut X86Assembler, ty: IrType, dst: X86Operand, src: X86Operan
 
         (X86Operand::Register(reg), X86Operand::Value(val)) => {
             x86.machine_code.push(0xc7 - opcode_offset); // MI
-            x86.machine_code.push(modrm(reg_id(X86Reg::RBP), 0));
-            push_immediate(val);
+            x86.machine_code.push(modrm(0, reg_id(reg)));
+            push_immediate(x86, val);
         }
 
         _ => panic!("x86: cannot move to value operand"),
@@ -286,21 +313,23 @@ fn push_move(x86: &mut X86Assembler, ty: IrType, dst: X86Operand, src: X86Operan
 }
 
 fn push_displacement(x86: &mut X86Assembler, disp: isize) {
-    if offset < -128 && offset > 127 {
-        let v: i32 = disp.try_into(disp).unwrap();
+    if disp < -128 && disp > 127 {
+        let v = disp as i32;
         x86.machine_code.push((v         & 0xFFi32) as u8);
         x86.machine_code.push(((v >> 8)  & 0xFFi32) as u8);
         x86.machine_code.push(((v >> 16) & 0xFFi32) as u8);
         x86.machine_code.push(((v >> 24) & 0xFFi32) as u8);
     } else {
-        let v: i8 = disp.try_into(disp).unwrap();
+        let v = disp as i8;
         x86.machine_code.push(v as u8);
     }
 }
 
 fn push_immediate(x86: &mut X86Assembler, immediate: X86Value) {
     match immediate {
-        X86Value::Int8(v) => x86.machine_code.push(v as u8),
+        X86Value::Int8(v) => {
+            x86.machine_code.push(v as u8);
+        }
         X86Value::Int32(v) => {
             x86.machine_code.push((v         & 0xFFi32) as u8);
             x86.machine_code.push(((v >> 8)  & 0xFFi32) as u8);
@@ -341,16 +370,19 @@ fn reg_id(reg: X86Reg) -> u8 {
     }
 }
 
+const REX:   u8 = 0b01000000;
+const REX_W: u8 = 0b01001000;
+
 #[inline]
 fn modrm(reg: u8, rm: u8) -> u8 {
-    return (0b11u8 << 6) | (reg << 3) | rm;
+    return 0b11000000 | (reg << 3) | rm;
 }
 
 #[inline]
 fn modrm_disp(reg: u8, rm: u8, disp: isize) -> u8 {
-    if offset < -128 && offset > 127 {
-        return (0b10u8 << 6) | (reg << 3) | rm;
+    if disp < -128 && disp > 127 {
+        return 0b10000000 | (reg << 3) | rm;
     } else {
-        return (0b01u8 << 6) | (reg << 3) | rm;
+        return 0b01000000 | (reg << 3) | rm;
     }
 }

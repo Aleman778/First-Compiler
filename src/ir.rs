@@ -58,7 +58,6 @@ pub struct IrInstruction {
 #[derive(Debug, Clone, PartialEq)]
 pub enum IrOpCode {
     Nop,
-    Breakpoint,
     Alloca, // op1 := alloca(op2)
     Copy, // op1 := op2
     CopyFromDeref, // op1 := *op2
@@ -162,7 +161,6 @@ impl fmt::Display for IrInstruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.opcode {
             IrOpCode::Nop        |
-            IrOpCode::Breakpoint |
             IrOpCode::IfLt       |
             IrOpCode::IfGt       |
             IrOpCode::IfLe       |
@@ -217,6 +215,7 @@ impl fmt::Display for IrType {
         match self {
             IrType::I8        => write!(f, "i8"),
             IrType::I32       => write!(f, "i32"),
+            IrType::I64       => write!(f, "i64"),
             IrType::U32       => write!(f, "u32"),
             IrType::U64       => write!(f, "u64"),
             IrType::PtrI8(i)  => write!(f, "i8{}", "*".repeat(*i as usize)),
@@ -256,7 +255,6 @@ impl fmt::Display for IrOpCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             IrOpCode::Nop           => write!(f, "nop"),
-            IrOpCode::Breakpoint    => write!(f, "breakpoint"),
             IrOpCode::Alloca        => write!(f, "alloca"),
             IrOpCode::Copy          => write!(f, "copy"),
             IrOpCode::CopyFromRef   => write!(f, "copy_from_ref"),
@@ -384,6 +382,7 @@ pub fn size_of_ir_type(ty: IrType, addr_size: isize) -> isize {
     match ty {
         IrType::I8 => 1,
         IrType::I32 => 4,
+        IrType::I64 => 8,
         IrType::U32 => 4,
         IrType::U64 => 8,
         IrType::PtrI8(_) |
@@ -394,7 +393,6 @@ pub fn size_of_ir_type(ty: IrType, addr_size: isize) -> isize {
 
 pub fn push_ir_breakpoint<'a>(ib: &mut IrBuilder<'a>) {
     ib.instructions.push(IrInstruction {
-        opcode: IrOpCode::Breakpoint,
         ..Default::default()
     });
 }
@@ -437,8 +435,14 @@ pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
                             intrinsics::assert_eq_bool as *const () as usize
                         }
 
+                        // NOTE: debug_break - backend level intrinsic
+                        "debug_break" => {
+                            continue; // dont't generate NULL function address, should be callable
+                        }
+                        
+                        // NOTE: trace - interpreter level intrinsic
                         "trace" => {
-                            0usize // NOTE(alexander): ignore trace, interpreter only function!
+                            0usize // should never be called, NULL function address
                         }
 
                         _ => panic!("unknown foreign function {}", func_ident),
@@ -715,37 +719,37 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             }
 
             // Make the function call
-            let op1 = allocate_register(ib);
             let function_label = create_ir_ident(call.ident.sym, 0);
-            match ib.functions.get(&function_label) {
+            let op1 = allocate_register(ib);
+            let (op2, return_type) = match ib.functions.get(&function_label) {
                 Some(bb) => {
-                    let op2 = if let Some(func_address) = bb.func_address {
+                    if let Some(func_address) = bb.func_address {
                         if ib.addr_size == 4 {
-                            IrOperand::Value(IrValue::U32(func_address as u32))
+                            (IrOperand::Value(IrValue::U32(func_address as u32)), bb.return_type)
                         } else if ib.addr_size == 8 {
-                            IrOperand::Value(IrValue::U64(func_address as u64))
+                            (IrOperand::Value(IrValue::U64(func_address as u64)), bb.return_type)
                         } else {
                             panic!("unsupported address size: `{}-bit`, expected 32- or 64-bit", ib.addr_size*8);
                         }
                     } else {
-                        IrOperand::Ident(function_label)
-                    };
-
-                    ib.instructions.push(IrInstruction {
-                        opcode: IrOpCode::Call,
-                        op1, 
-                        op2,
-                        op3: IrOperand::Value(IrValue::I32(param_size)),
-                        ty: bb.return_type,
-                        span: call.span,
-                        ..Default::default()
-                    });
-
-                    (op1, bb.return_type)
+                        (IrOperand::Ident(function_label), bb.return_type)
+                    }
                 }
 
-                None => panic!("failed to lookup function call"),
-            }
+                None => (IrOperand::Ident(function_label), IrType::None),
+            };
+            
+            ib.instructions.push(IrInstruction {
+                opcode: IrOpCode::Call,
+                op1, 
+                op2,
+                op3: IrOperand::Value(IrValue::I32(param_size)),
+                ty: return_type,
+                span: call.span,
+                ..Default::default()
+            });
+
+            (op1, return_type)
         }
 
         Expr::Ident(ident) => {
@@ -891,6 +895,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                     let ty = match op2_ty {
                         IrType::I8  |
                         IrType::I32 |
+                        IrType::I64 |
                         IrType::U32 |
                         IrType::U64 => panic!("cannot dereference non ref type"),
 

@@ -173,10 +173,7 @@ fn run_compiler(config: Config) {
 
     // Build low-level intermediate representation
     let mut ir_builder = create_ir_builder();
-    
-    // insert breakpoint at the beginning
-    // push_ir_breakpoint(&mut ir_builder);
-    
+
     // build lir
     build_ir_from_ast(&mut ir_builder, &ast);
     print!("\n\nIntermediate Representation:\n-----------------------------------------------\n{}", ir_builder);
@@ -206,18 +203,18 @@ fn run_compiler(config: Config) {
     //     winapi::um::debugapi::DebugBreak();
     // }
 
-    // let jit_code = allocate_jit_code(machine_code.len());
+    let jit_code = allocate_jit_code(machine_code.len());
     
-    // unsafe {
-    //     let src_len = machine_code.len();
-    //     let src_ptr = machine_code.as_ptr();
-    //     std::ptr::copy_nonoverlapping(src_ptr, jit_code.code, src_len);
-    // }
+    unsafe {
+        let src_len = machine_code.len();
+        let src_ptr = machine_code.as_ptr();
+        std::ptr::copy_nonoverlapping(src_ptr, jit_code.code, src_len);
+    }
     
-    // finalize_jit_code(&jit_code);
+    finalize_jit_code(&jit_code);
 
-    // println!("\nOutput from executing jitted code:");
-    // let ret = execute_jit_code(&jit_code);
-    // println!("\nProgram exited with code {}", ret);
-    // free_jit_code(&jit_code);
+    println!("\nOutput from executing jitted code:");
+    let ret = execute_jit_code(&jit_code);
+    println!("\nProgram exited with code {}", ret);
+    free_jit_code(&jit_code);
 }
