@@ -21,7 +21,7 @@ use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
-use crate::ir::{create_ir_builder, build_ir_from_ast, push_ir_breakpoint};
+use crate::ir::{create_ir_builder, build_ir_from_ast};
 use crate::x86::{compile_ir_to_x86_machine_code};
 use crate::jit::{allocate_jit_code, finalize_jit_code, free_jit_code, execute_jit_code};
 // use crate::llvm::codegen_test;

@@ -225,12 +225,6 @@ pub fn size_of_ir_type(ty: IrType, addr_size: isize) -> isize {
     }
 }
 
-pub fn push_ir_breakpoint<'a>(ib: &mut IrBuilder<'a>) {
-    ib.instructions.push(IrInstruction {
-        ..Default::default()
-    });
-}
-
 pub fn build_ir_from_ast<'a>(ib: &mut IrBuilder<'a>, file: &'a File) {
     ib.file = Some(file);
 

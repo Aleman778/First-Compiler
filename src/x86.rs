@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-// use std::convert::TryInto;
+use std::fmt;
 use crate::ast::{Symbol, intern_string};
 use crate::ir::*;
 
@@ -186,6 +186,8 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     let jt = get_mut_x86_jump_target(x86, bb.enter_label);
     jt.pos = base_pos;
 
+    // x86.machine_code.push(0xcc); // FIXME: debugging remove this
+
     // Prologue
     // push rbp
     x86.machine_code.push(0xff);
@@ -211,6 +213,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
         match insn.opcode {
             IrOpcode::Nop => {
                 x86.machine_code.push(0x90);
+                println!("nop");
             }
 
             IrOpcode::Alloca => {
@@ -218,14 +221,14 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 let dst = X86Operand::Stack(curr_stack_offset);
                 let src = to_x86_operand(&variables, insn.op2);
                 push_instruction(x86, X86Opcode::MOV, insn.ty, dst, src);
-                insert_variable(&mut variables, insn.op1, src);
+                insert_variable(&mut variables, insn.op1, dst);
             }
 
             IrOpcode::Copy => {
                 let dst = to_x86_operand(&variables, insn.op1);
                 let src = to_x86_operand(&variables, insn.op2);
                 push_instruction(x86, X86Opcode::MOV, insn.ty, dst, src);
-                insert_variable(&mut variables, insn.op1, src);
+                insert_variable(&mut variables, insn.op1, dst);
             }
 
             IrOpcode::Add => {
@@ -237,13 +240,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
             IrOpcode::Call => {
                 if let IrOperand::Ident(ident) = insn.op2 {
-                    if (ident.symbol == x86.debug_break_symbol) {
+                    if ident.symbol == x86.debug_break_symbol {
                         x86.machine_code.push(0xcc);
                     }
                 }
 
             }
-
 
             IrOpcode::Return => {
                 // Store return value in RAX
@@ -318,52 +320,59 @@ fn push_instruction(x86: &mut X86Assembler, opcode: X86Opcode, ty: IrType, dst: 
     match (dst, src) {
         (X86Operand::Stack(disp1), X86Operand::Stack(disp2)) => {
             let reg = X86Reg::RAX; // TODO(alexander): properly select a free scratch register
-            x86.machine_code.push(get_RM_opcode(opcode, opcode_offset));
+            x86.machine_code.push(get_rm_opcode(X86Opcode::MOV, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp2));
             push_displacement(x86, disp2);
+            print_instruction(x86, X86Opcode::MOV, ty, X86Operand::Register(reg), src);
 
-            x86.machine_code.push(get_MR_opcode(opcode, opcode_offset));
+            x86.machine_code.push(get_mr_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp1));
             push_displacement(x86, disp1);
+            print_instruction(x86, opcode, ty, dst, X86Operand::Register(reg));
         }
         
         (X86Operand::Stack(disp), X86Operand::Register(reg)) => {
-            x86.machine_code.push(get_RM_opcode(opcode, opcode_offset));
+            x86.machine_code.push(get_rm_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
             push_displacement(x86, disp);
+            print_instruction(x86, opcode, ty, dst, src);
         }
 
         (X86Operand::Stack(disp), X86Operand::Value(val)) => {
-            let (opcode, opcode_reg) = get_MI_opcode(opcode, opcode_offset);
-            x86.machine_code.push(opcode);
+            let (opcode_byte, opcode_reg) = get_mi_opcode(opcode, opcode_offset);
+            x86.machine_code.push(opcode_byte);
             x86.machine_code.push(modrm_disp(opcode_reg, reg_id(X86Reg::RBP), disp));
             push_displacement(x86, disp);
             push_immediate(x86, val);
+            print_instruction(x86, opcode, ty, dst, src);
         }
 
         (X86Operand::Register(reg), X86Operand::Stack(disp)) => {
-            x86.machine_code.push(get_RM_opcode(opcode, opcode_offset));
+            x86.machine_code.push(get_rm_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
             push_displacement(x86, disp);
+            print_instruction(x86, opcode, ty, dst, src);
         }
 
         (X86Operand::Register(reg1), X86Operand::Register(reg2)) => {
-            x86.machine_code.push(get_RM_opcode(opcode, opcode_offset));
+            x86.machine_code.push(get_rm_opcode(opcode, opcode_offset));
             x86.machine_code.push(modrm(reg_id(reg1), reg_id(reg2)));
+            print_instruction(x86, opcode, ty, dst, src);
         }
 
         (X86Operand::Register(reg), X86Operand::Value(val)) => {
-            let (opcode, opcode_reg) = get_MI_opcode(opcode, opcode_offset);
-            x86.machine_code.push(opcode);
+            let (opcode_byte, opcode_reg) = get_mi_opcode(opcode, opcode_offset);
+            x86.machine_code.push(opcode_byte);
             x86.machine_code.push(modrm(opcode_reg, reg_id(reg)));
             push_immediate(x86, val);
+            print_instruction(x86, opcode, ty, dst, src);
         }
 
         _ => panic!("x86: cannot store to value operand"),
     }
 }
 
-fn get_MR_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8{
+fn get_mr_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8{
     match opcode {
         X86Opcode::MOV  => 0x89 - opcode_offset,
         X86Opcode::ADD  => 0x01 - opcode_offset,
@@ -377,7 +386,7 @@ fn get_MR_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8{
     }
 }
 
-fn get_RM_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8 {
+fn get_rm_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8 {
     match opcode {
         X86Opcode::MOV  => 0x8b - opcode_offset,
         X86Opcode::ADD  => 0x03 - opcode_offset,
@@ -391,7 +400,7 @@ fn get_RM_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8 {
     }
 }
 
-fn get_MI_opcode(opcode: X86Opcode, opcode_offset: u8) -> (u8, u8) {
+fn get_mi_opcode(opcode: X86Opcode, opcode_offset: u8) -> (u8, u8) {
     match opcode {
         X86Opcode::MOV  => (0xc7 - opcode_offset, 0),
         X86Opcode::ADD  => (0x81 - opcode_offset, 0),
@@ -477,5 +486,119 @@ fn modrm_disp(reg: u8, rm: u8, disp: isize) -> u8 {
         return 0b10000000 | (reg << 3) | rm;
     } else {
         return 0b01000000 | (reg << 3) | rm;
+    }
+}
+
+/***************************************************************************
+ * Printing help
+ ***************************************************************************/
+
+fn print_instruction(x86: &X86Assembler, opcode: X86Opcode, ty: IrType, op1: X86Operand, op2: X86Operand) {
+    let ptr_str = match ty {
+        IrType::I8        => "byte ptr",
+        IrType::I32       => "dword ptr",
+        IrType::I64       => "qword ptr",
+        IrType::U32       => "dword ptr",
+        IrType::U64       => "qword ptr",
+        IrType::PtrI8(_)  => "byte ptr",
+        IrType::PtrI32(_) => "dword ptr",
+        IrType::None      => "unknown ptr",
+    };
+
+    print!("    {:<6}", format!("{}", opcode));
+    match op1 {
+        X86Operand::Stack(_) => print!("{} {}, ", ptr_str, op1),
+        _ => print!("{}, ", op1),
+    }
+
+    match op2 {
+        X86Operand::Stack(_) => println!("{} {}", ptr_str, op2),
+        _ => println!("{}", op2),
+    }
+}
+
+impl fmt::Display for X86Opcode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            X86Opcode::NOP   => write!(f, "nop"),
+            X86Opcode::MOV   => write!(f, "mov"),
+            X86Opcode::MOVSX => write!(f, "movsx"),
+            X86Opcode::LEA   => write!(f, "lea"),
+            X86Opcode::ADD   => write!(f, "add"),
+            X86Opcode::SUB   => write!(f, "sub"),
+            X86Opcode::IMUL  => write!(f, "imul"),
+            X86Opcode::IDIV  => write!(f, "idiv"),
+            X86Opcode::AND   => write!(f, "and"),
+            X86Opcode::OR    => write!(f, "or"),
+            X86Opcode::XOR   => write!(f, "xor"),
+            X86Opcode::CDQ   => write!(f, "cdq"),
+            X86Opcode::CMP   => write!(f, "cmp"),
+            X86Opcode::TEST  => write!(f, "test"),
+            X86Opcode::SETL  => write!(f, "setl"),
+            X86Opcode::SETG  => write!(f, "setg"),
+            X86Opcode::SETLE => write!(f, "setle"),
+            X86Opcode::SETGE => write!(f, "setge"),
+            X86Opcode::SETE  => write!(f, "sete"),
+            X86Opcode::SETNE => write!(f, "setne"),
+            X86Opcode::JL    => write!(f, "jl"),
+            X86Opcode::JLE   => write!(f, "jle"),
+            X86Opcode::JG    => write!(f, "jg"),
+            X86Opcode::JGE   => write!(f, "jge"),
+            X86Opcode::JE    => write!(f, "je"),
+            X86Opcode::JNE   => write!(f, "jne"),
+            X86Opcode::JMP   => write!(f, "jmp"),
+            X86Opcode::PUSH  => write!(f, "push"),
+            X86Opcode::POP   => write!(f, "pop"),
+            X86Opcode::CALL  => write!(f, "call"),
+            X86Opcode::RET   => write!(f, "ret"),
+            X86Opcode::INT3  => write!(f, "int3"),
+        }
+    }
+}
+
+impl fmt::Display for X86Reg {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            X86Reg::RAX => write!(f, "rax"),
+            X86Reg::RCX => write!(f, "rcx"),
+            X86Reg::RDX => write!(f, "rdx"),
+            X86Reg::RBX => write!(f, "rbx"),
+            X86Reg::RSP => write!(f, "rsp"),
+            X86Reg::RBP => write!(f, "rbp"),
+            X86Reg::RSI => write!(f, "rsi"),
+            X86Reg::RDI => write!(f, "rdi"),
+            X86Reg::R8  => write!(f, "r8"),
+            X86Reg::R9  => write!(f, "r9"),
+            X86Reg::R10 => write!(f, "r10"),
+            X86Reg::R11 => write!(f, "r11"),
+            X86Reg::R12 => write!(f, "r12"),
+            X86Reg::R13 => write!(f, "r13"),
+            X86Reg::R14 => write!(f, "r14"),
+            X86Reg::R15 => write!(f, "r15"),
+        }
+    }
+}
+
+impl fmt::Display for X86Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            X86Value::Int64(v) => write!(f, "{}", v),
+            X86Value::Int32(v) => write!(f, "{}", v),
+            X86Value::Int8(v)  => write!(f, "{}", v),
+        }
+    }
+}
+
+impl fmt::Display for X86Operand {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            X86Operand::Stack(disp) => if *disp > 0 {
+                write!(f, "[rbp + {}]", disp)
+            } else {
+                write!(f, "[rbp - {}]", -disp)
+            }
+            X86Operand::Register(reg) => write!(f, "{}", reg),
+            X86Operand::Value(val) => write!(f, "{}", val),
+        }
     }
 }
