@@ -12,6 +12,8 @@ pub struct IrBuilder<'a> {
     pub functions: HashMap<IrIdent, IrBasicBlock>,
     pub addr_size: isize, // address size in bytes on target architecture
 
+    scopes: Vec<IrScope>,
+
     // Unique identifier generators
     register_symbol: Symbol,
     register_index: u32,
@@ -25,6 +27,15 @@ pub struct IrBuilder<'a> {
     while_enter_index: u32,
     while_exit_symbol: Symbol,
     while_exit_index: u32,
+}
+
+/**
+ * IR scopes are defined as regular blocks that contains some
+ * helper information about variables that are active.
+ * Only for internal use to help build the IR.
+ */
+struct IrScope {
+    locals: HashMap<IrIdent, IrType>,
 }
 
 /**
@@ -58,13 +69,13 @@ pub struct IrInstruction {
 #[derive(Debug, Clone, PartialEq)]
 pub enum IrOpcode {
     Nop,
-    Alloca, // op1 := alloca(op2)
-    Copy, // op1 := op2
-    CopyFromDeref, // op1 := *op2
-    CopyFromRef, // op1 := &op2 (these are always mutable refs)
-    CopyToDeref, // *op1 := op2
-    Clear, // op1 := 0
-    Add, // op1 := op2 + op3
+    Alloca, // op1 = alloca(op2)
+    Copy, // op1 = op2
+    CopyFromDeref, // op1 = *op2
+    CopyFromRef, // op1 = &op2 (these are always mutable refs)
+    CopyToDeref, // *op1 = op2
+    Clear, // op1 = 0
+    Add, // op1 = op2 + op3
     Sub,
     Mul,
     Div,
@@ -133,6 +144,7 @@ pub fn create_ir_builder<'a>() -> IrBuilder<'a> {
         instructions: Vec::new(),
         functions: HashMap::new(),
         addr_size: std::mem::size_of::<usize>() as isize,
+        scopes: Vec::new(),
 
         register_symbol: intern_string(""),
         register_index: 0,
@@ -151,6 +163,12 @@ pub fn create_ir_builder<'a>() -> IrBuilder<'a> {
 
 pub fn create_ir_ident(symbol: Symbol, index: u32) -> IrIdent {
     IrIdent { symbol, index }
+}
+
+fn create_ir_scope() -> IrScope {
+    IrScope {
+        locals: HashMap::new(),
+    }
 }
 
 fn create_ir_basic_block<'a>(
@@ -348,6 +366,9 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
 }
 
 pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOperand, IrType) {
+    let scope = create_ir_scope();
+    ib.scopes.push(scope);
+    
     let mut last_op = IrOperand::None;
     let mut last_ty = IrType::None;
     for stmt in &block.stmts {
@@ -356,7 +377,7 @@ pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOper
         last_ty = ty;
     }
 
-    if let Some(Stmt::Expr(_)) = block.stmts.last() {
+    let ret = if let Some(Stmt::Expr(_)) = block.stmts.last() {
         if let IrOperand::None = last_op {
             (IrOperand::None, IrType::None)
         } else {
@@ -371,18 +392,24 @@ pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOper
         }
     } else {
         (IrOperand::None, IrType::None)
-    }
+    };
+
+    ib.scopes.pop();
+    return ret;
 }
 
 pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand, IrType) {
     match stmt {
         Stmt::Local(local) => {
             let init_type = to_ir_type(&local.ty);
-            let op1 = IrOperand::Ident(create_ir_ident(local.ident.sym, 0));
+            let ident = create_ir_ident(local.ident.sym, 0);
+            let op1 = IrOperand::Ident(ident);
             let op2 = match &*local.init {
                 Some(expr) => build_ir_from_expr(ib, expr).0,
                 None => return (IrOperand::None, IrType::None)
             };
+
+            ib.scopes[0].locals.insert(ident, init_type);
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpcode::Alloca,
@@ -580,9 +607,10 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
         }
 
         Expr::Ident(ident) => {
-            let op = IrOperand::Ident(create_ir_ident(ident.sym, 0));
-            let ty = IrType::None; // FIXME(alexander): lookup the type of this symbol if possible!
-            (op, ty)
+            let ident = create_ir_ident(ident.sym, 0);
+            let op = IrOperand::Ident(ident);
+            let ty = ib.scopes[0].locals.get(&ident).unwrap();
+            (op, *ty)
         }
 
         Expr::If(if_expr) => {

@@ -183,12 +183,11 @@ fn run_compiler(config: Config) {
     let ir_functions = ir_builder.functions;
 
     // Generate code to jit
-    let machine_code = compile_ir_to_x86_machine_code(ir_instructions, ir_functions);
+    let (machine_code, assembly) = compile_ir_to_x86_machine_code(ir_instructions, ir_functions);
 
-    // println!("\n\nX86 Assembler:\n-----------------------------------------------");
-    // for insn in x86.instructions {
-        // println!("{}", insn);
-    // }
+    println!("\n\nX86 Assembler:\n-----------------------------------------------");
+    println!("{}", assembly);
+    
 
     println!("\n\nX86 Machine Code:\n-----------------------------------------------");
     for (i, byte) in machine_code.iter().enumerate() {
@@ -213,7 +212,7 @@ fn run_compiler(config: Config) {
     
     finalize_jit_code(&jit_code);
 
-    println!("\nOutput from executing jitted code:");
+    println!("\nOutput from executing jitted code:\n-----------------------------------------------");
     let ret = execute_jit_code(&jit_code);
     println!("\nProgram exited with code {}", ret);
     free_jit_code(&jit_code);

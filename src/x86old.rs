@@ -12,6 +12,7 @@ pub struct X86Assembler {
     pub curr_call_frame: Option<X86CallFrame>,
     pub curr_function: IrIdent,
     pub x64_mode: bool,
+
 }
 
 pub struct X86CallFrame {
