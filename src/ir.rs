@@ -13,6 +13,7 @@ pub struct IrBuilder<'a> {
     pub addr_size: isize, // address size in bytes on target architecture
 
     scopes: Vec<IrScope>,
+    live_intervals: HashMap<IrIdent, IrLiveInterval>, // used per function moves to its basic block
 
     // Unique identifier generators
     register_symbol: Symbol,
@@ -50,6 +51,15 @@ pub struct IrBasicBlock {
     pub return_type: IrType,
     pub func_address: Option<usize>, // used by jitter to call foreign functions
     pub is_foreign: bool,
+    pub live_intervals: HashMap<IrIdent, IrLiveInterval>
+}
+
+/**
+ * Denotes an interval in the IR where a particular variable is alive.
+ */
+pub struct IrLiveInterval {
+    pub begin: usize,
+    pub end: usize,
 }
 
 /**
@@ -194,8 +204,21 @@ fn create_ir_basic_block<'a>(
         exit_label: exit.unwrap_or(unique_bb_label(ib)),
         return_type: IrType::None,
         func_address: None,
-        is_foreign
+        is_foreign,
+        live_intervals: HashMap::new(),
     }
+}
+
+fn create_ir_interval(begin: usize) -> IrLiveInterval {
+    IrLiveInterval {
+        begin,
+        end: begin + 1,
+    }
+}
+
+#[inline]
+pub fn is_alive(insn: usize, interval: IrLiveInteval) -> bool {
+    return insn >= interval.begin && insn < interval.end;
 }
 
 fn allocate_register<'a>(ib: &mut IrBuilder<'a>) -> IrOperand {
@@ -204,6 +227,7 @@ fn allocate_register<'a>(ib: &mut IrBuilder<'a>) -> IrOperand {
         index: ib.register_index
     };
     ib.register_index += 1;
+    ib.live_ranges.insert(ident, create_ir_live_inteval(ib.instructions.len()));
     IrOperand::Ident(ident)
 }
 
@@ -410,6 +434,7 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
             };
 
             ib.scopes[0].locals.insert(ident, init_type);
+            ib.live_ranges.insert(ident, create_ir_live_inteval(ib.instructions.len()));
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpcode::Alloca,

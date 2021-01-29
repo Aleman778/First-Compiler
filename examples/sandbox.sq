@@ -3,7 +3,7 @@ fn main() -> i32 {
     let mut y: i32 = 10;
     let mut z: i32 = 10;
     let w: &i32 = &z;
-    x = x + y - z + 21 - 32 + *w;
+    x = x * y * z - *w;
     return x;
 }
 
