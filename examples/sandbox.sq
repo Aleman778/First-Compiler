@@ -2,8 +2,19 @@ fn main() -> i32 {
     let mut x: i32 = 10;
     let mut y: i32 = 10;
     let mut z: i32 = 10;
+    let mut a: i32 = 10;
+    let mut b: i32 = 10;
+    let mut c: i32 = 10;
+    let mut d: i32 = 10;
+    let mut e: i32 = 10;
+    let mut f: i32 = 10;
+    let mut g: i32 = 10;
+    let mut h: i32 = 10;
+    let mut i: i32 = 10;
+    let mut j: i32 = 10;
+    let mut k: i32 = 10;
     let w: &i32 = &z;
-    x = x * y * z - *w;
+    x = x * y * z - *w + a + b + c + d + e + f + g + h + i + j + k;
     return x;
 }
 

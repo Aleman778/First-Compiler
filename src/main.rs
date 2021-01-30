@@ -187,7 +187,6 @@ fn run_compiler(config: Config) {
 
     println!("\n\nX86 Assembler:\n-----------------------------------------------");
     println!("{}", assembly);
-    
 
     println!("\n\nX86 Machine Code:\n-----------------------------------------------");
     for (i, byte) in machine_code.iter().enumerate() {
@@ -196,7 +195,7 @@ fn run_compiler(config: Config) {
             println!("");
         }
     }
-    println!("");
+    println!("\nSize of code is {} bytes", machine_code.len());
 
     // unsafe {
     //     winapi::um::debugapi::DebugBreak();
