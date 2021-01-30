@@ -57,6 +57,7 @@ pub struct IrBasicBlock {
 /**
  * Denotes an interval in the IR where a particular variable is alive.
  */
+#[derive(Debug, Clone, PartialEq)]
 pub struct IrLiveInterval {
     pub begin: usize,
     pub end: usize,
@@ -154,7 +155,9 @@ pub fn create_ir_builder<'a>() -> IrBuilder<'a> {
         instructions: Vec::new(),
         functions: HashMap::new(),
         addr_size: std::mem::size_of::<usize>() as isize,
+
         scopes: Vec::new(),
+        live_intervals: HashMap::new(),
 
         register_symbol: intern_string(""),
         register_index: 0,
@@ -209,7 +212,7 @@ fn create_ir_basic_block<'a>(
     }
 }
 
-fn create_ir_interval(begin: usize) -> IrLiveInterval {
+fn create_ir_live_interval(begin: usize) -> IrLiveInterval {
     IrLiveInterval {
         begin,
         end: begin + 1,
@@ -217,7 +220,7 @@ fn create_ir_interval(begin: usize) -> IrLiveInterval {
 }
 
 #[inline]
-pub fn is_alive(insn: usize, interval: IrLiveInteval) -> bool {
+pub fn is_alive(insn: usize, interval: IrLiveInterval) -> bool {
     return insn >= interval.begin && insn < interval.end;
 }
 
@@ -227,7 +230,7 @@ fn allocate_register<'a>(ib: &mut IrBuilder<'a>) -> IrOperand {
         index: ib.register_index
     };
     ib.register_index += 1;
-    ib.live_ranges.insert(ident, create_ir_live_inteval(ib.instructions.len()));
+    ib.live_intervals.insert(ident, create_ir_live_interval(ib.instructions.len()));
     IrOperand::Ident(ident)
 }
 
@@ -380,10 +383,13 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
                 Some(bb) => {
                     bb.prologue_index = prologue_index;
                     bb.epilogue_index = epilogue_index;
+                    bb.live_intervals = ib.live_intervals.clone();
                 }
 
                 None => panic!("`{}` is not a registered function", func_label),
             }
+            ib.live_intervals.clear();
+
         }
         _ => {}
     }
@@ -434,7 +440,7 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
             };
 
             ib.scopes[0].locals.insert(ident, init_type);
-            ib.live_ranges.insert(ident, create_ir_live_inteval(ib.instructions.len()));
+            ib.live_intervals.insert(ident, create_ir_live_interval(ib.instructions.len()));
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpcode::Alloca,
@@ -635,6 +641,11 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             let ident = create_ir_ident(ident.sym, 0);
             let op = IrOperand::Ident(ident);
             let ty = ib.scopes[0].locals.get(&ident).unwrap();
+            let insn_len = ib.instructions.len();
+            match ib.live_intervals.get_mut(&ident) {
+                Some(live_interval) => live_interval.end = insn_len,
+                None => {},
+            }
             (op, *ty)
         }
 
