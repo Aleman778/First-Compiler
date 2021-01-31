@@ -14,7 +14,7 @@ fn main() -> i32 {
     let mut j: i32 = 10;
     let mut k: i32 = 10;
     let w: &i32 = &z;
-    x = x * y * z - *w + a + b + c + d + e + f + g + h + i + j + k;
+    x = x / y * z - *w + a + b + c + d + e + f + g + h + i + j + k;
     return x;
 }
 
