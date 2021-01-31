@@ -398,8 +398,6 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             }
 
             IrOpcode::Alloca => {
-                let ident = get_ir_ident(insn.op1).unwrap();
-                // let dst = X86Operand::Register(allocate_register(x86, Some(ident)));
                 x86.curr_stack_offset -= size_of_ir_type(insn.ty, x86.addr_size);
                 let dst = X86Operand::Stack(x86.curr_stack_offset);
                 let src = to_x86_operand(x86, insn.op2, insn.ty);
@@ -423,7 +421,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 let ident = get_ir_ident(insn.op2);
                 let (src_reg, src) = move_operand_to_register(x86, src, ident, ref_ty);
 
-                // Has to be register op otherwise use auxiliary register.
+                // NOTE(alexander): will always be a regsiter
                 let dst_reg = if let X86Operand::Register(reg) = dst {
                     reg
                 } else {
@@ -432,7 +430,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
                 // mov dst, x ptr [src]
                 push_rex_prefix(x86, Some(dst_reg), Some(src_reg), insn.ty);
-                x86.machine_code.push(0x8b);
+                x86.machine_code.push(0x8b); // RM
                 x86.machine_code.push(modrm_disp(reg_id(dst_reg), reg_id(src_reg), 0));
                 x86.machine_code.push(0); // NOTE(alexander): use no displacement
                 print_instruction(x86, X86Opcode::MOV, insn.ty, dst, src, true);
@@ -447,7 +445,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 // Make sure the src data is stored in memory (only supports stack, no support for heap allocs)
                 let (disp, src) = move_operand_to_stack(x86, src, insn.ty);
 
-                // Has to be register op otherwise use auxiliary register.
+                // NOTE(alexander): will always be a regsiter
                 let reg = if let X86Operand::Register(reg) = dst {
                     reg
                 } else {
@@ -465,7 +463,52 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             }
 
             IrOpcode::CopyToDeref => {
+                let ref_ty = to_ref_type(insn.ty);
+                let dst = to_x86_operand(x86, insn.op1, ref_ty);
+                let src = to_x86_operand(x86, insn.op2, insn.ty);
+                
+                // Make sure that we access the data from register rather than stack.
+                let ident = get_ir_ident(insn.op1);
+                let (dst_reg, dst) = move_operand_to_register(x86, dst, ident, ref_ty);
 
+                // Has to be register op otherwise use auxiliary register (make sure to free it later)
+                match src {
+                    X86Operand::Value(val) => {
+                        push_rex_prefix(x86, None, Some(dst_reg), insn.ty);
+                        x86.machine_code.push(0xc7); // MI
+                        x86.machine_code.push(modrm_disp(0, reg_id(dst_reg), 0));
+                        x86.machine_code.push(0); // NOTE(alexander): use no displacement
+                        push_immediate(x86, val);
+                        print_instruction(x86, X86Opcode::MOV, insn.ty, dst, src, false);
+                    }
+
+                    X86Operand::Stack(disp) => {
+                        // Move first source into auxiliary register
+                        let src_reg = allocate_register(x86, None);
+                        push_rex_prefix(x86, Some(src_reg), None, insn.ty);
+                        x86.machine_code.push(0x8b);
+                        x86.machine_code.push(modrm_disp(reg_id(src_reg), reg_id(X86Reg::RBP), disp));
+                        push_displacement(x86, disp);
+                        print_instruction(x86, X86Opcode::MOV, insn.ty, X86Operand::Register(src_reg), src, false);
+
+                        push_rex_prefix(x86, Some(src_reg), Some(dst_reg), insn.ty);
+                        x86.machine_code.push(0x89); // MR
+                        x86.machine_code.push(modrm_disp(reg_id(src_reg), reg_id(dst_reg), 0));
+                        x86.machine_code.push(0); // NOTE(alexander): use no displacement
+                        print_instruction(x86, X86Opcode::MOV, insn.ty, dst, X86Operand::Register(src_reg), true);
+
+                        free_register(x86, src_reg);
+                    }
+
+                    X86Operand::Register(src_reg) => {
+                        // mov x ptr [dst], src
+                        push_rex_prefix(x86, Some(src_reg), Some(dst_reg), insn.ty);
+                        x86.machine_code.push(0x89); // MR
+                        x86.machine_code.push(modrm_disp(reg_id(src_reg), reg_id(dst_reg), 0));
+                        x86.machine_code.push(0); // NOTE(alexander): use no displacement
+                        print_instruction(x86, X86Opcode::MOV, insn.ty, dst, src, true);
+                    }
+                }
             }
 
             IrOpcode::Add |
@@ -641,17 +684,21 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
         // Free registers that are nolonger in use
         for (ident, interval) in &bb.live_intervals {
             if insn_index == interval.end + 1 {
-                match x86.local_variables.get(ident) {
-                    Some((operand, _)) => {
-                        if let X86Operand::Register(reg) = operand {
-                            free_register(x86, *reg);
-                        }
-                        x86.local_variables.remove(ident);
+                let opt_reg = match x86.local_variables.get(ident) {
+                    Some((operand, _)) => if let X86Operand::Register(reg) = operand {
+                        Some(reg)
+                    } else {
+                        None
                     }
-                    None => {}
+                    
+                    None => None,
+                };
+                if let Some(reg) = opt_reg {
+                    let r = *reg;
+                    free_register(x86, r);
+                    x86.local_variables.remove(ident);
                 }
             }
-
         }
     }
     print_asm!(x86, "{}:\n", bb.exit_label);
@@ -702,9 +749,8 @@ fn push_instruction(x86: &mut X86Assembler, opcode: X86Opcode, ty: IrType, dst: 
 
     match (dst, src) {
         (X86Operand::Stack(disp1), X86Operand::Stack(disp2)) => {
-            let reg = allocate_register(x86, None);
-
             // Move first source into auxiliary register
+            let reg = allocate_register(x86, None);
             push_rex_prefix(x86, None, None, ty);
             x86.machine_code.push(get_rm_opcode(X86Opcode::MOV, opcode_offset));
             x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp2));

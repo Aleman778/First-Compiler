@@ -525,6 +525,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 opcode,
                 op1,
                 op2,
+                ty,
                 span: assign.span,
                 ..Default::default()
             });
