@@ -95,12 +95,12 @@ pub enum IrOpcode {
     And,
     Or,
     Xor,
-    Eq, // op1 = op2 binop op3 (op1 always boolean)
-    Ne,
-    Lt,
+    Lt, // op1 = op2 < op3 (op1 always boolean)
     Le,
     Gt,
     Ge,
+    Eq,
+    Ne,
     IfLt, // jump op3 (if op1 binop op2 equals true)
     IfGt,
     IfLe,
@@ -464,6 +464,7 @@ fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, 
     let mut op1 = IrOperand::None;
     let mut op2 = IrOperand::None;
     let     op3 = IrOperand::Ident(false_target);
+    let mut ty  = IrType::None;
     let mut opcode = match cond {
         Expr::Binary(binary) => {
             let opcode = match binary.op {
@@ -478,8 +479,11 @@ fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, 
 
             if let IrOpcode::Nop = opcode {
             } else {
-                op1 = build_ir_from_expr(ib, &binary.left).0;
+                let result = build_ir_from_expr(ib, &binary.left);
+                ty = result.1;
+                op1 = result.0;
                 op2 = build_ir_from_expr(ib, &binary.right).0;
+                
             }
             opcode
         }
@@ -497,6 +501,7 @@ fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, 
         op1,
         op2,
         op3,
+        ty,
         span: span,
         ..Default::default()
     });
@@ -535,7 +540,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
         Expr::Binary(binary) => {
             let op1 = allocate_register(ib);
-            let op2 = build_ir_from_expr(ib, &binary.left).0;
+            let (op2, lhs_ty) = build_ir_from_expr(ib, &binary.left);
             let op3 = build_ir_from_expr(ib, &binary.right).0;
             let (opcode, ty) = match binary.op {
                 BinOp::Add => (IrOpcode::Add, IrType::I32),
@@ -546,12 +551,12 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 BinOp::Mod => (IrOpcode::Mod, IrType::I32),
                 BinOp::And => (IrOpcode::And, IrType::I8),
                 BinOp::Or  => (IrOpcode::Or,  IrType::I8),
-                BinOp::Eq  => (IrOpcode::Eq,  IrType::I8),
-                BinOp::Ne  => (IrOpcode::Ne,  IrType::I8),
-                BinOp::Lt  => (IrOpcode::Lt,  IrType::I8),
-                BinOp::Le  => (IrOpcode::Le,  IrType::I8),
-                BinOp::Gt  => (IrOpcode::Gt,  IrType::I8),
-                BinOp::Ge  => (IrOpcode::Ge,  IrType::I8),
+                BinOp::Eq  => (IrOpcode::Eq,  lhs_ty),
+                BinOp::Ne  => (IrOpcode::Ne,  lhs_ty),
+                BinOp::Lt  => (IrOpcode::Lt,  lhs_ty),
+                BinOp::Le  => (IrOpcode::Le,  lhs_ty),
+                BinOp::Gt  => (IrOpcode::Gt,  lhs_ty),
+                BinOp::Ge  => (IrOpcode::Ge,  lhs_ty),
             };
 
             ib.instructions.push(IrInstruction {

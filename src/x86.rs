@@ -336,6 +336,15 @@ fn move_operand_to_stack(x86: &mut X86Assembler, op: X86Operand, ty: IrType) -> 
     }
 }
 
+#[inline]
+fn get_ir_ident(op: IrOperand) -> IrLabel {
+    if let IrOperand::Ident(ident) = insn.op3 {
+        ident
+    } else {
+        panic!("x86: expected an identifier as operand")
+    }
+}
+
 fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBlock) {
     // Setup the x86 state
     x86.curr_stack_offset = 0;
@@ -511,6 +520,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 }
             }
 
+            IrOpcode::Clear => {
+                let op = to_x86_operand(x86, insn.op1, insn.ty);
+                push_instruction(x86, X86Opcode::XOR, insn.ty, op, op);
+                insert_variable(x86, insn.op1, op, insn.ty);
+            }
+
             IrOpcode::Add |
             IrOpcode::Sub |
             IrOpcode::And |
@@ -650,13 +665,151 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 free_specific_register(x86, X86Reg::RDX, rdx_state);
             }
 
+            IrOpcode::Pow => {
+                unimplemented!(); // TODO implement this.
+            }
+
+            IrOpcode::Lt |
+            IrOpcode::Le |
+            IrOpcode::Gt |
+            IrOpcode::Ge |
+            IrOpcode::Eq |
+            IrOpcode::Ne => {
+                let dst = to_x86_operand(x86, insn.op1, IrType::I8);
+                let lhs = to_x86_operand(x86, insn.op2, insn.ty);
+                let rhs = to_x86_operand(x86, insn.op3, insn.ty);
+                push_instruction(x86, X86Opcode::CMP, insn.ty, lhs, rhs);
+                match insn.opcode {
+                    IrOpcode::Lt => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x9c);
+                        print_asm!(x86, "    setl  {}\n", dst);
+                    },
+
+                    IrOpcode::Le => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x9e);
+                        print_asm!(x86, "    setle {}\n", dst);
+                    },
+
+                    IrOpcode::Gt => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x9f);
+                        print_asm!(x86, "    setg  {}\n", dst);
+                    },
+
+                    IrOpcode::Ge => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x9d);
+                        print_asm!(x86, "    setge {}\n", dst);
+                    },
+
+                    IrOpcode::Eq => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x94);
+                        print_asm!(x86, "    sete  {}\n", dst);
+                    },
+
+                    IrOpcode::Ne => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x95);
+                        print_asm!(x86, "    setne {}\n", dst);
+                    },
+                    _ => unreachable!(),
+                }
+
+                match dst {
+                    X86Operand::Value(_) => panic!("x86: cannot assign to value"),
+                    X86Operand::Register(reg) => x86.machine_code.push(modrm(0, reg_id(reg))),
+                    X86Operand::Stack(disp) => {
+                        x86.machine_code.push(modrm_disp(0, reg_id(X86Reg::RBP), disp));
+                        push_displacement(x86, disp);
+                    }
+                }
+                insert_variable(x86, insn.op1, dst, IrType::I8);
+            }
+
+            IrOpcode::IfLt |
+            IrOpcode::IfLe |
+            IrOpcode::IfGt |
+            IrOpcode::IfGe |
+            IrOpcode::IfEq |
+            IrOpcode::IfNe => {
+                let lhs = to_x86_operand(x86, insn.op1, insn.ty);
+                let rhs = to_x86_operand(x86, insn.op2, insn.ty);
+                let label = get_ir_ident(insn.op3);
+
+                push_instruction(x86, X86Opcode::CMP, insn.ty, lhs, rhs);
+                match insn.opcode {
+                    IrOpcode::IfLt => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x8c);
+                        print_asm!(x86, "    jl    {}\n", label);
+                    },
+
+                    IrOpcode::IfLe => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x8e);
+                        print_asm!(x86, "    jle   {}\n", label);
+                    },
+
+                    IrOpcode::IfGt => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x8f);
+                        print_asm!(x86, "    jg    {}\n", label);
+                    },
+
+                    IrOpcode::IfGe => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x8d);
+                        print_asm!(x86, "    jge   {}\n", label);
+                    },
+
+                    IrOpcode::IfEq => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x84);
+                        print_asm!(x86, "    je    {}\n", label);
+                    },
+
+                    IrOpcode::IfNe => {
+                        x86.machine_code.push(0x0f);
+                        x86.machine_code.push(0x85);
+                        print_asm!(x86, "    jne   {}\n", label);
+                    },
+                    _ => unreachable!(),
+                }
+
+                let insn_index = x86.machine_code.len();
+                let jt = get_mut_x86_jump_target(x86, label);
+                jt.jumps.push(insn_index);
+                x86.machine_code.push(0x0); // NOTE(alexander): jump distance is calculated later.
+            }
+
+            IrOpcode::Jump => {
+                let label = get_ir_ident(insn.op1);
+                let insn_index = x86.machine_code.len();
+                let jt = get_mut_x86_jump_target(x86, label);
+                jt.jumps.push(insn_index + 1);
+
+                // jump label
+                x86.machine_code.push(0xeb); // D (8-bit relative jump) may need to expand this later 
+                x86.machine_code.push(0x0); // NOTE(alexander): jump distance is calculated later.
+            }
+
+            IrOpcode::Label => {
+                let label = get_ir_ident(insn.op1);
+                let insn_index = x86.machine_code.len();
+                let jt = get_mut_x86_jump_target(x86, label);
+                jt.pos = insn_index;
+                print_asm!(x86, "{}:\n", label);
+            }
+            
             IrOpcode::Call => {
                 if let IrOperand::Ident(ident) = insn.op2 {
                     if ident.symbol == x86.debug_break_symbol {
                         x86.machine_code.push(0xcc);
                     }
                 }
-
             }
 
             IrOpcode::Return => {
