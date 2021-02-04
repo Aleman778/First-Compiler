@@ -461,39 +461,42 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
 }
 
 fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, false_target: IrIdent) {
-    let mut op1 = IrOperand::None;
-    let mut op2 = IrOperand::None;
-    let     op3 = IrOperand::Ident(false_target);
-    let mut ty  = IrType::None;
-    let mut opcode = match cond {
-        Expr::Binary(binary) => {
-            let opcode = match binary.op {
-                BinOp::Lt => IrOpcode::IfGe,
-                BinOp::Gt => IrOpcode::IfLe,
-                BinOp::Le => IrOpcode::IfGt,
-                BinOp::Ge => IrOpcode::IfLt,
-                BinOp::Eq => IrOpcode::IfNe,
-                BinOp::Ne => IrOpcode::IfEq,
-                _ => IrOpcode::Nop,
-            };
+    
+    fn binary_if_condition<'a>(ib: &mut IrBuilder<'a>, cond: &Expr) -> (IrOpcode, IrOperand, IrOperand, IrType) {
+        match cond {
+            Expr::Binary(binary) => {
+                let opcode = match binary.op {
+                    BinOp::Lt => IrOpcode::IfGe,
+                    BinOp::Gt => IrOpcode::IfLe,
+                    BinOp::Le => IrOpcode::IfGt,
+                    BinOp::Ge => IrOpcode::IfLt,
+                    BinOp::Eq => IrOpcode::IfNe,
+                    BinOp::Ne => IrOpcode::IfEq,
+                    _ => IrOpcode::Nop,
+                };
 
-            if let IrOpcode::Nop = opcode {
-            } else {
-                let result = build_ir_from_expr(ib, &binary.left);
-                ty = result.1;
-                op1 = result.0;
-                op2 = build_ir_from_expr(ib, &binary.right).0;
-                
+                if let IrOpcode::Nop = opcode {
+                    (IrOpcode::Nop, IrOperand::None, IrOperand::None, IrType::None)
+                } else {
+                    let (lhs, ty) = build_ir_from_expr(ib, &binary.left);
+                    let rhs = build_ir_from_expr(ib, &binary.right).0;
+                    (opcode, lhs, rhs, ty)
+                }
             }
-            opcode
+
+            Expr::Paren(paren) => binary_if_condition(ib, &paren.expr),
+            _ => (IrOpcode::Nop, IrOperand::None, IrOperand::None, IrType::None),
         }
-        _ => IrOpcode::Nop,
-    };
+    }
+    
+    let (mut opcode, mut op1, mut op2, mut ty) = binary_if_condition(ib, cond);
+    let op3 = IrOperand::Ident(false_target);
 
     if let IrOpcode::Nop = opcode {
         opcode = IrOpcode::IfEq;
         op1 = build_ir_from_expr(ib, cond).0;
         op2 = IrOperand::Value(IrValue::Bool(false));
+        ty = IrType::I8;
     }
 
     ib.instructions.push(IrInstruction {
