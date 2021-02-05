@@ -36,6 +36,8 @@ pub struct IrBuilder<'a> {
  * Only for internal use to help build the IR.
  */
 struct IrScope {
+    enter_label: Option<IrIdent>,
+    exit_label: Option<IrIdent>,
     locals: HashMap<IrIdent, IrType>,
 }
 
@@ -176,12 +178,6 @@ pub fn create_ir_builder<'a>() -> IrBuilder<'a> {
 
 pub fn create_ir_ident(symbol: Symbol, index: u32) -> IrIdent {
     IrIdent { symbol, index }
-}
-
-fn create_ir_scope() -> IrScope {
-    IrScope {
-        locals: HashMap::new(),
-    }
 }
 
 fn create_ir_basic_block<'a>(
@@ -363,7 +359,7 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
                 ..Default::default()
             });
 
-            build_ir_from_block(ib, &func.block);
+            build_ir_from_block(ib, &func.block, Some(enter_label), Some(exit_label));
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpcode::Label,
@@ -395,8 +391,19 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
     }
 }
 
-pub fn build_ir_from_block<'a>(ib: &mut IrBuilder<'a>, block: &Block) -> (IrOperand, IrType) {
-    let scope = create_ir_scope();
+pub fn build_ir_from_block<'a>(
+    ib: &mut IrBuilder<'a>,
+    block: &Block,
+    enter_label: Option<IrIdent>,
+    exit_label: Option<IrIdent>
+) -> (IrOperand, IrType) {
+    
+    let scope = IrScope {
+        enter_label,
+        exit_label,
+        locals: HashMap::new(),
+    };
+
     ib.scopes.push(scope);
     
     let mut last_op = IrOperand::None;
@@ -574,27 +581,37 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             (op1, ty)
         }
 
-        Expr::Block(block) => build_ir_from_block(ib, &block.block),
+        Expr::Block(block) => build_ir_from_block(ib, &block.block, None, None),
 
-        Expr::Break(break_expr) => {
-            ib.instructions.push(IrInstruction {
-                opcode: IrOpcode::Jump,
-                op1: IrOperand::Ident(create_ir_ident(ib.while_exit_symbol, ib.while_exit_index - 1)),
-                span: break_expr.span,
-                ..Default::default()
-            });
+        
+        Expr::Break(_) |
+        Expr::Continue(_) => {
+            for scope in ib.scopes.iter().rev() {
+                if let Some(enter_label) = scope.enter_label {
+                    if ib.while_enter_symbol == enter_label.symbol {
+                        if let Expr::Continue(cont_expr) = expr {
+                            ib.instructions.push(IrInstruction {
+                                opcode: IrOpcode::Jump,
+                                op1: IrOperand::Ident(enter_label),
+                                span: cont_expr.span,
+                                ..Default::default()
+                            });
+                        } else if let Expr::Break(break_expr) = expr {
+                            ib.instructions.push(IrInstruction {
+                                opcode: IrOpcode::Jump,
+                                op1: IrOperand::Ident(scope.exit_label.unwrap()),
+                                span: break_expr.span,
+                                ..Default::default()
+                            });
+                        }
+                        break;
+                    }
+                }
+            }
+
             (IrOperand::None, IrType::None)
         }
 
-        Expr::Continue(cont_expr) => {
-            ib.instructions.push(IrInstruction {
-                opcode: IrOpcode::Jump,
-                op1: IrOperand::Ident(create_ir_ident(ib.while_enter_symbol, ib.while_enter_index - 1)),
-                span: cont_expr.span,
-                ..Default::default()
-            });
-            (IrOperand::None, IrType::None)
-        }
 
         Expr::Call(call) => {
             // Setup parameters
@@ -671,7 +688,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
             build_ir_conditional_if(ib, &*if_expr.cond, if_expr.span, false_label);
 
-            build_ir_from_block(ib, &if_expr.then_block);
+            build_ir_from_block(ib, &if_expr.then_block, None, Some(false_label));
 
             if false_label == else_label {
                 ib.instructions.push(IrInstruction {
@@ -688,7 +705,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             }
 
             if let Some(block) = &if_expr.else_block {
-                build_ir_from_block(ib, &block);
+                build_ir_from_block(ib, &block, Some(false_label), Some(exit_label));
             }
 
             ib.instructions.push(IrInstruction {
@@ -841,7 +858,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
             build_ir_conditional_if(ib, &*while_expr.cond, while_expr.span, exit_label);
 
-            build_ir_from_block(ib, &while_expr.block);
+            build_ir_from_block(ib, &while_expr.block, Some(enter_label), Some(exit_label));
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpcode::Jump,
