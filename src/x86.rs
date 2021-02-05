@@ -23,6 +23,7 @@ struct X86Assembler {
 struct X86RelJump {
     ident: IrIdent,
     pos: usize,
+    next_pos: usize,
     target: usize,
     opcode: X86Opcode,
     is_long_jump: bool,
@@ -64,7 +65,7 @@ enum X86Opcode {
     INT3,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum X86Operand {
     Stack(isize),
     Register(X86Reg),
@@ -91,7 +92,7 @@ enum X86Reg {
     R15,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum X86Value {
     Int8(i8),
     Int32(i32),
@@ -153,10 +154,106 @@ pub fn compile_ir_to_x86_machine_code(
         jmp.target = *x86.label_byte_pos.get(&jmp.ident).unwrap();
     }
 
+    fn calculate_jump_distance(
+        calculated_jumps: &mut Vec<(usize, Vec<u8>)>,
+        active_jumps: &mut Vec<X86RelJump>,
+        curr_pos: usize,
+        x64_mode: bool
+    ) -> Vec<bool> {
+
+        let mut bytes_added = 0;
+        let mut keep_active_jumps: Vec<bool> = Vec::new();
+        for (i, jmp) in active_jumps.iter_mut().enumerate() {
+            let exit_pos = jmp.pos.min(jmp.target);
+            if exit_pos == jmp.pos {
+                jmp.pos += bytes_added;
+            } else {
+                jmp.target += bytes_added;
+            }
+
+            if curr_pos <= exit_pos {
+                let mut jmp_code = Vec::new();
+                let dist = jmp.target as isize - jmp.next_pos as isize;
+                let is_long_jump = (dist < -128 && dist > 127) || jmp.is_long_jump;
+
+                match (jmp.opcode, is_long_jump) {
+                    (X86Opcode::JL, false) => jmp_code.push(0x7c),
+                    (X86Opcode::JL, true)  => {
+                            jmp_code.push(0x0f);
+                            jmp_code.push(0x8c);
+                    }
+
+                    (X86Opcode::JLE, false) => jmp_code.push(0x7e),
+                    (X86Opcode::JLE, true)  => {
+                        jmp_code.push(0x0f);
+                        jmp_code.push(0x8e);
+                    }
+
+                    (X86Opcode::JG, false) => jmp_code.push(0x7f),
+                    (X86Opcode::JG, true)  => {
+                        jmp_code.push(0x0f);
+                        jmp_code.push(0x8f);
+                    }
+
+                    (X86Opcode::JGE, false) => jmp_code.push(0x7d),
+                    (X86Opcode::JGE, true)  => {
+                        jmp_code.push(0x0f);
+                        jmp_code.push(0x8d);
+                    }
+
+                    (X86Opcode::JE, false) => jmp_code.push(0x74),
+                    (X86Opcode::JE, true)  => {
+                        jmp_code.push(0x0f);
+                        jmp_code.push(0x84);
+                    }
+
+                    (X86Opcode::JNE, false) => jmp_code.push(0x75),
+                    (X86Opcode::JNE, true)  => {
+                        jmp_code.push(0x0f);
+                        jmp_code.push(0x85);
+                    }
+
+                    (X86Opcode::JMP, false) => jmp_code.push(0xeb),
+                    (X86Opcode::JMP, true)  => jmp_code.push(0xe9),
+                    (X86Opcode::CALL, true) => {
+                        jmp_code.push(0xe8);
+                    }
+
+                    _ => panic!("x86: invalid relative jump instruction"),
+                }
+
+                if is_long_jump {
+                    if x64_mode {
+                        let v = dist as i32;
+                        jmp_code.push(( v        & 0xFFi32) as u8);
+                        jmp_code.push(((v >> 8)  & 0xFFi32) as u8);
+                        jmp_code.push(((v >> 16) & 0xFFi32) as u8);
+                        jmp_code.push(((v >> 24) & 0xFFi32) as u8);
+
+                    } else {
+                        let v = dist as i16;
+                        jmp_code.push(( v        & 0xFFi16) as u8);
+                        jmp_code.push(((v >> 8)  & 0xFFi16) as u8);
+                    }
+                    
+                } else {
+                    let v = dist as i8;
+                    jmp_code.push(v as u8);
+                }
+
+                calculated_jumps.push((jmp.pos, jmp_code));
+                keep_active_jumps.push(false);
+            } else {
+                keep_active_jumps.push(true);
+            }
+        }
+
+        return keep_active_jumps;
+    }
+
     // Iterate in reverse order of jumps and jump targets, calculate the
     // relative jump distance, extend 8-bit jump to 32-bits if necessary.
     // Makes sure that overlapping jumps are accounted for when extending bits.
-    // Similar idea to plane sweep algorithm except going upwards.
     // Loop invariant: all jump distances calulated so far are correct,
     //                 since adding bytes before the jump wont affect the
     //                 actual jump distance since they are relative.
@@ -165,97 +262,29 @@ pub fn compile_ir_to_x86_machine_code(
     let mut active_jumps: Vec<X86RelJump> = Vec::new();
     for next_jmp in &x86.relative_jumps {
         let curr_pos = next_jmp.pos.max(next_jmp.target);
-        let mut bytes_added = 0;
-        active_jumps.retain(|mut jmp| {
-            let exit_pos = jmp.pos.min(jmp.target);
-            if exit_pos == jmp.pos {
-                jmp.pos += bytes_added;
-            } else {
-                jmp.target += bytes_added;
-            }
+        let keep_active_jumps = calculate_jump_distance(&mut calculated_jumps,
+                                                        &mut active_jumps,
+                                                        curr_pos,
+                                                        x86.x64_mode);
 
-            if curr_pos <= jmp.pos.min(jmp.target) {
-
-                let mut jmp_code = vec![];
-                let dist = jmp.target as isize - jmp.pos as isize;
-                let is_long_jump = (dist < -128 && dist > 127) || jmp.is_long_jump;
-                match (jmp.opcode, is_long_jump) {
-                    (X86Opcode::JL, false) => jmp_code.push(0x7c),
-                    (X86Opcode::JL, true)  => {
-                            jmp_code.push(0x0f);
-                            jmp_code.push(0x8c);
-                    }
-                    (X86Opcode::JLE, false) => jmp_code.push(0x7e),
-                    (X86Opcode::JLE, true) => {
-                        jmp_code.push(0x0f);
-                        jmp_code.push(0x8e);
-                    }
-                    (X86Opcode::JG, false) => jmp_code.push(0x7f),
-                    (X86Opcode::JG, true)  => {
-                        jmp_code.push(0x0f);
-                        jmp_code.push(0x8f);
-                    }
-                    (X86Opcode::JGE, false) => jmp_code.push(0xd),
-                    (X86Opcode::JGE, true) => {
-                        jmp_code.push(0x0f);
-                        jmp_code.push(0x8d);
-                    }
-                    (X86Opcode::JE, false) => jmp_code.push(0x74),
-                    (X86Opcode::JE, true) => {
-                        jmp_code.push(0x0f);
-                        jmp_code.push(0x84);
-                    }
-                    (X86Opcode::JNE, false) => jmp_code.push(0x75),
-                    (X86Opcode::JNE, true) => {
-                        jmp_code.push(0x0f);
-                        jmp_code.push(0x85);
-                    }
-                    (X86Opcode::JMP, false) => jmp_code.push(0xeb),
-                    (X86Opcode::JMP, true)  => jmp_code.push(0xe9),
-                    (X86Opcode::CALL, true) => {
-                        jmp_code.push(0xe8);
-                    }
-
-                    _ => panic!("x86: invalid jump instruction"),
-                }
-
-                if is_long_jump {
-                    if x86.x64_mode {
-                        let v = dist as i32;
-                        jmp_code.push(( v        & 0xFFi32) as u8);
-                        jmp_code.push(((v >> 8)  & 0xFFi32) as u8);
-                        jmp_code.push(((v >> 16) & 0xFFi32) as u8);
-                        jmp_code.push(((v >> 24) & 0xFFi32) as u8);
-                    } else {
-                        let v = dist as i16;
-                        jmp_code.push(( v        & 0xFFi16) as u8);
-                        jmp_code.push(((v >> 8)  & 0xFFi16) as u8);
-                    }
-                } else {
-                    let v = dist as i8;
-                    jmp_code.push(v as u8);
-                }
-
-                calculated_jumps.push((jmp.pos, jmp_code));
-                false
-            } else {
-                true
-            }
-        });
-
+        let mut i = 0;
+        active_jumps.retain(|jmp| (keep_active_jumps[i], i += 1).0);
         active_jumps.push(*next_jmp);
     }
+
+    // Any remaining active jumps needs to be calcuated also
+    calculate_jump_distance(&mut calculated_jumps, &mut active_jumps, 0, x86.x64_mode);
 
     // Now write the calculated jump distances
     for (index, bytes) in calculated_jumps {
         x86.machine_code[index] = bytes[0];
         x86.machine_code[index + 1] = bytes[1];
 
-        let mut i = 1;
-        for b in &bytes[2..] {
-            x86.machine_code.insert(index + i, *b);
-            i += 1;
-        }
+        // let mut i = 1;
+        // for b in &bytes[2..] {
+            // x86.machine_code.insert(index + i, *b);
+            // i += 1;
+        // }
     }
 
     (x86.machine_code, x86.assembly)
@@ -446,8 +475,13 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             IrOpcode::And |
             IrOpcode::Or  |
             IrOpcode::Xor => {
+                let dst = to_x86_operand(x86, insn.op1, insn.ty);
                 let lhs = to_x86_operand(x86, insn.op2, insn.ty);
                 let rhs = to_x86_operand(x86, insn.op3, insn.ty);
+                if dst != lhs {
+                    push_instruction(x86, X86Opcode::MOV, insn.ty, dst, lhs);
+                }
+                
                 let opcode = match insn.opcode {
                     IrOpcode::Add => X86Opcode::ADD,
                     IrOpcode::Sub => X86Opcode::SUB,
@@ -456,8 +490,8 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     IrOpcode::Xor => X86Opcode::XOR,
                     _ => unreachable!(),
                 };
-                push_instruction(x86, opcode, insn.ty, lhs, rhs);
-                insert_variable(x86, insn.op1, lhs, insn.ty);
+                push_instruction(x86, opcode, insn.ty, dst, rhs);
+                insert_variable(x86, insn.op1, dst, insn.ty);
             }
 
             IrOpcode::Mul => {
@@ -652,7 +686,6 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 let lhs = to_x86_operand(x86, insn.op1, insn.ty);
                 let rhs = to_x86_operand(x86, insn.op2, insn.ty);
                 let label = get_ir_ident(insn.op3);
-                let insn_pos = x86.machine_code.len();
 
                 push_instruction(x86, X86Opcode::CMP, insn.ty, lhs, rhs);
                 let opcode = match insn.opcode {
@@ -688,13 +721,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     _ => unreachable!(),
                 };
 
-                push_relative_jump(x86, label, insn_pos, opcode, false);
+                push_relative_jump(x86, label, opcode, false);
             }
 
             IrOpcode::Jump => {
                 let label = get_ir_ident(insn.op1);
-                let insn_pos = x86.machine_code.len();
-                push_relative_jump(x86, label, insn_pos, X86Opcode::JMP, false);
+                push_relative_jump(x86, label, X86Opcode::JMP, false);
                 print_asm!(x86, "    jmp   {}\n", label);
             }
 
@@ -729,8 +761,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
                 // Jump to the end of the function
                 if i < num_insns - 1 {
-                    let pos = x86.machine_code.len();
-                    push_relative_jump(x86, bb.exit_label, pos, X86Opcode::JMP, false);
+                    push_relative_jump(x86, bb.exit_label, X86Opcode::JMP, false);
                     print_asm!(x86, "    jmp   {}\n", bb.exit_label);
                 }
             }
@@ -1061,30 +1092,35 @@ fn maybe_get_ir_ident(op: IrOperand) -> Option<IrIdent> {
     }
 }
 
-fn push_relative_jump(x86: &mut X86Assembler, ident: IrIdent, pos: usize, opcode: X86Opcode, is_long_jump: bool) {
+fn push_relative_jump(x86: &mut X86Assembler, ident: IrIdent, opcode: X86Opcode, is_long_jump: bool) {
+    let pos = x86.machine_code.len();
+
+    // NOTE(alexander): opcode + jump distance is filled after the entire program has compiled.
+    x86.machine_code.push(0x90); // reserve one for opcode
+    if is_long_jump {
+        if x86.x64_mode {
+            x86.machine_code.push(0x90);
+            x86.machine_code.push(0x90);
+            x86.machine_code.push(0x90);
+            x86.machine_code.push(0x90);
+        } else {
+            x86.machine_code.push(0x90);
+            x86.machine_code.push(0x90);
+        }
+    } else {
+        x86.machine_code.push(0x90);
+    }
+    let next_pos = x86.machine_code.len();
+
     x86.relative_jumps.push(X86RelJump {
         ident,
         pos,
+        next_pos,
         target: 0, // calculated afterwards
         opcode,
         is_long_jump
     });
 
-    // NOTE(alexander): opcode + jump distance is filled after the entire program has compiled.
-    x86.machine_code.push(0x0); // reserve one for opcode
-    if is_long_jump {
-        if x86.x64_mode {
-            x86.machine_code.push(0x0);
-            x86.machine_code.push(0x0);
-            x86.machine_code.push(0x0);
-            x86.machine_code.push(0x0);
-        } else {
-            x86.machine_code.push(0x0);
-            x86.machine_code.push(0x0);
-        }
-    } else {
-        x86.machine_code.push(0x0);
-    }
 }
 
 fn push_rex_prefix(x86: &mut X86Assembler, reg: Option<X86Reg>, rm: Option<X86Reg>, ty: IrType) {
