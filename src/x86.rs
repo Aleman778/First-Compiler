@@ -807,7 +807,6 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         // x86.machine_code.push(0xcc); // FIXME: REMOVE THIS
                         let reg = allocate_register(x86, None);
                         let dst = X86Operand::Register(reg);
-                        let src = to_x86_operand(x86, insn.op2, insn.ty);
 
                         let return_op = windows_calling_convention(x86);
                         // armv64_calling_convention(x86); // TODO(alexander): implement this

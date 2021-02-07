@@ -206,7 +206,7 @@ fn run_compiler(config: Config) {
     unsafe {
         let src_len = machine_code.len();
         let src_ptr = machine_code.as_ptr();
-        std::ptr::copy_nonoverlapping(src_ptr, jit_code.code, src_len);
+        std::ptr::copy_nonoverlapping(src_ptr, jit_code.addr, src_len);
     }
     
     finalize_jit_code(&jit_code);
