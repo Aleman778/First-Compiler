@@ -83,6 +83,7 @@ pub struct IrInstruction {
 pub enum IrOpcode {
     Nop,
     Alloca, // op1 = alloca(op2)
+    AllocParams, // (no operands) allocates all defined parameters
     Copy, // op1 = op2
     CopyFromDeref, // op1 = *op2
     CopyFromRef, // op1 = &op2 (these are always mutable refs)
@@ -359,6 +360,32 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
                 ..Default::default()
             });
 
+            // Create the function scope, and setup arguments
+            let mut scope = IrScope {
+                enter_label: None,
+                exit_label: None,
+                locals: HashMap::new(),
+            };
+            
+            for arg in &func.decl.inputs {
+                let ty = to_ir_type(&arg.ty);
+                let ident = create_ir_ident(arg.ident.sym, 0);
+                scope.locals.insert(ident, ty);
+                ib.instructions.push(IrInstruction {
+                    opcode: IrOpcode::Param,
+                    op1: IrOperand::Ident(ident),
+                    ty,
+                    ..Default::default()
+                });
+            }
+
+            ib.instructions.push(IrInstruction {
+                opcode: IrOpcode::AllocParams,
+                ..Default::default()
+            });
+            
+            ib.scopes.push(scope);
+
             build_ir_from_block(ib, &func.block, Some(enter_label), Some(exit_label));
 
             ib.instructions.push(IrInstruction {
@@ -386,6 +413,7 @@ pub fn build_ir_from_item<'a>(ib: &mut IrBuilder<'a>, item: &Item) {
             }
             ib.live_intervals.clear();
 
+            ib.scopes.pop();
         }
         _ => {}
     }
@@ -397,7 +425,7 @@ pub fn build_ir_from_block<'a>(
     enter_label: Option<IrIdent>,
     exit_label: Option<IrIdent>
 ) -> (IrOperand, IrType) {
-    
+
     let scope = IrScope {
         enter_label,
         exit_label,
@@ -405,7 +433,7 @@ pub fn build_ir_from_block<'a>(
     };
 
     ib.scopes.push(scope);
-    
+
     let mut last_op = IrOperand::None;
     let mut last_ty = IrType::None;
     for stmt in &block.stmts {
@@ -468,7 +496,7 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
 }
 
 fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, false_target: IrIdent) {
-    
+
     fn binary_if_condition<'a>(ib: &mut IrBuilder<'a>, cond: &Expr) -> (IrOpcode, IrOperand, IrOperand, IrType) {
         match cond {
             Expr::Binary(binary) => {
@@ -495,7 +523,7 @@ fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, 
             _ => (IrOpcode::Nop, IrOperand::None, IrOperand::None, IrType::None),
         }
     }
-    
+
     let (mut opcode, mut op1, mut op2, mut ty) = binary_if_condition(ib, cond);
     let op3 = IrOperand::Ident(false_target);
 
@@ -583,7 +611,6 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
         Expr::Block(block) => build_ir_from_block(ib, &block.block, None, None),
 
-        
         Expr::Break(_) |
         Expr::Continue(_) => {
             for scope in ib.scopes.iter().rev() {
@@ -611,7 +638,6 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
             (IrOperand::None, IrType::None)
         }
-
 
         Expr::Call(call) => {
             // Setup parameters
@@ -1006,6 +1032,7 @@ impl fmt::Display for IrOpcode {
         match self {
             IrOpcode::Nop           => write!(f, "nop"),
             IrOpcode::Alloca        => write!(f, "alloca"),
+            IrOpcode::AllocParams   => write!(f, "alloc_params"),
             IrOpcode::Copy          => write!(f, "copy"),
             IrOpcode::CopyFromRef   => write!(f, "copy_from_ref"),
             IrOpcode::CopyFromDeref => write!(f, "copy_from_deref"),

@@ -11,7 +11,9 @@ struct X86Assembler {
     local_variables: HashMap<IrIdent, (X86Operand, IrType)>,
     allocated_registers: VecDeque<(X86Reg, Option<IrIdent>)>,
     free_registers: VecDeque<X86Reg>,
+    argument_stack: VecDeque<(IrOperand, IrType)>, // ordered left-to-right
     curr_stack_offset: isize,
+    max_stack_requirement: isize,
     debug_break_symbol: Symbol,
     assembly: String,
     print_assembly: bool,
@@ -67,7 +69,7 @@ enum X86Opcode {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum X86Operand {
-    Stack(isize),
+    Stack(X86Reg, isize),
     Register(X86Reg),
     Value(X86Value),
 }
@@ -99,7 +101,7 @@ enum X86Value {
     Int64(i64),
 }
 
-macro_rules! print_asm {
+macro_rules! sprint_asm {
     ($x86:expr, $str:expr) => {
         if $x86.print_assembly {
             $x86.assembly.push_str($str);
@@ -124,7 +126,9 @@ pub fn compile_ir_to_x86_machine_code(
         local_variables: HashMap::new(),
         allocated_registers: VecDeque::new(),
         free_registers: VecDeque::new(),
+        argument_stack: VecDeque::new(),
         curr_stack_offset: 0,
+        max_stack_requirement: 0,
         debug_break_symbol: intern_string("debug_break"),
         assembly: String::new(),
         print_assembly: true,
@@ -155,15 +159,15 @@ pub fn compile_ir_to_x86_machine_code(
     }
 
     fn calculate_jump_distance(
-        calculated_jumps: &mut Vec<(usize, Vec<u8>)>,
+        calculated_jumps: &mut Vec<(usize, Vec<u8>, u8)>,
         active_jumps: &mut Vec<X86RelJump>,
         curr_pos: usize,
         x64_mode: bool
     ) -> Vec<bool> {
 
-        let mut bytes_added = 0;
+        let mut bytes_added = 0; // TODO(alexander): this is currently not set!
         let mut keep_active_jumps: Vec<bool> = Vec::new();
-        for (i, jmp) in active_jumps.iter_mut().enumerate() {
+        for jmp in active_jumps.iter_mut() {
             let exit_pos = jmp.pos.min(jmp.target);
             if exit_pos == jmp.pos {
                 jmp.pos += bytes_added;
@@ -174,6 +178,11 @@ pub fn compile_ir_to_x86_machine_code(
             if curr_pos <= exit_pos {
                 let mut jmp_code = Vec::new();
                 let dist = jmp.target as isize - jmp.next_pos as isize;
+                let pre_allocated_bytes = if jmp.is_long_jump {
+                    5
+                } else {
+                    2
+                };
                 let is_long_jump = (dist < -128 && dist > 127) || jmp.is_long_jump;
 
                 match (jmp.opcode, is_long_jump) {
@@ -241,7 +250,7 @@ pub fn compile_ir_to_x86_machine_code(
                     jmp_code.push(v as u8);
                 }
 
-                calculated_jumps.push((jmp.pos, jmp_code));
+                calculated_jumps.push((jmp.pos, jmp_code, pre_allocated_bytes));
                 keep_active_jumps.push(false);
             } else {
                 keep_active_jumps.push(true);
@@ -258,7 +267,7 @@ pub fn compile_ir_to_x86_machine_code(
     //                 since adding bytes before the jump wont affect the
     //                 actual jump distance since they are relative.
     x86.relative_jumps.sort_by(|a, b| b.pos.max(b.target).cmp(&a.pos.max(a.target)));
-    let mut calculated_jumps: Vec<(usize, Vec<u8>)> = Vec::new();
+    let mut calculated_jumps: Vec<(usize, Vec<u8>, u8)> = Vec::new();
     let mut active_jumps: Vec<X86RelJump> = Vec::new();
     for next_jmp in &x86.relative_jumps {
         let curr_pos = next_jmp.pos.max(next_jmp.target);
@@ -268,7 +277,7 @@ pub fn compile_ir_to_x86_machine_code(
                                                         x86.x64_mode);
 
         let mut i = 0;
-        active_jumps.retain(|jmp| (keep_active_jumps[i], i += 1).0);
+        active_jumps.retain(|_| (keep_active_jumps[i], i += 1).0);
         active_jumps.push(*next_jmp);
     }
 
@@ -276,21 +285,51 @@ pub fn compile_ir_to_x86_machine_code(
     calculate_jump_distance(&mut calculated_jumps, &mut active_jumps, 0, x86.x64_mode);
 
     // Now write the calculated jump distances
-    for (index, bytes) in calculated_jumps {
-        x86.machine_code[index] = bytes[0];
-        x86.machine_code[index + 1] = bytes[1];
+    for (index, bytes, pre_allocated_bytes) in calculated_jumps {
+        if pre_allocated_bytes >= 2 {
+            x86.machine_code[index] = bytes[0];
+            x86.machine_code[index + 1] = bytes[1];
+        }
+        if pre_allocated_bytes >= 5 {
+            x86.machine_code[index + 2] = bytes[2];
+            x86.machine_code[index + 3] = bytes[3];
+            x86.machine_code[index + 4] = bytes[4];
+        }
 
-        // let mut i = 1;
-        // for b in &bytes[2..] {
-            // x86.machine_code.insert(index + i, *b);
-            // i += 1;
-        // }
+        let mut i = pre_allocated_bytes as usize;
+        for b in &bytes[pre_allocated_bytes as usize..] {
+            x86.machine_code.insert(index + i, *b);
+            i += 1;
+        }
     }
 
     (x86.machine_code, x86.assembly)
 }
 
 fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBlock) {
+
+    fn push_prologue(x86: &mut X86Assembler) {
+        // push rbp
+        x86.machine_code.push(0xff);
+        x86.machine_code.push(modrm(6, reg_id(X86Reg::RBP)));
+        sprint_asm!(x86, "    push  rbp\n");
+
+        // mov rbp rsp
+        push_instruction(x86,
+                         X86Opcode::MOV,
+                         IrType::I64,
+                         X86Operand::Register(X86Reg::RBP),
+                         X86Operand::Register(X86Reg::RSP));
+    }
+
+    fn push_epilogue(x86: &mut X86Assembler) {
+        // pop rbp
+        x86.machine_code.push(0x8f);
+        x86.machine_code.push(modrm(0, reg_id(X86Reg::RBP)));
+        sprint_asm!(x86, "    pop    rbp\n");
+    }
+    
+    
     // Setup the x86 state
     x86.curr_stack_offset = 0;
     x86.local_variables.clear();
@@ -319,27 +358,23 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     // x86.machine_code.push(0xcc); // FIXME: debugging remove this
 
     // Prologue
-    print_asm!(x86, "{}:\n", bb.enter_label);
-
-    // push rbp
-    x86.machine_code.push(0xff);
-    x86.machine_code.push(modrm(6, reg_id(X86Reg::RBP)));
-    print_asm!(x86, "    push  rbp\n");
-
-    // mov rbp rsp
-    push_instruction(x86,
-                     X86Opcode::MOV,
-                     IrType::I64,
-                     X86Operand::Register(X86Reg::RBP),
-                     X86Operand::Register(X86Reg::RSP));
-
+    sprint_asm!(x86, "{}:\n", bb.enter_label);
+    push_prologue(x86);
+    
     // sub rsp x (gets filled in later, if needed)
-    let sub_byte_pos = x86.machine_code.len();
+    let sub_rsp_byte_pos = x86.machine_code.len();
 
     // Function body
     let mut require_stack_frame = false;
 
     let num_insns = insns.len();
+
+    fn alloca(x86: &mut X86Assembler, ty: IrType, ir_dst: IrOperand, src: X86Operand) {
+        x86.curr_stack_offset -= size_of_ir_type(ty, x86.addr_size);
+        let dst = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
+        push_instruction(x86, X86Opcode::MOV, ty, dst, src);
+        insert_variable(x86, ty, ir_dst, dst);
+    }
 
     for (i, insn) in insns.iter().enumerate() {
         let insn_index = bb.prologue_index + i + 1;
@@ -347,22 +382,44 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
         match insn.opcode {
             IrOpcode::Nop => {
                 x86.machine_code.push(0x90);
-                print_asm!(x86, "    nop\n");
+                sprint_asm!(x86, "    nop\n");
             }
 
             IrOpcode::Alloca => {
-                x86.curr_stack_offset -= size_of_ir_type(insn.ty, x86.addr_size);
-                let dst = X86Operand::Stack(x86.curr_stack_offset);
-                let src = to_x86_operand(x86, insn.op2, insn.ty);
-                push_instruction(x86, X86Opcode::MOV, insn.ty, dst, src);
-                insert_variable(x86, insn.op1, dst, insn.ty);
+                let op = to_x86_operand(x86, insn.op2, insn.ty);
+                alloca(x86, insn.ty, insn.op1, op);
+            }
+
+            IrOpcode::AllocParams => {
+                // NOTE(alexander): internally we always use windows calling convention.
+                let dst_reg: [X86Reg; 4] = [X86Reg::RCX, X86Reg::RDX, X86Reg::R8, X86Reg::R9];
+                for i in 0..4 {
+                    if let Some((op, ty)) = x86.argument_stack.pop_front() {
+                        alloca(x86, ty, op, X86Operand::Register(dst_reg[i]));
+                    } else {
+                        break;
+                    }
+                }
+
+                let mut arg_moves: Vec<(IrType, IrOperand, X86Operand)> = Vec::new();
+                let mut stack_offset = 0isize;
+                for (op, ty) in x86.argument_stack.iter().rev() {
+                    arg_moves.push((*ty, *op, X86Operand::Stack(X86Reg::RBP, stack_offset)));
+                    stack_offset += size_of_ir_type(*ty, x86.addr_size);
+                }
+
+                for (ty, dst, src) in arg_moves {
+                    insert_variable(x86, ty, dst, src);
+                }
+
+                x86.argument_stack.clear();
             }
 
             IrOpcode::Copy => {
                 let dst = to_x86_operand(x86, insn.op1, insn.ty);
                 let src = to_x86_operand(x86, insn.op2, insn.ty);
                 push_instruction(x86, X86Opcode::MOV, insn.ty, dst, src);
-                insert_variable(x86, insn.op1, dst, insn.ty);
+                insert_variable(x86, insn.ty, insn.op1, dst);
             }
 
             IrOpcode::CopyFromDeref => {
@@ -387,7 +444,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 x86.machine_code.push(modrm_disp(reg_id(dst_reg), reg_id(src_reg), 0));
                 x86.machine_code.push(0); // NOTE(alexander): use no displacement
                 print_instruction(x86, X86Opcode::MOV, insn.ty, dst, src, true);
-                insert_variable(x86, insn.op1, dst, insn.ty);
+                insert_variable(x86, insn.ty, insn.op1, dst);
             }
 
             IrOpcode::CopyFromRef => {
@@ -412,7 +469,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 push_displacement(x86, disp);
                 print_instruction(x86, X86Opcode::LEA, insn.ty, dst, src, false);
 
-                insert_variable(x86, insn.op1, dst, ref_ty);
+                insert_variable(x86, ref_ty, insn.op1, dst);
             }
 
             IrOpcode::CopyToDeref => {
@@ -435,12 +492,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         print_instruction(x86, X86Opcode::MOV, insn.ty, dst, src, false);
                     }
 
-                    X86Operand::Stack(disp) => {
+                    X86Operand::Stack(sreg, disp) => {
                         // Move first source into auxiliary register
                         let src_reg = allocate_register(x86, None);
                         push_rex_prefix(x86, Some(src_reg), None, insn.ty);
                         x86.machine_code.push(0x8b);
-                        x86.machine_code.push(modrm_disp(reg_id(src_reg), reg_id(X86Reg::RBP), disp));
+                        x86.machine_code.push(modrm_disp(reg_id(src_reg), reg_id(sreg), disp));
                         push_displacement(x86, disp);
                         print_instruction(x86, X86Opcode::MOV, insn.ty, X86Operand::Register(src_reg), src, false);
 
@@ -467,7 +524,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             IrOpcode::Clear => {
                 let op = to_x86_operand(x86, insn.op1, insn.ty);
                 push_instruction(x86, X86Opcode::XOR, insn.ty, op, op);
-                insert_variable(x86, insn.op1, op, insn.ty);
+                insert_variable(x86, insn.ty, insn.op1, op);
             }
 
             IrOpcode::Add |
@@ -491,7 +548,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     _ => unreachable!(),
                 };
                 push_instruction(x86, opcode, insn.ty, dst, rhs);
-                insert_variable(x86, insn.op1, dst, insn.ty);
+                insert_variable(x86, insn.ty, insn.op1, dst);
             }
 
             IrOpcode::Mul => {
@@ -510,11 +567,11 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         push_immediate(x86, val);
                     }
 
-                    X86Operand::Stack(disp) => {
+                    X86Operand::Stack(sreg, disp) => {
                         push_rex_prefix(x86, Some(reg), None, insn.ty);
                         x86.machine_code.push(0x0f); // RM
                         x86.machine_code.push(0xaf);
-                        x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
+                        x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(sreg), disp));
                         push_displacement(x86, disp);
                     }
 
@@ -527,7 +584,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 }
 
                 print_instruction(x86, X86Opcode::IMUL, insn.ty, lhs, rhs, false);
-                insert_variable(x86, insn.op1, lhs, insn.ty);
+                insert_variable(x86, insn.ty, insn.op1, lhs);
             }
 
             IrOpcode::Div |
@@ -550,7 +607,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 }
 
                 x86.machine_code.push(0x99); // cdq (sign extends EAX to EDX:EAX)
-                print_asm!(x86, "    cdq\n");
+                sprint_asm!(x86, "    cdq\n");
 
                 match rhs {
                     X86Operand::Value(_) => {
@@ -562,22 +619,22 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         x86.machine_code.push(0xf7); // M
                         x86.machine_code.push(modrm(7, reg_id(reg)));
                         free_register(x86, reg);
-                        print_asm!(x86, "    idiv  {}\n", reg);
+                        sprint_asm!(x86, "    idiv  {}\n", reg);
                     }
 
-                    X86Operand::Stack(disp) => {
+                    X86Operand::Stack(sreg, disp) => {
                         push_rex_prefix(x86, None, None, insn.ty);
                         x86.machine_code.push(0xf7); // M
-                        x86.machine_code.push(modrm_disp(7, reg_id(X86Reg::RBP), disp));
+                        x86.machine_code.push(modrm_disp(7, reg_id(sreg), disp));
                         push_displacement(x86, disp);
-                        print_asm!(x86, "    idiv  dword ptr {}\n", rhs);
+                        sprint_asm!(x86, "    idiv  dword ptr {}\n", rhs);
                     }
 
                     X86Operand::Register(reg) => {
                         push_rex_prefix(x86, None, Some(reg), insn.ty);
                         x86.machine_code.push(0xf7); // M
                         x86.machine_code.push(modrm(7, reg_id(reg)));
-                        print_asm!(x86, "    idiv  {}\n", reg);
+                        sprint_asm!(x86, "    idiv  {}\n", reg);
                     }
                 }
 
@@ -591,7 +648,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         }
                         if !dst_is_rax {
                             push_instruction(x86, X86Opcode::MOV, insn.ty, dst, X86Operand::Register(X86Reg::RAX));
-                            insert_variable(x86, insn.op1, dst, insn.ty);
+                            insert_variable(x86, insn.ty, insn.op1, dst);
                         }
 
                     }
@@ -602,7 +659,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         }
                         if !dst_is_rdx {
                             push_instruction(x86, X86Opcode::MOV, insn.ty, dst, X86Operand::Register(X86Reg::RDX));
-                            insert_variable(x86, insn.op1, dst, insn.ty);
+                            insert_variable(x86, insn.ty, insn.op1, dst);
                         }
                     }
                     _ => unreachable!(),
@@ -631,37 +688,37 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     IrOpcode::Lt => {
                         x86.machine_code.push(0x0f);
                         x86.machine_code.push(0x9c);
-                        print_asm!(x86, "    setl  {}\n", dst);
+                        sprint_asm!(x86, "    setl  {}\n", dst);
                     },
 
                     IrOpcode::Le => {
                         x86.machine_code.push(0x0f);
                         x86.machine_code.push(0x9e);
-                        print_asm!(x86, "    setle {}\n", dst);
+                        sprint_asm!(x86, "    setle {}\n", dst);
                     },
 
                     IrOpcode::Gt => {
                         x86.machine_code.push(0x0f);
                         x86.machine_code.push(0x9f);
-                        print_asm!(x86, "    setg  {}\n", dst);
+                        sprint_asm!(x86, "    setg  {}\n", dst);
                     },
 
                     IrOpcode::Ge => {
                         x86.machine_code.push(0x0f);
                         x86.machine_code.push(0x9d);
-                        print_asm!(x86, "    setge {}\n", dst);
+                        sprint_asm!(x86, "    setge {}\n", dst);
                     },
 
                     IrOpcode::Eq => {
                         x86.machine_code.push(0x0f);
                         x86.machine_code.push(0x94);
-                        print_asm!(x86, "    sete  {}\n", dst);
+                        sprint_asm!(x86, "    sete  {}\n", dst);
                     },
 
                     IrOpcode::Ne => {
                         x86.machine_code.push(0x0f);
                         x86.machine_code.push(0x95);
-                        print_asm!(x86, "    setne {}\n", dst);
+                        sprint_asm!(x86, "    setne {}\n", dst);
                     },
                     _ => unreachable!(),
                 }
@@ -669,12 +726,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 match dst {
                     X86Operand::Value(_) => panic!("x86: cannot assign to value"),
                     X86Operand::Register(reg) => x86.machine_code.push(modrm(0, reg_id(reg))),
-                    X86Operand::Stack(disp) => {
-                        x86.machine_code.push(modrm_disp(0, reg_id(X86Reg::RBP), disp));
+                    X86Operand::Stack(sreg, disp) => {
+                        x86.machine_code.push(modrm_disp(0, reg_id(sreg), disp));
                         push_displacement(x86, disp);
                     }
                 }
-                insert_variable(x86, insn.op1, dst, IrType::I8);
+                insert_variable(x86, IrType::I8, insn.op1, dst);
             }
 
             IrOpcode::IfLt |
@@ -690,32 +747,32 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 push_instruction(x86, X86Opcode::CMP, insn.ty, lhs, rhs);
                 let opcode = match insn.opcode {
                     IrOpcode::IfLt => {
-                        print_asm!(x86, "    jl    {}\n", label);
+                        sprint_asm!(x86, "    jl    {}\n", label);
                         X86Opcode::JL
                     },
 
                     IrOpcode::IfLe => {
-                        print_asm!(x86, "    jle   {}\n", label);
+                        sprint_asm!(x86, "    jle   {}\n", label);
                         X86Opcode::JLE
                     },
 
                     IrOpcode::IfGt => {
-                        print_asm!(x86, "    jg    {}\n", label);
+                        sprint_asm!(x86, "    jg    {}\n", label);
                         X86Opcode::JG
                     },
 
                     IrOpcode::IfGe => {
-                        print_asm!(x86, "    jge   {}\n", label);
+                        sprint_asm!(x86, "    jge   {}\n", label);
                         X86Opcode::JGE
                     },
 
                     IrOpcode::IfEq => {
-                        print_asm!(x86, "    je    {}\n", label);
+                        sprint_asm!(x86, "    je    {}\n", label);
                         X86Opcode::JE
                     },
 
                     IrOpcode::IfNe => {
-                        print_asm!(x86, "    jne   {}\n", label);
+                        sprint_asm!(x86, "    jne   {}\n", label);
                         X86Opcode::JNE
                     },
                     _ => unreachable!(),
@@ -727,25 +784,92 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             IrOpcode::Jump => {
                 let label = get_ir_ident(insn.op1);
                 push_relative_jump(x86, label, X86Opcode::JMP, false);
-                print_asm!(x86, "    jmp   {}\n", label);
+                sprint_asm!(x86, "    jmp   {}\n", label);
             }
 
             IrOpcode::Label => {
                 let label = get_ir_ident(insn.op1);
                 let insn_pos = x86.machine_code.len();
                 x86.label_byte_pos.insert(label, insn_pos);
-                print_asm!(x86, "{}:\n", label);
+                sprint_asm!(x86, "{}:\n", label);
+            }
+            
+            IrOpcode::Param => {
+                x86.argument_stack.push_back((insn.op1, insn.ty));
             }
 
             IrOpcode::Call => {
-                if let IrOperand::Ident(ident) = insn.op2 {
-                    if ident.symbol == x86.debug_break_symbol {
-                        x86.machine_code.push(0xcc);
-                        continue;
-                    }
-                }
+                let return_op = match insn.op2 {
+                    IrOperand::Ident(ident) => {
+                        if ident.symbol == x86.debug_break_symbol {
+                            x86.machine_code.push(0xcc);
+                            continue;
+                        }
+                        
+                        // Setup based arguments, windows x64 calling convention
+                        let return_op = windows_calling_convention(x86);
 
-                // Setup stack frame
+                        // Perform the call
+                        push_relative_jump(x86, ident, X86Opcode::CALL, true);
+                        sprint_asm!(x86, "    call  {}\n", ident);
+                        return_op
+                    }
+
+                    IrOperand::Value(func_address) => {
+                        x86.machine_code.push(0xcc); // FIXME: REMOVE THIS
+                        let reg = allocate_register(x86, None);
+                        let dst = X86Operand::Register(reg);
+                        let src = to_x86_operand(x86, insn.op2, insn.ty);
+
+                        // mov rbp rsp
+                        push_instruction(x86,
+                                         X86Opcode::MOV,
+                                         IrType::I64,
+                                         X86Operand::Register(X86Reg::RBP),
+                                         X86Operand::Register(X86Reg::RSP));
+                        // push_prologue(x86); // NOTE(alexander): we have to clean the stack for Rust
+                        
+                        // NOTE(alexander): meh, Rust does not do proper prologe RBP must match RSP, add sizeof return address to RBP
+                        // if x86.x64_mode {
+                        //     x86.machine_code.push(REX_W);
+                        // }
+                        // push_instruction(x86,
+                        //                  X86Opcode::SUB,
+                        //                  IrType::I32,
+                        //                  X86Operand::Register(X86Reg::RBP),
+                        //                  X86Operand::Value(X86Value::Int32(x86.addr_size as i32)));
+
+                        let return_op = windows_calling_convention(x86);
+                        // armv64_calling_convention(x86); // TODO(alexander): implement this
+                        // cdecl_calling_convention(x86); // TODO(alexander): implement this
+
+                        if x86.x64_mode {
+                            x86.machine_code.push(REX_W); // TODO(alexander): is it possible to use higher registers?
+                        }
+                        
+                        x86.machine_code.push(0xb8 + reg_id(reg));
+                        let val = match func_address {
+                            IrValue::U32(v) => X86Value::Int32(v as i32),
+                            IrValue::U64(v) => X86Value::Int64(v as i64),
+                            _ => panic!("x86: unexpected func address value"),
+                        };
+                        push_immediate(x86, val);
+                        sprint_asm!(x86, "    mov   {}, {}\n", dst, val);
+
+                        x86.machine_code.push(0xff);
+                        x86.machine_code.push(modrm(2, reg_id(reg)));
+                        sprint_asm!(x86, "    call  {}\n", reg);
+
+                        push_epilogue(x86); // NOTE(alexander): reset stack to previous state
+                        return_op
+                    }
+
+                    _ => panic!("x86: expected identifier or value as second operand to Call"),
+                };
+                
+                require_stack_frame = true;
+                x86.argument_stack.clear();
+                insert_variable(x86, insn.ty, insn.op1, return_op);
             }
 
             IrOpcode::Return => {
@@ -762,7 +886,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 // Jump to the end of the function
                 if i < num_insns - 1 {
                     push_relative_jump(x86, bb.exit_label, X86Opcode::JMP, false);
-                    print_asm!(x86, "    jmp   {}\n", bb.exit_label);
+                    sprint_asm!(x86, "    jmp   {}\n", bb.exit_label);
                 }
             }
 
@@ -789,23 +913,71 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             }
         }
     }
-    // print_asm!(x86, "{}:\n", bb.exit_label); // NOTE(alexander): automatically printed from IR
+    // sprint_asm!(x86, "{}:\n", bb.exit_label); // NOTE(alexander): automatically printed from IR
 
     // Setup return label byte pos
     let return_pos = x86.machine_code.len();
-    x86.label_byte_pos.insert(bb.enter_label, return_pos);
+    x86.label_byte_pos.insert(bb.exit_label, return_pos);
 
     // Epilogue
-    // TODO(alexander) add rsp x
+    
+    // Allocate some stack space for this function if needed
+    if require_stack_frame {
+        if x86.curr_stack_offset < x86.max_stack_requirement {
+            x86.max_stack_requirement = x86.curr_stack_offset;
+        }
 
-    // pop rbp
-    x86.machine_code.push(0x8f);
-    x86.machine_code.push(modrm(0, reg_id(X86Reg::RBP)));
-    print_asm!(x86, "    pop    rbp\n");
+        // sub rbp, stackspace
+        let v = -x86.max_stack_requirement as i32;
+        x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 24) & 0xFFi32) as u8);
+        x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 16) & 0xFFi32) as u8);
+        x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 8)  & 0xFFi32) as u8);
+        x86.machine_code.insert(sub_rsp_byte_pos, ( v        & 0xFFi32) as u8);
+        x86.machine_code.insert(sub_rsp_byte_pos, modrm(5, reg_id(X86Reg::RSP)));
+        x86.machine_code.insert(sub_rsp_byte_pos, 0x81);
+        
+        let bytes_added: usize;
+        if x86.x64_mode {
+            x86.machine_code.insert(sub_rsp_byte_pos, REX_W);
+            bytes_added = 7;
+        } else {
+            bytes_added = 6;
+        }
+        sprint_asm!(x86, "    sub   rsp, {}\n", x86.max_stack_requirement); // TODO(alexander): doesn't print to the correct place in the code.
+
+        // 6-bytes have been inserted make sure to update all
+        // stored indices pointing after sub_rsp_byte_pos
+        for (_, pos) in x86.label_byte_pos.iter_mut() {
+            if *pos > sub_rsp_byte_pos {
+                *pos += bytes_added;
+            }
+        }
+
+        for rel_jmp in x86.relative_jumps.iter_mut() {
+            if rel_jmp.pos > sub_rsp_byte_pos {
+                rel_jmp.pos += bytes_added;
+            }
+            if rel_jmp.next_pos > sub_rsp_byte_pos {
+                rel_jmp.next_pos += bytes_added;
+            }
+        }
+
+        // sub rbp, stackspace
+        if x86.x64_mode {
+            x86.machine_code.push(REX_W);
+        }
+        push_instruction(x86,
+                         X86Opcode::ADD,
+                         IrType::I32,
+                         X86Operand::Register(X86Reg::RSP),
+                         X86Operand::Value(X86Value::Int32(v)));
+    }
+
+    push_epilogue(x86);
 
     // ret
     x86.machine_code.push(0xc3);
-    print_asm!(x86, "    ret\n");
+    sprint_asm!(x86, "    ret\n");
 }
 
 /***************************************************************************
@@ -819,47 +991,47 @@ fn push_instruction(x86: &mut X86Assembler, opcode: X86Opcode, ty: IrType, dst: 
     };
 
     match (dst, src) {
-        (X86Operand::Stack(disp1), X86Operand::Stack(disp2)) => {
+        (X86Operand::Stack(sreg1, disp1), X86Operand::Stack(sreg2, disp2)) => {
             // Move first source into auxiliary register
             let reg = allocate_register(x86, None);
             push_rex_prefix(x86, None, None, ty);
             x86.machine_code.push(get_rm_opcode(X86Opcode::MOV, opcode_offset));
-            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp2));
+            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(sreg2), disp2));
             push_displacement(x86, disp2);
             print_instruction(x86, X86Opcode::MOV, ty, X86Operand::Register(reg), src, false);
 
             // Move the auxiliary register to the destination
             push_rex_prefix(x86, None, None, ty);
             x86.machine_code.push(get_mr_opcode(opcode, opcode_offset));
-            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp1));
+            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(sreg1), disp1));
             push_displacement(x86, disp1);
             print_instruction(x86, opcode, ty, dst, X86Operand::Register(reg), false);
 
             free_register(x86, reg);
         }
 
-        (X86Operand::Stack(disp), X86Operand::Register(reg)) => {
+        (X86Operand::Stack(sreg, disp), X86Operand::Register(reg)) => {
             push_rex_prefix(x86, Some(reg), None, ty);
             x86.machine_code.push(get_mr_opcode(opcode, opcode_offset));
-            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
+            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(sreg), disp));
             push_displacement(x86, disp);
             print_instruction(x86, opcode, ty, dst, src, false);
         }
 
-        (X86Operand::Stack(disp), X86Operand::Value(val)) => {
+        (X86Operand::Stack(sreg, disp), X86Operand::Value(val)) => {
             let (opcode_byte, opcode_reg) = get_mi_opcode(opcode, opcode_offset);
             push_rex_prefix(x86, None, None, ty);
             x86.machine_code.push(opcode_byte);
-            x86.machine_code.push(modrm_disp(opcode_reg, reg_id(X86Reg::RBP), disp));
+            x86.machine_code.push(modrm_disp(opcode_reg, reg_id(sreg), disp));
             push_displacement(x86, disp);
             push_immediate(x86, val);
             print_instruction(x86, opcode, ty, dst, src, false);
         }
 
-        (X86Operand::Register(reg), X86Operand::Stack(disp)) => {
+        (X86Operand::Register(reg), X86Operand::Stack(sreg, disp)) => {
             push_rex_prefix(x86, Some(reg), None, ty);
             x86.machine_code.push(get_rm_opcode(opcode, opcode_offset));
-            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(X86Reg::RBP), disp));
+            x86.machine_code.push(modrm_disp(reg_id(reg), reg_id(sreg), disp));
             push_displacement(x86, disp);
             print_instruction(x86, opcode, ty, dst, src, false);
         }
@@ -882,6 +1054,38 @@ fn push_instruction(x86: &mut X86Assembler, opcode: X86Opcode, ty: IrType, dst: 
 
         _ => panic!("x86: cannot store to value operand"),
     }
+}
+
+fn windows_calling_convention(x86: &mut X86Assembler) -> X86Operand {
+    let dst_reg: [X86Reg; 4] = [X86Reg::RCX, X86Reg::RDX, X86Reg::R8, X86Reg::R9];
+    for i in 0..4 {
+        if let Some((op, ty)) = x86.argument_stack.pop_front() {
+            let src_op = to_x86_operand(x86, op, ty);
+            let dst_op = X86Operand::Register(dst_reg[i]);
+            push_instruction(x86, X86Opcode::MOV, ty, dst_op, src_op);
+        } else {
+            break;
+        }
+    }
+
+    let prev_stack_offset = x86.curr_stack_offset;
+    let mut arg_moves: Vec<(IrType, X86Operand, IrOperand)> = Vec::new();
+    for (op, ty) in x86.argument_stack.iter().rev() {
+        let dst_op = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
+        arg_moves.push((*ty, dst_op, *op));
+        x86.curr_stack_offset += size_of_ir_type(*ty, x86.addr_size);
+    }
+
+    for (ty, dst, src) in arg_moves {
+        let src_op = to_x86_operand(x86, src, ty);
+        push_instruction(x86, X86Opcode::MOV, ty, dst, src_op);
+    }
+    if x86.curr_stack_offset < x86.max_stack_requirement {
+        x86.max_stack_requirement = x86.curr_stack_offset;
+    }
+    x86.curr_stack_offset = prev_stack_offset;
+
+    return X86Operand::Register(X86Reg::RAX)
 }
 
 fn get_mr_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8{
@@ -935,7 +1139,7 @@ fn allocate_register(x86: &mut X86Assembler, ident: Option<IrIdent>) -> X86Reg {
                     // Spill out to stack
                     let (prev_operand, prev_ty) = *prev_variable;
                     x86.curr_stack_offset -= size_of_ir_type(prev_ty, x86.addr_size);
-                    let stack_op = X86Operand::Stack(x86.curr_stack_offset);
+                    let stack_op = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
                     x86.local_variables.insert(prev_ident, (stack_op, prev_ty));
                     push_instruction(x86, X86Opcode::MOV, prev_ty, stack_op, prev_operand);
                 }
@@ -1009,7 +1213,7 @@ fn free_specific_register(x86: &mut X86Assembler, reg: X86Reg, prev_reg: Option<
 }
 
 #[inline]
-fn insert_variable(x86: &mut X86Assembler, dst: IrOperand, src: X86Operand, ty: IrType) {
+fn insert_variable(x86: &mut X86Assembler, ty: IrType, dst: IrOperand, src: X86Operand) {
     let ident = get_ir_ident(dst);
     x86.local_variables.insert(ident, (src, ty));
 }
@@ -1064,11 +1268,11 @@ fn move_operand_to_register(
 }
 
 fn move_operand_to_stack(x86: &mut X86Assembler, op: X86Operand, ty: IrType) -> (isize, X86Operand) {
-    if let X86Operand::Stack(disp) = op {
+    if let X86Operand::Stack(_, disp) = op {
         (disp, op)
     } else {
         x86.curr_stack_offset -= size_of_ir_type(ty, x86.addr_size);
-        let stack_op = X86Operand::Stack(x86.curr_stack_offset);
+        let stack_op = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
         push_instruction(x86, X86Opcode::MOV, ty, stack_op, op);
         (x86.curr_stack_offset, stack_op)
     }
@@ -1270,12 +1474,12 @@ fn print_instruction(
 
         x86.assembly.push_str(&format!("    {:<6}", format!("{}", opcode)));
         match op1 {
-            X86Operand::Stack(_) => x86.assembly.push_str(&format!("{} {}, ", ptr_str, op1)),
+            X86Operand::Stack(_, _) => x86.assembly.push_str(&format!("{} {}, ", ptr_str, op1)),
             _ => x86.assembly.push_str(&format!("{}, ", op1)),
         }
 
         match op2 {
-            X86Operand::Stack(_) => x86.assembly.push_str(&format!("{} {}\n", ptr_str, op2)),
+            X86Operand::Stack(_, _) => x86.assembly.push_str(&format!("{} {}\n", ptr_str, op2)),
             _ => if op2_indirect {
                 x86.assembly.push_str(&format!("{} [{}]\n", ptr_str, op2));
             } else {
@@ -1360,10 +1564,10 @@ impl fmt::Display for X86Value {
 impl fmt::Display for X86Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            X86Operand::Stack(disp) => if *disp > 0 {
-                write!(f, "[rbp + {}]", disp)
+            X86Operand::Stack(sreg, disp) => if *disp > 0 {
+                write!(f, "[{} + {}]", sreg, disp)
             } else {
-                write!(f, "[rbp - {}]", -disp)
+                write!(f, "[{} - {}]", sreg, -disp)
             }
             X86Operand::Register(reg) => write!(f, "{}", reg),
             X86Operand::Value(val) => write!(f, "{}", val),
