@@ -307,29 +307,6 @@ pub fn compile_ir_to_x86_machine_code(
 }
 
 fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBlock) {
-
-    fn push_prologue(x86: &mut X86Assembler) {
-        // push rbp
-        x86.machine_code.push(0xff);
-        x86.machine_code.push(modrm(6, reg_id(X86Reg::RBP)));
-        sprint_asm!(x86, "    push  rbp\n");
-
-        // mov rbp rsp
-        push_instruction(x86,
-                         X86Opcode::MOV,
-                         IrType::I64,
-                         X86Operand::Register(X86Reg::RBP),
-                         X86Operand::Register(X86Reg::RSP));
-    }
-
-    fn push_epilogue(x86: &mut X86Assembler) {
-        // pop rbp
-        x86.machine_code.push(0x8f);
-        x86.machine_code.push(modrm(0, reg_id(X86Reg::RBP)));
-        sprint_asm!(x86, "    pop    rbp\n");
-    }
-    
-    
     // Setup the x86 state
     x86.curr_stack_offset = 0;
     x86.local_variables.clear();
@@ -359,7 +336,18 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
     // Prologue
     sprint_asm!(x86, "{}:\n", bb.enter_label);
-    push_prologue(x86);
+
+    // push rbp
+    x86.machine_code.push(0xff);
+    x86.machine_code.push(modrm(6, reg_id(X86Reg::RBP)));
+    sprint_asm!(x86, "    push  rbp\n");
+
+    // mov rbp rsp
+    push_instruction(x86,
+                     X86Opcode::MOV,
+                     IrType::I64,
+                     X86Operand::Register(X86Reg::RBP),
+                     X86Operand::Register(X86Reg::RSP));
     
     // sub rsp x (gets filled in later, if needed)
     let sub_rsp_byte_pos = x86.machine_code.len();
@@ -816,28 +804,10 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     }
 
                     IrOperand::Value(func_address) => {
-                        x86.machine_code.push(0xcc); // FIXME: REMOVE THIS
+                        // x86.machine_code.push(0xcc); // FIXME: REMOVE THIS
                         let reg = allocate_register(x86, None);
                         let dst = X86Operand::Register(reg);
                         let src = to_x86_operand(x86, insn.op2, insn.ty);
-
-                        // mov rbp rsp
-                        push_instruction(x86,
-                                         X86Opcode::MOV,
-                                         IrType::I64,
-                                         X86Operand::Register(X86Reg::RBP),
-                                         X86Operand::Register(X86Reg::RSP));
-                        // push_prologue(x86); // NOTE(alexander): we have to clean the stack for Rust
-                        
-                        // NOTE(alexander): meh, Rust does not do proper prologe RBP must match RSP, add sizeof return address to RBP
-                        // if x86.x64_mode {
-                        //     x86.machine_code.push(REX_W);
-                        // }
-                        // push_instruction(x86,
-                        //                  X86Opcode::SUB,
-                        //                  IrType::I32,
-                        //                  X86Operand::Register(X86Reg::RBP),
-                        //                  X86Operand::Value(X86Value::Int32(x86.addr_size as i32)));
 
                         let return_op = windows_calling_convention(x86);
                         // armv64_calling_convention(x86); // TODO(alexander): implement this
@@ -860,7 +830,6 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         x86.machine_code.push(modrm(2, reg_id(reg)));
                         sprint_asm!(x86, "    call  {}\n", reg);
 
-                        push_epilogue(x86); // NOTE(alexander): reset stack to previous state
                         return_op
                     }
 
@@ -927,6 +896,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             x86.max_stack_requirement = x86.curr_stack_offset;
         }
 
+        // Align 16-bytes
+        let stack_misalignment = x86.max_stack_requirement % 16;
+        if stack_misalignment < 0 {
+            x86.max_stack_requirement -= 16 + stack_misalignment;
+        }
+
         // sub rbp, stackspace
         let v = -x86.max_stack_requirement as i32;
         x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 24) & 0xFFi32) as u8);
@@ -943,7 +918,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
         } else {
             bytes_added = 6;
         }
-        sprint_asm!(x86, "    sub   rsp, {}\n", x86.max_stack_requirement); // TODO(alexander): doesn't print to the correct place in the code.
+        sprint_asm!(x86, "    sub   rsp, {}\n", -x86.max_stack_requirement); // TODO(alexander): doesn't print to the correct place in the code.
 
         // 6-bytes have been inserted make sure to update all
         // stored indices pointing after sub_rsp_byte_pos
@@ -973,7 +948,10 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                          X86Operand::Value(X86Value::Int32(v)));
     }
 
-    push_epilogue(x86);
+    // pop rbp
+    x86.machine_code.push(0x8f);
+    x86.machine_code.push(modrm(0, reg_id(X86Reg::RBP)));
+    sprint_asm!(x86, "    pop    rbp\n");
 
     // ret
     x86.machine_code.push(0xc3);

@@ -77,12 +77,14 @@ fn is_prime(n: i32) -> bool {
 }
 
 // fn main() -> i32 {
-//     // print_int(10);
-//     let x: i32 = multiply(10, 10);
+//     let x: i32 = 10;
+//     print_int(10);
+//     return 0;
+    
 //     // print_int(x);
-//     return x;
+//     // return x;
 // }
 // fn multiply(x: i32, y: i32) -> i32 {
-//     return x * y;
+    // return x * y;
 // }
 
