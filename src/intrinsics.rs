@@ -21,7 +21,22 @@ pub fn get_intrinsic_ast_items() -> Item {
                         span: Span::new(),
                     }
                 ),
-                
+
+                Item::ForeignFn(
+                    ForeignFnItem {
+                        ident: ExprIdent {
+                            sym: intern_string("debug_break"),
+                            span: Span::new(),
+                        },
+                        decl: FnDecl {
+                            inputs: vec![],
+                            output: Ty::default(),
+                            span: Span::new(),
+                        },
+                        span: Span::new(),
+                    }
+                ),
+
                 Item::ForeignFn(
                     ForeignFnItem {
                         ident: ExprIdent {
@@ -181,7 +196,7 @@ pub fn trace(ic: &mut InterpContext) {
  * Prints the given integer.
  */
 #[no_mangle]
-pub extern "cdecl" fn print_int(val: i32) {
+pub extern "C" fn print_int(val: i32) {
     println!("{}", val);
 }
 

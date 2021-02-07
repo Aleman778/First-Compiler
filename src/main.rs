@@ -21,8 +21,8 @@ use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
-use crate::ir::{create_ir_builder, build_ir_from_ast, push_ir_breakpoint};
-use crate::x86::{create_x86_assembler, compile_x86_ir};
+use crate::ir::{create_ir_builder, build_ir_from_ast};
+use crate::x86::{compile_ir_to_x86_machine_code};
 use crate::jit::{allocate_jit_code, finalize_jit_code, free_jit_code, execute_jit_code};
 // use crate::llvm::codegen_test;
 
@@ -173,50 +173,45 @@ fn run_compiler(config: Config) {
 
     // Build low-level intermediate representation
     let mut ir_builder = create_ir_builder();
-    
-    // insert breakpoint at the beginning
-    // push_ir_breakpoint(&mut ir_builder);
-    
+
     // build lir
     build_ir_from_ast(&mut ir_builder, &ast);
     print!("\n\nIntermediate Representation:\n-----------------------------------------------\n{}", ir_builder);
 
     // The resulting intermediate representation
     let ir_instructions = ir_builder.instructions;
+    let ir_functions = ir_builder.functions;
 
     // Generate code to jit
-    let mut x86 = create_x86_assembler(ir_builder.functions);
-    compile_x86_ir(&mut x86, &ir_instructions);
+    let (machine_code, assembly) = compile_ir_to_x86_machine_code(ir_instructions, ir_functions);
 
     println!("\n\nX86 Assembler:\n-----------------------------------------------");
-    for insn in x86.instructions {
-        println!("{}", insn);
-    }
+    println!("{}", assembly);
 
     println!("\n\nX86 Machine Code:\n-----------------------------------------------");
-    for (i, byte) in x86.machine_code.iter().enumerate() {
+    for (i, byte) in machine_code.iter().enumerate() {
         print!("{:02x} ", byte);
         if i % 16 == 15 {
             println!("");
         }
     }
-    println!("");
+    println!("\nSize of code is {} bytes", machine_code.len());
 
     // unsafe {
     //     winapi::um::debugapi::DebugBreak();
     // }
 
-    let jit_code = allocate_jit_code(x86.machine_code.len());
+    let jit_code = allocate_jit_code(machine_code.len());
     
     unsafe {
-        let src_len = x86.machine_code.len();
-        let src_ptr = x86.machine_code.as_ptr();
+        let src_len = machine_code.len();
+        let src_ptr = machine_code.as_ptr();
         std::ptr::copy_nonoverlapping(src_ptr, jit_code.code, src_len);
     }
     
     finalize_jit_code(&jit_code);
 
-    println!("\nOutput from executing jitted code:");
+    println!("\nOutput from executing jitted code:\n-----------------------------------------------");
     let ret = execute_jit_code(&jit_code);
     println!("\nProgram exited with code {}", ret);
     free_jit_code(&jit_code);

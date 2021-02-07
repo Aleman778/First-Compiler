@@ -1,5 +1,37 @@
 // fn main() -> i32 {
-//     let mut i: i32 = 115;
+//     let x: i32 = 10;
+//     let mut y: i32 = 20;
+//     y = 10;
+//     if (x >= y) {
+//         return 16;
+//     } else {
+//         return 20;
+//     }
+// }
+
+// fn main() -> i32 {
+//     let mut x: i32 = 10;
+//     let mut y: i32 = 10;
+//     let mut z: i32 = 10;
+//     let mut a: i32 = 10;
+//     let mut b: i32 = 10;
+//     let mut c: i32 = 10;
+//     let mut d: i32 = 10;
+//     let mut e: i32 = 10;
+//     let mut f: i32 = 10;
+//     let mut g: i32 = 10;
+//     let mut h: i32 = 10;
+//     let mut i: i32 = 10;
+//     let mut j: i32 = 10;
+//     let mut k: i32 = 10;
+//     let w: &mut i32 = &mut z;
+//     *w = 30;
+//     x = x / y * z - *w + a + b + c + d + e + f + g + h + i + j + k + z;
+//     return x;
+// }
+
+// fn main() -> i32 {
+//     let mut i: i32 = 7070;
 //     let run: bool = true;
 //     while run {
 //         let mut j: i32 = 1;
@@ -18,38 +50,40 @@
 //     i
 // }
 
-// fn main() {
-//     let mut i: i32 = 0;
-//     while i <= 1000 {
-//         if is_prime(i) {
-//             print_int(i);
-//         }
-//         i = i + 1;
-//     }
-// }
-
-// fn is_prime(n: i32) -> bool {
-//     if n <= 1 {
-//         return false;
-//     }
-//     let mut i: i32 = 2;
-//     while i < n {
-//         if n % i == 0 {
-//             return false;
-//         }
-//         i = i + 1;
-//     }
-    
-//     return true;
-// }
-
 fn main() -> i32 {
-    print_int(10);
-    return 0;
-    // let x: i32 = multiply(10, 10);
-    // print_int(x);
-    // return 0;
+    let mut i: i32 = 0;
+    while i <= 1000 {
+        if is_prime(i) {
+            print_int(i);
+        }
+        i = i + 1;
+    }
+    return i;
 }
+
+fn is_prime(n: i32) -> bool {
+    if n <= 1 {
+        return false;
+    }
+    let mut i: i32 = 2;
+    while i < n {
+        if n % i == 0 {
+            return false;
+        }
+        i = i + 1;
+    }
+    
+    return true;
+}
+
+// fn main() -> i32 {
+//     let x: i32 = 10;
+//     print_int(10);
+//     return 0;
+    
+//     // print_int(x);
+//     // return x;
+// }
 // fn multiply(x: i32, y: i32) -> i32 {
     // return x * y;
 // }
