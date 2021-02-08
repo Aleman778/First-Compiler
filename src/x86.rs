@@ -817,9 +817,13 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         let reg = allocate_register(x86, None);
                         let dst = X86Operand::Register(reg);
 
-                        let return_op = windows_calling_convention(x86);
-                        // armv64_calling_convention(x86); // TODO(alexander): implement this
-                        // cdecl_calling_convention(x86); // TODO(alexander): implement this
+                        let return_op = if cfg!(windows) {
+                            windows_calling_convention(x86)
+                        } else if cfg!(unix) {
+                            sysv64_calling_convention(x86)
+                        } else {
+                            panic!("x64: unknown os, cannot select calling convention");
+                        };
 
                         if x86.x64_mode {
                             x86.machine_code.push(REX_W); // TODO(alexander): is it possible to use higher registers?
@@ -1071,7 +1075,39 @@ fn windows_calling_convention(x86: &mut X86Assembler) -> X86Operand {
     }
     x86.curr_stack_offset = prev_stack_offset;
 
-    return X86Operand::Register(X86Reg::RAX)
+    X86Operand::Register(X86Reg::RAX)
+}
+
+fn sysv64_calling_convention(x86: &mut X86Assembler) -> X86Operand {
+    let dst_reg: [X86Reg; 6] = [X86Reg::RDI, X86Reg::RSI, X86Reg::RDX, X86Reg::RCX, X86Reg::R8, X86Reg::R9];
+    for i in 0..6 {
+        if let Some((op, ty)) = x86.argument_stack.pop_front() {
+            let src_op = to_x86_operand(x86, op, ty);
+            let dst_op = X86Operand::Register(dst_reg[i]);
+            push_instruction(x86, X86Opcode::MOV, ty, dst_op, src_op);
+        } else {
+            break;
+        }
+    }
+
+    let prev_stack_offset = x86.curr_stack_offset;
+    let mut arg_moves: Vec<(IrType, X86Operand, IrOperand)> = Vec::new();
+    for (op, ty) in x86.argument_stack.iter().rev() {
+        let dst_op = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
+        arg_moves.push((*ty, dst_op, *op));
+        x86.curr_stack_offset += size_of_ir_type(*ty, x86.addr_size);
+    }
+
+    for (ty, dst, src) in arg_moves {
+        let src_op = to_x86_operand(x86, src, ty);
+        push_instruction(x86, X86Opcode::MOV, ty, dst, src_op);
+    }
+    if x86.curr_stack_offset < x86.max_stack_requirement {
+        x86.max_stack_requirement = x86.curr_stack_offset;
+    }
+    x86.curr_stack_offset = prev_stack_offset;
+
+    X86Operand::Register(X86Reg::RAX)
 }
 
 fn get_mr_opcode(opcode: X86Opcode, opcode_offset: u8) -> u8{
