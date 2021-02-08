@@ -188,42 +188,51 @@ pub fn compile_ir_to_x86_machine_code(
                 match (jmp.opcode, is_long_jump) {
                     (X86Opcode::JL, false) => jmp_code.push(0x7c),
                     (X86Opcode::JL, true)  => {
-                            jmp_code.push(0x0f);
-                            jmp_code.push(0x8c);
+                        jmp_code.push(0x0f);
+                        jmp_code.push(0x8c);
+                        bytes_added += 5;
                     }
 
                     (X86Opcode::JLE, false) => jmp_code.push(0x7e),
                     (X86Opcode::JLE, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x8e);
+                        bytes_added += 5;
                     }
 
                     (X86Opcode::JG, false) => jmp_code.push(0x7f),
                     (X86Opcode::JG, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x8f);
+                        bytes_added += 5;
                     }
 
                     (X86Opcode::JGE, false) => jmp_code.push(0x7d),
                     (X86Opcode::JGE, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x8d);
+                        bytes_added += 5;
                     }
 
                     (X86Opcode::JE, false) => jmp_code.push(0x74),
                     (X86Opcode::JE, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x84);
+                        bytes_added += 5;
                     }
 
                     (X86Opcode::JNE, false) => jmp_code.push(0x75),
                     (X86Opcode::JNE, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x85);
+                        bytes_added += 5;
                     }
 
                     (X86Opcode::JMP, false) => jmp_code.push(0xeb),
-                    (X86Opcode::JMP, true)  => jmp_code.push(0xe9),
+                    (X86Opcode::JMP, true)  => {
+                        jmp_code.push(0xe9);
+                        bytes_added += 3
+                    }
                     (X86Opcode::CALL, true) => {
                         jmp_code.push(0xe8);
                     }

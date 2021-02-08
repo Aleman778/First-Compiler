@@ -32,8 +32,7 @@
 
 // fn main() -> i32 {
 //     let mut i: i32 = 7070;
-//     let run: bool = true;
-//     while run {
+//     while true {
 //         let mut j: i32 = 1;
 //         while j < i - 1 {
 //             j = j + 1;
@@ -58,22 +57,23 @@ fn main() -> i32 {
         }
         i = i + 1;
     }
-    return i;
+    i
 }
 
 fn is_prime(n: i32) -> bool {
-    if n <= 1 {
-        return false;
-    }
-    let mut i: i32 = 2;
-    while i < n {
-        if n % i == 0 {
-            return false;
+    if n > 1 {
+        let mut i: i32 = 2;
+        while i < n {
+            if n % i == 0 {
+                return false;
+            }
+            i = i + 1;
         }
-        i = i + 1;
+        
+        true
+    } else {
+        false
     }
-    
-    return true;
 }
 
 // fn main() -> i32 {

@@ -64,15 +64,11 @@ pub fn allocate_jit_code(size: usize) -> JitCode {
     let addr: *mut u8;
 
     unsafe {
-        let mut raw_addr: *mut libc::c_void = mem::uninitialized();
+        let mut raw_addr: *mut libc::c_void = std::mem::uninitialized();
 
         libc::posix_memalign(&mut raw_addr, 4096, size);
         libc::mprotect(raw_addr, size, libc::PROT_READ | libc::PROT_WRITE);
         libc::memset(raw_addr, 0x0, size);
-
-        if raw_addr == 0 as *mut ctypes::c_void {
-            panic!("error: could not allocate jit code memory");
-        }
 
         addr = std::mem::transmute(raw_addr);
     }
@@ -92,11 +88,8 @@ pub fn finalize_jit_code(jit: &JitCode) {
 
 #[cfg(any(target_os="linux", target_os="macos"))]
 pub fn free_jit_code(jit: &JitCode) {
-    use winapi::um::winnt;
-    use winapi::ctypes;
-
     unsafe {
-        libc::munmap(self.addr as *mut _, self.size);
+        libc::munmap(jit.addr as *mut _, .size;
     }
 }
 
