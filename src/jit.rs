@@ -1,3 +1,6 @@
+#[cfg(any(target_os="linux", target_os="macos"))]
+extern crate libc;
+
 const PAGE_SIZE: usize = 4096;
 
 pub struct JitCode {
