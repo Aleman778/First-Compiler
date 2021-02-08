@@ -89,7 +89,7 @@ pub fn finalize_jit_code(jit: &JitCode) {
 #[cfg(any(target_os="linux", target_os="macos"))]
 pub fn free_jit_code(jit: &JitCode) {
     unsafe {
-        libc::munmap(jit.addr as *mut _, .size;
+        libc::munmap(jit.addr as *mut _, jit.size);
     }
 }
 

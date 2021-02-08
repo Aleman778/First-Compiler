@@ -23,7 +23,7 @@ winapi = { version = "0.3", features = ["winuser", "debugapi"] }
 kernel32-sys = "0.2.2"
 
 [target.'cfg(linux)'.dependencies]
-libc = "0.2"
+libc = "0.2.85"
 
 [target.'cfg(macos)'.dependencies]
-libc = "0.2"
+libc = "0.2.85"
