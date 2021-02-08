@@ -86,7 +86,7 @@ pub fn finalize_jit_code(jit: &JitCode) {
     use libc;
     
     unsafe {
-        libc::mprotect(jit.addr, jit.size, libc::PROT_READ | libc::PROT_EXEC);
+        libc::mprotect(jit.addr as *mut _, jit.size, libc::PROT_READ | libc::PROT_EXEC);
     }
 }
 
