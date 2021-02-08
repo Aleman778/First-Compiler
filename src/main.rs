@@ -2,6 +2,9 @@
 
 extern crate clap;
 
+#[cfg(any(target_os="linux", target_os="macos"))]
+extern crate libc;
+
 mod error;
 mod ast;
 mod parser;
