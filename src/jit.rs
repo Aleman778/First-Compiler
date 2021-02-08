@@ -61,6 +61,8 @@ pub fn free_jit_code(jit: &JitCode) {
 
 #[cfg(any(target_os="linux", target_os="macos"))]
 pub fn allocate_jit_code(size: usize) -> JitCode {
+    use libc;
+
     let addr: *mut u8;
 
     unsafe {
@@ -81,6 +83,8 @@ pub fn allocate_jit_code(size: usize) -> JitCode {
 
 #[cfg(any(target_os="linux", target_os="macos"))]
 pub fn finalize_jit_code(jit: &JitCode) {
+    use libc;
+    
     unsafe {
         libc::mprotect(jit.addr, jit.size, libc::PROT_READ | libc::PROT_EXEC);
     }
@@ -88,6 +92,8 @@ pub fn finalize_jit_code(jit: &JitCode) {
 
 #[cfg(any(target_os="linux", target_os="macos"))]
 pub fn free_jit_code(jit: &JitCode) {
+    use libc;
+    
     unsafe {
         libc::munmap(jit.addr as *mut _, jit.size);
     }
