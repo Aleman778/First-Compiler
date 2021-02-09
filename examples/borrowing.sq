@@ -9,12 +9,13 @@
  * Entry point.
  */
 fn main() {
-    // test_self_referencing();
-    // test_reference_chain();
-    // test_reference_cycles();    // Should fail
-    // test_returning_reference(); // Should fail
-    // reference_out_of_scope();   // Should fail
-    // mutate_while_borrow();      // Should fail
+    // debug_break();
+    test_uninitialized();
+    test_self_referencing();
+    test_reference_chain();
+    // test_returning_reference();    // Should fail
+    // test_reference_out_of_scope(); // Should fail
+    // test_mutate_while_borrow();    // Should fail
 }
 
 
@@ -22,7 +23,7 @@ fn main() {
  * Test uninitialized let bindings.
  */
 fn test_uninitialized() {
-    let a;
+    let a: i32;
 }
 
 
@@ -33,7 +34,7 @@ fn test_self_referencing() {
     let a: &i32 = &10;
     let a: &&i32 = &a;
     let a: &&&i32 = &a;
-    trace();
+    // trace();
     print_int(***a);
 }
 
@@ -45,7 +46,7 @@ fn test_reference_chain() {
     let a: &i32 = &5;
     let b: &&i32 = &a;
     let c: &&&i32 = &b;
-    trace();
+    // trace();
     print_int(***c);
 }
 
@@ -73,9 +74,9 @@ fn returning_reference() -> &i32 {
 
 /**
  * Referencing something out of scope.
- & Borrow checker should catch this and report diagnostic.
+ * Borrow checker should catch this and report diagnostic.
  */
-fn reference_out_of_scope() {
+fn test_reference_out_of_scope() {
     let mut a: &i32 = &0;
     {
         let b: i32 = 5;
@@ -90,7 +91,7 @@ fn reference_out_of_scope() {
  * Note: this works fine but breaks the ownership rules.
  * Borrow checker should catch this and report diagnostic.
  */
-fn mutate_while_borrow() {
+fn test_mutate_while_borrow() {
     let mut a: i32 = 5;
     let b: &i32 = &a;
     a = a + 5;

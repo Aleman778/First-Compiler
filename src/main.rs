@@ -14,6 +14,7 @@ mod ir;
 mod jit;
 mod x86;
 mod intrinsics;
+// mod llvm;
 
 use log::{info, error};
 use std::path::{Path, PathBuf};
@@ -41,7 +42,7 @@ pub fn main() {
     if cfg!(debug_assertions) {
         // NOTE(alexander): used for debugging without arguments
         let config = Config {
-            input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
+            input: Some(String::from("c:/dev/compiler/examples/borrowing.sq")),
             run: None,
             interpret: false,
             nocolor: false,
@@ -174,6 +175,9 @@ fn run_compiler(config: Config) {
         return;
     }
 
+    // LLVM pass
+    // codegen_test();
+
     // Build low-level intermediate representation
     let mut ir_builder = create_ir_builder();
 
@@ -199,10 +203,6 @@ fn run_compiler(config: Config) {
         }
     }
     println!("\nSize of code is {} bytes", machine_code.len());
-
-    // unsafe {
-    //     winapi::um::debugapi::DebugBreak();
-    // }
 
     let jit_code = allocate_jit_code(machine_code.len());
     

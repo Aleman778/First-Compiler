@@ -190,48 +190,48 @@ pub fn compile_ir_to_x86_machine_code(
                     (X86Opcode::JL, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x8c);
-                        bytes_added += 5;
+                        bytes_added += 4;
                     }
 
                     (X86Opcode::JLE, false) => jmp_code.push(0x7e),
                     (X86Opcode::JLE, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x8e);
-                        bytes_added += 5;
+                        bytes_added += 4;
                     }
 
                     (X86Opcode::JG, false) => jmp_code.push(0x7f),
                     (X86Opcode::JG, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x8f);
-                        bytes_added += 5;
+                        bytes_added += 4;
                     }
 
                     (X86Opcode::JGE, false) => jmp_code.push(0x7d),
                     (X86Opcode::JGE, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x8d);
-                        bytes_added += 5;
+                        bytes_added += 4;
                     }
 
                     (X86Opcode::JE, false) => jmp_code.push(0x74),
                     (X86Opcode::JE, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x84);
-                        bytes_added += 5;
+                        bytes_added += 4;
                     }
 
                     (X86Opcode::JNE, false) => jmp_code.push(0x75),
                     (X86Opcode::JNE, true)  => {
                         jmp_code.push(0x0f);
                         jmp_code.push(0x85);
-                        bytes_added += 5;
+                        bytes_added += 4;
                     }
 
                     (X86Opcode::JMP, false) => jmp_code.push(0xeb),
                     (X86Opcode::JMP, true)  => {
                         jmp_code.push(0xe9);
-                        bytes_added += 3
+                        bytes_added += 3;
                     }
                     (X86Opcode::CALL, true) => {
                         jmp_code.push(0xe8);
@@ -295,17 +295,14 @@ pub fn compile_ir_to_x86_machine_code(
 
     // Now write the calculated jump distances
     for (index, bytes, pre_allocated_bytes) in calculated_jumps {
-        if pre_allocated_bytes >= 2 {
-            x86.machine_code[index] = bytes[0];
-            x86.machine_code[index + 1] = bytes[1];
+        println!("index = {}, bytes = {:#?}, pre_allocated_bytes = {}", index, bytes, pre_allocated_bytes);
+        let mut i = 0;
+        for b in &bytes[..pre_allocated_bytes as usize] {
+            x86.machine_code[index + i] = *b;
+            i += 1;
         }
-        if pre_allocated_bytes >= 5 {
-            x86.machine_code[index + 2] = bytes[2];
-            x86.machine_code[index + 3] = bytes[3];
-            x86.machine_code[index + 4] = bytes[4];
-        }
+        println!("i = {} => {:#?}", i, &bytes[pre_allocated_bytes as usize..]);
 
-        let mut i = pre_allocated_bytes as usize;
         for b in &bytes[pre_allocated_bytes as usize..] {
             x86.machine_code.insert(index + i, *b);
             i += 1;
@@ -360,6 +357,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     
     // sub rsp x (gets filled in later, if needed)
     let sub_rsp_byte_pos = x86.machine_code.len();
+    let sub_rsp_asm_byte_pos = x86.assembly.len();
 
     // Function body
     let mut require_stack_frame = false;
@@ -908,56 +906,60 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             x86.max_stack_requirement = x86.curr_stack_offset;
         }
 
-        // Align 16-bytes
-        let stack_misalignment = x86.max_stack_requirement % 16;
-        if stack_misalignment < 0 {
-            x86.max_stack_requirement -= 16 + stack_misalignment;
-        }
-
-        // sub rbp, stackspace
-        let v = -x86.max_stack_requirement as i32;
-        x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 24) & 0xFFi32) as u8);
-        x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 16) & 0xFFi32) as u8);
-        x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 8)  & 0xFFi32) as u8);
-        x86.machine_code.insert(sub_rsp_byte_pos, ( v        & 0xFFi32) as u8);
-        x86.machine_code.insert(sub_rsp_byte_pos, modrm(5, reg_id(X86Reg::RSP)));
-        x86.machine_code.insert(sub_rsp_byte_pos, 0x81);
-        
-        let bytes_added: usize;
-        if x86.x64_mode {
-            x86.machine_code.insert(sub_rsp_byte_pos, REX_W);
-            bytes_added = 7;
-        } else {
-            bytes_added = 6;
-        }
-        sprint_asm!(x86, "    sub   rsp, {}\n", -x86.max_stack_requirement); // TODO(alexander): doesn't print to the correct place in the code.
-
-        // 6-bytes have been inserted make sure to update all
-        // stored indices pointing after sub_rsp_byte_pos
-        for (_, pos) in x86.label_byte_pos.iter_mut() {
-            if *pos > sub_rsp_byte_pos {
-                *pos += bytes_added;
+        if x86.max_stack_requirement != 0 || true {
+            // Align 16-bytes
+            let stack_misalignment = x86.max_stack_requirement % 16;
+            if stack_misalignment < 0 {
+                x86.max_stack_requirement -= 16 + stack_misalignment;
             }
-        }
 
-        for rel_jmp in x86.relative_jumps.iter_mut() {
-            if rel_jmp.pos > sub_rsp_byte_pos {
-                rel_jmp.pos += bytes_added;
+            // sub rbp, stackspace
+            let v = -x86.max_stack_requirement as i32;
+            x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 24) & 0xFFi32) as u8);
+            x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 16) & 0xFFi32) as u8);
+            x86.machine_code.insert(sub_rsp_byte_pos, ((v >> 8)  & 0xFFi32) as u8);
+            x86.machine_code.insert(sub_rsp_byte_pos, ( v        & 0xFFi32) as u8);
+            x86.machine_code.insert(sub_rsp_byte_pos, modrm(5, reg_id(X86Reg::RSP)));
+            x86.machine_code.insert(sub_rsp_byte_pos, 0x81);
+            
+            let bytes_added: usize;
+            if x86.x64_mode {
+                x86.machine_code.insert(sub_rsp_byte_pos, REX_W);
+                bytes_added = 7;
+            } else {
+                bytes_added = 6;
             }
-            if rel_jmp.next_pos > sub_rsp_byte_pos {
-                rel_jmp.next_pos += bytes_added;
+            if x86.print_assembly {
+                x86.assembly.insert_str(sub_rsp_asm_byte_pos, &format!("    sub   rsp, {}\n", -x86.max_stack_requirement));
             }
-        }
 
-        // sub rbp, stackspace
-        if x86.x64_mode {
-            x86.machine_code.push(REX_W);
+            // 6-bytes have been inserted make sure to update all
+            // stored indices pointing after sub_rsp_byte_pos
+            for (_, pos) in x86.label_byte_pos.iter_mut() {
+                if *pos >= sub_rsp_byte_pos {
+                    *pos += bytes_added;
+                }
+            }
+
+            for rel_jmp in x86.relative_jumps.iter_mut() {
+                if rel_jmp.pos >= sub_rsp_byte_pos {
+                    rel_jmp.pos += bytes_added;
+                }
+                if rel_jmp.next_pos >= sub_rsp_byte_pos {
+                    rel_jmp.next_pos += bytes_added;
+                }
+            }
+
+            // sub rbp, stackspace
+            if x86.x64_mode {
+                x86.machine_code.push(REX_W);
+            }
+            push_instruction(x86,
+                             X86Opcode::ADD,
+                             IrType::I32,
+                             X86Operand::Register(X86Reg::RSP),
+                             X86Operand::Value(X86Value::Int32(v)));
         }
-        push_instruction(x86,
-                         X86Opcode::ADD,
-                         IrType::I32,
-                         X86Operand::Register(X86Reg::RSP),
-                         X86Operand::Value(X86Value::Int32(v)));
     }
 
     // pop rbp

@@ -936,19 +936,20 @@ impl fmt::Display for IrBuilder<'_> {
 impl fmt::Display for IrInstruction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.opcode {
-            IrOpcode::Nop        |
-            IrOpcode::IfLt       |
-            IrOpcode::IfGt       |
-            IrOpcode::IfLe       |
-            IrOpcode::IfGe       |
-            IrOpcode::IfEq       |
-            IrOpcode::IfNe       |
-            IrOpcode::Param      |
-            IrOpcode::Return     |
-            IrOpcode::Label      |
-            IrOpcode::Jump       |
-            IrOpcode::Prologue   |
-            IrOpcode::Epilogue   => {
+            IrOpcode::Nop         |
+            IrOpcode::AllocParams |
+            IrOpcode::IfLt        |
+            IrOpcode::IfGt        |
+            IrOpcode::IfLe        |
+            IrOpcode::IfGe        |
+            IrOpcode::IfEq        |
+            IrOpcode::IfNe        |
+            IrOpcode::Param       |
+            IrOpcode::Return      |
+            IrOpcode::Label       |
+            IrOpcode::Jump        |
+            IrOpcode::Prologue    |
+            IrOpcode::Epilogue    => {
                 write!(f, "{}", self.opcode)?;
                 if let IrType::None = self.ty {
                 } else {
