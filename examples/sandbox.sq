@@ -1,12 +1,33 @@
 
 fn main() -> i32 {
-    let c: bool = false;
-    let x: i32 = if c {
-        10
+    if true {
+        let x: i32 = if true {
+            let mut i: i32 = 7070;
+            while true {
+                let mut j: i32 = 1;
+                while j < i - 1 {
+                    j = j + 1;
+                    if i % j == 0 {
+                        break;
+                    }
+                }
+                if i % j == 0 {
+                    i = i + 1;
+                    continue;
+                }
+                let mut y: i32 = 5;
+                y = y + 5;
+                
+                break;
+            }
+            i
+        } else {
+            20
+        };
+        return x;
     } else {
-        20
-    };
-    return x;
+        return 20;
+    }
 }
 
 // fn main() -> i32 {

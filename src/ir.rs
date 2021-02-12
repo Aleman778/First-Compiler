@@ -82,7 +82,7 @@ pub struct IrInstruction {
 #[derive(Debug, Clone, PartialEq)]
 pub enum IrOpcode {
     Nop,
-    Alloca, // op1 = alloca(op2)
+    Alloca, // op1 = alloca ty
     AllocParams, // (no operands) allocates all defined parameters
     Copy, // op1 = op2
     CopyFromDeref, // op1 = *op2
@@ -447,7 +447,7 @@ pub fn build_ir_from_block<'a>(
         if let IrOperand::None = last_op {
             (IrOperand::None, IrType::None)
         } else {
-            if ib.scopes.len() == 1 { // Outermost scope, safe to return
+            if ib.scopes.len() <= 2 { // Outermost scope, safe to return
                 ib.instructions.push(IrInstruction {
                     opcode: IrOpcode::Return,
                     op1: last_op,
@@ -484,14 +484,29 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
             let init_type = to_ir_type(&local.ty);
             let ident = create_ir_ident(local.ident.sym, 0);
             let op1 = IrOperand::Ident(ident);
-            let op2 = match &*local.init {
+
+            ib.instructions.push(IrInstruction {
+                opcode: IrOpcode::Alloca,
+                op1,
+                ty: init_type,
+                span: local.span,
+                ..Default::default()
+            });
+
+            match &*local.init {
                 Some(expr) => {
                     if let Expr::If(if_expr) = expr {
-                        let op2 = allocate_register(ib);
-                        build_ir_if_expr(ib, if_expr, Some(op2));
-                        op2
+                        build_ir_if_expr(ib, if_expr, Some(op1));
                     } else {
-                        build_ir_from_expr(ib, expr).0
+                        let op2 = build_ir_from_expr(ib, expr).0;
+                        ib.instructions.push(IrInstruction {
+                            opcode: IrOpcode::Copy,
+                            op1,
+                            op2,
+                            ty: init_type,
+                            span: local.span,
+                            ..Default::default()
+                        });
                     }
                 }
                 None => return (IrOperand::None, IrType::None)
@@ -499,15 +514,6 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
 
             ib.scopes[0].locals.insert(ident, init_type);
             ib.live_intervals.insert(ident, create_ir_live_interval(ib.instructions.len()));
-
-            ib.instructions.push(IrInstruction {
-                opcode: IrOpcode::Alloca,
-                op1,
-                op2,
-                ty: init_type,
-                span: local.span,
-                ..Default::default()
-            });
 
             (IrOperand::None, IrType::None)
         }

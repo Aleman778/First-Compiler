@@ -164,16 +164,14 @@ pub fn compile_ir_to_x86_machine_code(
         curr_pos: usize,
         x64_mode: bool
     ) -> Vec<bool> {
-
-        let mut bytes_added = 0; // TODO(alexander): this is currently not set!
+        // Sort all active jumps by their position in decreasing order
+        active_jumps.sort_by(|a, b| b.pos.cmp(&a.pos));
+        
+        let mut bytes_added = 0;
         let mut keep_active_jumps: Vec<bool> = Vec::new();
         for jmp in active_jumps.iter_mut() {
             let exit_pos = jmp.pos.min(jmp.target);
-            if exit_pos == jmp.pos {
-                jmp.pos += bytes_added;
-            } else {
-                jmp.target += bytes_added;
-            }
+            jmp.target += bytes_added;
 
             if curr_pos <= exit_pos {
                 let mut jmp_code = Vec::new();
@@ -183,7 +181,7 @@ pub fn compile_ir_to_x86_machine_code(
                 } else {
                     2
                 };
-                let is_long_jump = (dist < -128 && dist > 127) || jmp.is_long_jump;
+                let is_long_jump = dist < -128 || dist > 127 || jmp.is_long_jump;
 
                 match (jmp.opcode, is_long_jump) {
                     (X86Opcode::JL, false) => jmp_code.push(0x7c),
@@ -293,7 +291,8 @@ pub fn compile_ir_to_x86_machine_code(
     // Any remaining active jumps needs to be calcuated also
     calculate_jump_distance(&mut calculated_jumps, &mut active_jumps, 0, x86.x64_mode);
 
-    // Now write the calculated jump distances
+    // Now write the calculated jump distances, from highest index to lowest
+    calculated_jumps.sort_by(|a, b| b.0.cmp(&a.0));
     for (index, bytes, pre_allocated_bytes) in calculated_jumps {
         println!("index = {}, bytes = {:#?}, pre_allocated_bytes = {}", index, bytes, pre_allocated_bytes);
         let mut i = 0;
@@ -339,7 +338,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     x86.label_byte_pos.insert(bb.enter_label, base_pos);
 
     // x86.machine_code.push(0xcc); // FIXME: debugging remove this
-
+    
     // Prologue
     sprint_asm!(x86, "{}:\n", bb.enter_label);
 
@@ -364,11 +363,11 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
     let num_insns = insns.len();
 
-    fn alloca(x86: &mut X86Assembler, ty: IrType, ir_dst: IrOperand, src: X86Operand) {
+    fn alloca(x86: &mut X86Assembler, ty: IrType, ir_dst: IrOperand) -> X86Operand {
         x86.curr_stack_offset -= size_of_ir_type(ty, x86.addr_size);
         let dst = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
-        push_instruction(x86, X86Opcode::MOV, ty, dst, src);
         insert_variable(x86, ty, ir_dst, dst);
+        dst
     }
 
     for (i, insn) in insns.iter().enumerate() {
@@ -381,8 +380,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             }
 
             IrOpcode::Alloca => {
-                let op = to_x86_operand(x86, insn.op2, insn.ty);
-                alloca(x86, insn.ty, insn.op1, op);
+                alloca(x86, insn.ty, insn.op1);
             }
 
             IrOpcode::AllocParams => {
@@ -390,7 +388,9 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 let dst_reg: [X86Reg; 4] = [X86Reg::RCX, X86Reg::RDX, X86Reg::R8, X86Reg::R9];
                 for i in 0..4 {
                     if let Some((op, ty)) = x86.argument_stack.pop_front() {
-                        alloca(x86, ty, op, X86Operand::Register(dst_reg[i]));
+                        let dst = alloca(x86, ty, op);
+                        let src = X86Operand::Register(dst_reg[i]);
+                        push_instruction(x86, X86Opcode::MOV, ty, dst, src);
                     } else {
                         break;
                     }
@@ -737,6 +737,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             IrOpcode::IfNe => {
                 let lhs = to_x86_operand(x86, insn.op1, insn.ty);
                 let rhs = to_x86_operand(x86, insn.op2, insn.ty);
+
                 let label = get_ir_ident(insn.op3);
 
                 push_instruction(x86, X86Opcode::CMP, insn.ty, lhs, rhs);
@@ -1044,7 +1045,23 @@ fn push_instruction(x86: &mut X86Assembler, opcode: X86Opcode, ty: IrType, dst: 
             print_instruction(x86, opcode, ty, dst, src, false);
         }
 
-        _ => panic!("x86: cannot store to value operand"),
+        (X86Operand::Value(val), _) => {
+            // NOTE(alexander): should only be used by CMP and TEST instructions, e.g. MOV makes no sense here!
+            // Move first destination into auxiliary register
+            let reg = allocate_register(x86, None);
+            let aux_dst = X86Operand::Register(reg);
+            let (opcode_byte, opcode_reg) = get_mi_opcode(X86Opcode::MOV, opcode_offset);
+            push_rex_prefix(x86, None, Some(reg), ty);
+            x86.machine_code.push(opcode_byte);
+            x86.machine_code.push(modrm(opcode_reg, reg_id(reg)));
+            push_immediate(x86, val);
+            print_instruction(x86, X86Opcode::MOV, ty, aux_dst, dst, false);
+
+            // Now try again, next time it should enter another case
+            push_instruction(x86, opcode, ty, aux_dst, src);
+            
+            free_register(x86, reg);
+        }
     }
 }
 
@@ -1382,7 +1399,7 @@ fn push_rex_prefix(x86: &mut X86Assembler, reg: Option<X86Reg>, rm: Option<X86Re
 }
 
 fn push_displacement(x86: &mut X86Assembler, disp: isize) {
-    if disp < -128 && disp > 127 {
+    if disp < -128 || disp > 127 {
         let v = disp as i32;
         x86.machine_code.push((v         & 0xFFi32) as u8);
         x86.machine_code.push(((v >> 8)  & 0xFFi32) as u8);
@@ -1465,7 +1482,7 @@ fn modrm(reg: u8, rm: u8) -> u8 {
 
 #[inline]
 fn modrm_disp(reg: u8, rm: u8, disp: isize) -> u8 {
-    if disp < -128 && disp > 127 {
+    if disp < -128 || disp > 127 {
         return 0b10000000 | (reg << 3) | rm;
     } else {
         return 0b01000000 | (reg << 3) | rm;
