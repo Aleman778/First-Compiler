@@ -46,7 +46,7 @@ pub fn main() {
         let config = Config {
             input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
             run: None,
-            interpret: false,
+            interpret: true,
             nocolor: false,
             compiletest: false,
         };
@@ -180,7 +180,8 @@ fn run_compiler(config: Config) {
     if config.interpret {
         let mut ic = create_interp_context();
         interp_file(&mut ic, &ast);
-        interp_entry_point(&mut ic);
+        let code = interp_entry_point(&mut ic);
+        println!("\nInterpreter exited with code {}", code);
         return;
     }
 

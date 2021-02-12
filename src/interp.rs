@@ -357,7 +357,12 @@ pub fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block, is_block_scop
     for stmt in &block.stmts {
         let val = interp_stmt(ic, stmt)?;
         match val.data {
-            Value::None => continue,
+            Value::None => if val.from_return || val.should_continue || val.should_break {
+                ret_val = val;
+            } else {
+                continue;
+            }
+            
             _ => ret_val = val,
         };
         break;
@@ -769,16 +774,21 @@ pub fn interp_while_expr(ic: &mut InterpContext, while_expr: &ExprWhile) -> IRes
             Value::Bool(cond) => {
                 if cond {
                     let val = interp_block(ic, &while_expr.block, true)?;
-                    if let Value::None = val.data {
-                        continue;
-                    }
 
+                    if val.from_return {
+                        break;
+                    }
+                    
                     if val.should_continue {
                         continue;
                     }
 
                     if val.should_break {
                         break;
+                    }
+
+                    if let Value::None = val.data {
+                        continue;
                     }
 
                     return Ok(val);
