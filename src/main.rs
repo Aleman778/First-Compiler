@@ -46,7 +46,7 @@ pub fn main() {
         let config = Config {
             input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
             run: None,
-            interpret: true,
+            interpret: false,
             nocolor: false,
             compiletest: false,
         };
@@ -171,9 +171,9 @@ fn run_compiler(config: Config) {
     // Borrow check the current file
     // let borrow_error_count = borrow_check_file(&ast);
     // if borrow_error_count > 0 {
-        // error!("borrow checker reported {} errors, stopping compilation", borrow_error_count);
-        // eprintln!("\nerror: aborting due to previous error");
-        // return;
+    //     error!("borrow checker reported {} errors, stopping compilation", borrow_error_count);
+    //     eprintln!("\nerror: aborting due to previous error");
+    //     return;
     // }
 
     // Interpret the current file

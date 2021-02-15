@@ -216,6 +216,16 @@ fn create_ir_live_interval(begin: usize) -> IrLiveInterval {
     }
 }
 
+fn update_ir_live_interval<'a>(ib: &mut IrBuilder<'a>, op: IrOperand) {
+    let insn_len = ib.instructions.len();
+    if let IrOperand::Ident(ident) = op {
+        match ib.live_intervals.get_mut(&ident) {
+            Some(live_interval) => live_interval.end = insn_len,
+            None => {},
+        }
+    }
+}
+
 #[inline]
 pub fn is_alive(insn: usize, interval: IrLiveInterval) -> bool {
     return insn >= interval.begin && insn < interval.end;
@@ -499,6 +509,7 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
                         build_ir_if_expr(ib, if_expr, Some(op1));
                     } else {
                         let op2 = build_ir_from_expr(ib, expr).0;
+                        update_ir_live_interval(ib, op2);
                         ib.instructions.push(IrInstruction {
                             opcode: IrOpcode::Copy,
                             op1,
@@ -632,8 +643,17 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                     } else {
                         panic!("expected dereference");
                     }
-                    build_ir_from_expr(ib, &unary.expr)
+                    let (op, ty) = build_ir_from_expr(ib, &unary.expr);
+                    let ty = match ty {
+                        IrType::PtrI8(1) => IrType::I8,
+                        IrType::PtrI32(1) => IrType::I32,
+                        IrType::PtrI8(x) => IrType::PtrI8(x - 1),
+                        IrType::PtrI32(x) => IrType::PtrI32(x - 1),
+                        _ => panic!("cannot dereference non-pointer type"),
+                    };
+                    (op, ty)
                 }
+                
                 _ => panic!("expected identifier or dereference"),
             };
 
@@ -676,6 +696,9 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 BinOp::Ge  => (IrOpcode::Ge,  lhs_ty),
             };
 
+            update_ir_live_interval(ib, op2);
+            update_ir_live_interval(ib, op3);
+            
             ib.instructions.push(IrInstruction {
                 opcode,
                 op1,
@@ -723,6 +746,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
             let mut param_size = 0;
             for arg in &call.args {
                 let (op1, ty) = build_ir_from_expr(ib, &arg);
+                update_ir_live_interval(ib, op1);
+
                 ib.instructions.push(IrInstruction {
                     opcode: IrOpcode::Param,
                     op1,
@@ -771,12 +796,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
         Expr::Ident(ident) => {
             let ident = create_ir_ident(ident.sym, 0);
             let op = IrOperand::Ident(ident);
+            update_ir_live_interval(ib, op);
             let ty = ib.scopes[0].locals.get(&ident).unwrap(); // TODO(alexander): should we not search all in scopes
-            let insn_len = ib.instructions.len();
-            match ib.live_intervals.get_mut(&ident) {
-                Some(live_interval) => live_interval.end = insn_len,
-                None => {},
-            }
             (op, *ty)
         }
 
@@ -805,6 +826,9 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 _                 => panic!("unsupported type"),
             };
 
+            
+            update_ir_live_interval(ib, op2);
+
             ib.instructions.push(IrInstruction {
                 opcode: IrOpcode::CopyFromRef,
                 op1,
@@ -822,6 +846,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 Some(expr) => build_ir_from_expr(ib, expr),
                 None => (IrOperand::None, IrType::None),
             };
+
+            update_ir_live_interval(ib, op1);
 
             ib.instructions.push(IrInstruction {
                 opcode: IrOpcode::Return,
@@ -846,6 +872,9 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                         ty,
                         ..Default::default()
                     });
+                    
+                    update_ir_live_interval(ib, op1);
+                    update_ir_live_interval(ib, op2);
 
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpcode::Sub,
@@ -861,6 +890,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
                 UnOp::Not => {
                     let (op1, ty) = build_ir_from_expr(ib, &unary.expr);
+                    
+                    update_ir_live_interval(ib, op1);
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpcode::Xor,
                         op1,
@@ -898,6 +929,9 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
                         IrType::None => panic!("missing type info"),
                     };
+                    
+                    update_ir_live_interval(ib, op2);
+
                     ib.instructions.push(IrInstruction {
                         opcode: IrOpcode::CopyFromDeref,
                         op1,

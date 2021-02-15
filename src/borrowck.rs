@@ -129,14 +129,10 @@ fn borrow_check_stmt<'a>(bc: &mut BorrowContext<'a>, stmt: &'a Stmt) -> Option<&
         Stmt::Local(local) => {
             if let Some(expr) = *local.init {
                 let borrow_info = borrow_check_expr(bc, &expr).unwrap();
-                    bc.
+                
             } else {
                 None
             };
-
-            if let Some
-
-            None
         }
 
         Stmt::Semi(expr) => borrow_check_expr(bc, expr),

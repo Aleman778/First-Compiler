@@ -105,12 +105,14 @@ macro_rules! sprint_asm {
     ($x86:expr, $str:expr) => {
         if $x86.print_assembly {
             $x86.assembly.push_str($str);
+            // $x86.assembly.push_str(&format!("free_registers: {:?}\n\n", $x86.free_registers));
         }
     };
 
     ($x86:expr, $fmt:expr, $( $arg:expr ),* ) => {
         if $x86.print_assembly {
             $x86.assembly.push_str(&format!($fmt $(, $arg)*));
+            // $x86.assembly.push_str(&format!("free_registers: {:?}\n\n", $x86.free_registers));
         }
     }
 }
@@ -323,12 +325,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     if x86.x64_mode {
         x86.free_registers.push_back(X86Reg::R10);
         x86.free_registers.push_back(X86Reg::R11);
-        x86.free_registers.push_back(X86Reg::R12);
         x86.free_registers.push_back(X86Reg::R13);
         x86.free_registers.push_back(X86Reg::R14);
         x86.free_registers.push_back(X86Reg::R15);
         x86.free_registers.push_back(X86Reg::R8); // NOTE(alexander): this regsiters are usually needed for
         x86.free_registers.push_back(X86Reg::R9); // calling functions to use those if really needed
+        // NOTE(alexander): R12 is not included due to it requiring SIB to be used!
     }
     x86.free_registers.push_back(X86Reg::RSI);
     x86.free_registers.push_back(X86Reg::RDI);
@@ -887,6 +889,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 };
                 if let Some(reg) = opt_reg {
                     let r = *reg;
+                    // x86.assembly.push_str(&format!("dropped: {} from `{}`\n", reg, ident));
                     free_register(x86, r);
                     x86.local_variables.remove(ident);
                 }
@@ -1189,10 +1192,12 @@ fn allocate_register(x86: &mut X86Assembler, ident: Option<IrIdent>) -> X86Reg {
             }
         }
         x86.allocated_registers.push_back((reg, ident));
+        // x86.assembly.push_str(&format!("allocated: {}\n", reg));
         reg
     } else {
         let reg = x86.free_registers.pop_front().unwrap();
         x86.allocated_registers.push_back((reg, ident));
+        // x86.assembly.push_str(&format!("allocated: {}\n", reg));
         reg
     }
 }
@@ -1232,9 +1237,7 @@ fn allocate_specific_register(x86: &mut X86Assembler, reg: X86Reg) -> Option<X86
         if let Some(ident) = prev_ident {
             match x86.local_variables.get_mut(&ident) {
                 Some(var) => {
-                    println!("before: {:#?}", var);
                     var.0 = dst;
-                    println!("after: {:#?}", var);
                 }
                 None => {},
             }
@@ -1257,6 +1260,13 @@ fn free_specific_register(x86: &mut X86Assembler, reg: X86Reg, prev_reg: Option<
 fn insert_variable(x86: &mut X86Assembler, ty: IrType, dst: IrOperand, src: X86Operand) {
     let ident = get_ir_ident(dst);
     x86.local_variables.insert(ident, (src, ty));
+    if let X86Operand::Register(reg) = src {
+        for (r, id) in x86.allocated_registers.iter_mut() {
+            if *r == reg {
+                *id = Some(ident);
+            }
+        }
+    }
 }
 
 fn to_x86_operand(x86: &mut X86Assembler, op: IrOperand, insn_ty: IrType) -> X86Operand {
@@ -1527,6 +1537,7 @@ fn print_instruction(
                 x86.assembly.push_str(&format!("{}\n", op2));
             }
         }
+        // x86.assembly.push_str(&format!("free_registers: {:?}\n\n", x86.free_registers));
     }
 }
 
