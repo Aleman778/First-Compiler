@@ -10,7 +10,7 @@ mod ast;
 mod parser;
 mod interp;
 mod typeck;
-// mod borrowck;
+mod borrowck;
 mod ir;
 mod jit;
 mod x86;
@@ -26,7 +26,7 @@ use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
-// use crate::borrowck::borrow_check_file;
+use crate::borrowck::borrow_check_file;
 use crate::ir::{create_ir_builder, build_ir_from_ast};
 use crate::x86::{compile_ir_to_x86_machine_code};
 use crate::jit::{allocate_jit_code, finalize_jit_code, free_jit_code, execute_jit_code};
@@ -169,12 +169,12 @@ fn run_compiler(config: Config) {
     }
 
     // Borrow check the current file
-    // let borrow_error_count = borrow_check_file(&ast);
-    // if borrow_error_count > 0 {
-    //     error!("borrow checker reported {} errors, stopping compilation", borrow_error_count);
-    //     eprintln!("\nerror: aborting due to previous error");
-    //     return;
-    // }
+    let borrow_error_count = borrow_check_file(&ast);
+    if borrow_error_count > 0 {
+        error!("borrow checker reported {} errors, stopping compilation", borrow_error_count);
+        eprintln!("\nerror: aborting due to previous error");
+        return;
+    }
 
     // Interpret the current file
     if config.interpret {

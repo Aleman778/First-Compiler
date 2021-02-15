@@ -296,13 +296,13 @@ pub fn compile_ir_to_x86_machine_code(
     // Now write the calculated jump distances, from highest index to lowest
     calculated_jumps.sort_by(|a, b| b.0.cmp(&a.0));
     for (index, bytes, pre_allocated_bytes) in calculated_jumps {
-        println!("index = {}, bytes = {:#?}, pre_allocated_bytes = {}", index, bytes, pre_allocated_bytes);
+        // println!("index = {}, bytes = {:#?}, pre_allocated_bytes = {}", index, bytes, pre_allocated_bytes);
         let mut i = 0;
         for b in &bytes[..pre_allocated_bytes as usize] {
             x86.machine_code[index + i] = *b;
             i += 1;
         }
-        println!("i = {} => {:#?}", i, &bytes[pre_allocated_bytes as usize..]);
+        // println!("i = {} => {:#?}", i, &bytes[pre_allocated_bytes as usize..]);
 
         for b in &bytes[pre_allocated_bytes as usize..] {
             x86.machine_code.insert(index + i, *b);
