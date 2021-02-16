@@ -157,7 +157,7 @@ fn run_compiler(config: Config) {
         eprintln!("\nerror: aborting due to previous error");
         return;
     }
-    print!("\n\nAbstract Syntax Tree:\n-----------------------------------------------\n{:#?}", ast.items);
+    // print!("\n\nAbstract Syntax Tree:\n-----------------------------------------------\n{:#?}", ast.items);
 
     // Type check the current file
     let mut tc = create_type_context();

@@ -5,7 +5,7 @@ use crate::error::*;
 /***************************************************************************
  * Borrow Checker Semantic Rules:
  * - Checks the lexical lifetime of local variables, so that
- *   there are no dangling references to dropped value.
+ *   there are no references to any dropped value.
  * - Lifetime is only based on the block that a particular
  *   variable is declared in.
  * - Lifetime represented by incrementing index, refers to
@@ -14,6 +14,8 @@ use crate::error::*;
  * - Reference counting to ensure memory safety (two cases):
  *   - Multiple immutable references, no mutable references
  *   - One mutable reference, no immutable references
+ * - There is no concept of move semantics in this borrow checker
+ *   since all types are primitives they get copied instead of moved.
  ***************************************************************************/
 
 struct BorrowContext<'a> {
@@ -159,9 +161,7 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
             if let None = borrow_info.used_at {
                 borrow_info.used_at = Some(ident.span);
             }
-            // get_borrow_info(bc, &ident.sym);
-            // TODO(alexander): do we need to return anything here?
-            None
+            Some(bc.scopes[len - 1].locals.get(&ident.sym).unwrap().clone())
         }
 
         Expr::Return(ret) => {
@@ -173,8 +173,62 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
         }
 
         Expr::Reference(expr) => {
-            None
+            let mut borrow_info = borrow_check_expr(bc, &*expr.expr);
+            if let Some(info) = &mut borrow_info {
+                
+                // Count owners references
+                let len = bc.scopes.len();
+                let owner = bc.scopes[len - 1].locals.get_mut(&info.ident).unwrap();
+                
+                info.borrowed_from = Some(owner.ident);
+                if expr.mutable {
+                    owner.mutable_refs += 1;
+                } else {
+                    owner.immutable_refs += 1;
+                }
 
+                let mutable_refs = owner.mutable_refs;
+                let immutable_refs = owner.immutable_refs;
+                let owner_ident = owner.ident;
+                // println!("borrow_info({}) = {:#?}", resolve_symbol(owner.ident), owner);
+
+
+                if expr.mutable {
+                    // NOTE(alexander): - One mutable reference, no immutable references
+                    if mutable_refs > 1 {
+                        let err_msg = create_error_msg(
+                            bc, ErrorLevel::Error, expr.span,
+                            &format!("cannot borrow `{}` as mutable more than once",
+                                     resolve_symbol(owner_ident)),
+                            "immutable borrow occurs here");
+                        print_error_msg(&err_msg);
+                        bc.error_count += 1;
+                        
+                    } else if immutable_refs > 0 {
+                        let err_msg = create_error_msg(
+                            bc, ErrorLevel::Error, expr.span,
+                            &format!("cannot borrow `{}` as mutable because it is also borrowed as immutable",
+                                     resolve_symbol(owner_ident)),
+                            "immutable borrow occurs here");
+                        print_error_msg(&err_msg);
+                        bc.error_count += 1;
+                    }
+                } else {
+
+                    // NOTE(alexander): - Multiple immutable references, no mutable references
+                    if mutable_refs > 0 {
+                        let err_msg = create_error_msg(
+                            bc, ErrorLevel::Error, expr.span,
+                            &format!("cannot borrow `{}` as immutable because it is also borrowed as mutable",
+                                     resolve_symbol(owner_ident)),
+                            "immutable borrow occurs here");
+                        print_error_msg(&err_msg);
+                        bc.error_count += 1;
+                    }
+                }
+            }
+
+            borrow_info
         }
 
         _ => None,
