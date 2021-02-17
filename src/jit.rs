@@ -68,7 +68,7 @@ pub fn allocate_jit_code(size: usize) -> JitCode {
     unsafe {
         let mut raw_addr: *mut libc::c_void = std::mem::uninitialized();
 
-        libc::posix_memalign(&mut raw_addr, 4096, size);
+        libc::posix_memalign(&mut raw_addr, PAGE_SIZE, size);
         libc::mprotect(raw_addr, size, libc::PROT_READ | libc::PROT_WRITE);
         libc::memset(raw_addr, 0x0, size);
 

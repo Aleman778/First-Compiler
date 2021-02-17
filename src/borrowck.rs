@@ -22,32 +22,49 @@ struct BorrowContext<'a> {
     // tc: TypeContext<'a>,
     file: &'a File,
     scopes: Vec<BorrowScope>,
+    temp_symbol: Symbol,
+    temp_index: u32,
     next_lifetime: u32,
     error_count: u32
 }
 
 struct BorrowScope {
-    locals: HashMap<Symbol, BorrowInfo>,
+    locals: HashMap<Ident, BorrowInfo>,
     lifetime: u32,
 }
 
 #[derive(Debug, Clone)]
 struct BorrowInfo {
-    ident: Symbol,
+    ident: Ident,
     lifetime: u32,
     mutable_refs: u32,
     immutable_refs: u32,
-    borrowed_from: Option<Symbol>,
+    borrowed_from: Option<Ident>,
     declared_at: Span,
     used_at: Option<Span>,
+    from_return: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct Ident {
+    pub symbol: Symbol,
+    pub index: u32, // used to distinguish identifiers with the same symbol.
 }
 
 fn push_borrow_scope<'a>(bc: &mut BorrowContext<'a>) {
     let lifetime = bc.next_lifetime;
+    let len = bc.scopes.len();
+    let locals = if len > 0 {
+        bc.scopes[len - 1].locals.clone()
+    } else {
+        HashMap::new()
+    };
+    
     let scope = BorrowScope {
-        locals: HashMap::new(),
+        locals,
         lifetime,
     };
+
     bc.scopes.push(scope);
     bc.next_lifetime += 1;
 }
@@ -56,40 +73,73 @@ fn pop_borrow_scope<'a>(bc: &mut BorrowContext<'a>) -> Option<BorrowScope> {
     bc.scopes.pop()
 }
 
-fn insert_borrow_info<'a>(
-    bc: &mut BorrowContext<'a>,
-    symbol: Symbol,
-    borrowed_from: Option<Symbol>,
-    declared_at: Span
-) {
 
+fn insert_temp_borrow_info<'a>(
+    bc: &mut BorrowContext<'a>,
+    borrowed_from: Option<Ident>,
+    declared_at: Span
+) -> BorrowInfo {
+    
     let len = bc.scopes.len();
+    let ident = Ident {
+        symbol: bc.temp_symbol,
+        index: bc.temp_index,
+    };
+    
     let info = BorrowInfo {
-        ident: symbol,
+        ident,
         lifetime: bc.scopes[len - 1].lifetime,
         borrowed_from,
         declared_at,
         mutable_refs: 0,
         immutable_refs: 0,
         used_at: None,
+        from_return: false,
     };
-    bc.scopes[len - 1].locals.insert(symbol, info);
+    
+    bc.scopes[len - 1].locals.insert(ident, info.clone());
+    bc.temp_index += 1;
+    info
 }
 
-fn get_borrow_info<'a>(bc: &'a BorrowContext<'a>, symbol: &'a Symbol) -> &'a BorrowInfo {
+fn insert_borrow_info<'a>(
+    bc: &mut BorrowContext<'a>,
+    symbol: Symbol,
+    borrowed_from: Option<Ident>,
+    declared_at: Span
+) {
+
     let len = bc.scopes.len();
-    bc.scopes[len - 1].locals.get(symbol).unwrap()
+    let ident = Ident { symbol, index: 0 };
+    let info = BorrowInfo {
+        ident,
+        lifetime: bc.scopes[len - 1].lifetime,
+        borrowed_from,
+        declared_at,
+        mutable_refs: 0,
+        immutable_refs: 0,
+        used_at: None,
+        from_return: false,
+    };
+    bc.scopes[len - 1].locals.insert(ident, info);
 }
 
-fn get_mut_borrow_info<'a>(bc: &'a mut BorrowContext<'a>, symbol: &'a Symbol) -> &'a mut BorrowInfo {
+fn get_borrow_info<'a>(bc: &'a BorrowContext<'a>, ident: &'a Ident) -> &'a BorrowInfo {
     let len = bc.scopes.len();
-    bc.scopes[len - 1].locals.get_mut(symbol).unwrap()
+    bc.scopes[len - 1].locals.get(ident).unwrap()
+}
+
+fn get_mut_borrow_info<'a>(bc: &'a mut BorrowContext<'a>, ident: &'a Ident) -> &'a mut BorrowInfo {
+    let len = bc.scopes.len();
+    bc.scopes[len - 1].locals.get_mut(ident).unwrap()
 }
 
 pub fn borrow_check_file<'a>(file: &'a File) -> u32 {
     let mut bc = BorrowContext {
         file,
         scopes: Vec::new(),
+        temp_symbol: intern_string(".temp"),
+        temp_index: 0,
         next_lifetime: 0,
         error_count: 0,
     };
@@ -117,13 +167,29 @@ pub fn borrow_check_file<'a>(file: &'a File) -> u32 {
 }
 
 fn borrow_check_block<'a>(bc: &mut BorrowContext<'a>, block: &'a Block) {
-    let mut ret_info: Option<BorrowInfo> = None;
-    for i in 0..block.stmts.len() {
-        ret_info = borrow_check_stmt(bc, &block.stmts[i]);
+    push_borrow_scope(bc);
 
+    let num_stmts = block.stmts.len();
+    let mut ret_info: Option<BorrowInfo> = None;
+    for i in 0..num_stmts {
+        ret_info = borrow_check_stmt(bc, &block.stmts[i]);
+        if let Some(info) = ret_info {
+            if info.from_return || i == (num_stmts - 1) {
+                if let Some(owner_ident) = info.borrowed_from {
+                    // NOTE(alexander): Cannot return something borrowed from this function, since it
+                    // requires lifetime annotation or 'static lifetime which we don't support.
+                    let err_msg = create_error_msg(
+                        bc, ErrorLevel::Error, info.used_at.unwrap_or(info.declared_at),
+                        "cannot return value borrowed from this function",
+                        "borrowed value will outlive owned value");
+                    print_error_msg(&err_msg);
+                    bc.error_count += 1;
+                }
+            }
+        }
     }
 
-    bc.scopes.pop();
+    pop_borrow_scope(bc);
 }
 
 fn borrow_check_stmt<'a>(bc: &mut BorrowContext<'a>, stmt: &'a Stmt) -> Option<BorrowInfo> {
@@ -133,8 +199,13 @@ fn borrow_check_stmt<'a>(bc: &mut BorrowContext<'a>, stmt: &'a Stmt) -> Option<B
                 let borrow_info = borrow_check_expr(bc, expr);
                 if let Some(info) = borrow_info {
                     let len = bc.scopes.len();
-                    bc.scopes[len - 1].locals.insert(local.ident.sym, info);
+                    let ident = Ident {
+                        symbol: local.ident.sym,
+                        index: 0
+                    };
+                    bc.scopes[len - 1].locals.insert(ident, info);
                 } else {
+                    // TODO(alexander): probably better to use local.init span.
                     insert_borrow_info(bc, local.ident.sym, None, local.ident.span);
                 }
             }
@@ -151,22 +222,42 @@ fn borrow_check_stmt<'a>(bc: &mut BorrowContext<'a>, stmt: &'a Stmt) -> Option<B
 
 fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<BorrowInfo> {
     match expr {
-        Expr::Assign(assign) => {
+        Expr::Block(block) => {
+            borrow_check_block(bc, &block.block);
             None
         }
 
-        Expr::Ident(ident) => {
-            let len = bc.scopes.len();
-            let borrow_info = bc.scopes[len - 1].locals.get_mut(&ident.sym).unwrap();
-            if let None = borrow_info.used_at {
-                borrow_info.used_at = Some(ident.span);
+        Expr::If(if_expr) => {
+            borrow_check_expr(bc, &*if_expr.cond);
+            borrow_check_block(bc, &if_expr.then_block);
+            if let Some(block) = &if_expr.else_block {
+                borrow_check_block(bc, block);
             }
-            Some(bc.scopes[len - 1].locals.get(&ident.sym).unwrap().clone())
+            None
         }
+
+        Expr::Ident(ident_expr) => {
+            let len = bc.scopes.len();
+            let ident = Ident {
+                symbol: ident_expr.sym,
+                index: 0,
+            };
+            let borrow_info = bc.scopes[len - 1].locals.get_mut(&ident).unwrap();
+            if let None = borrow_info.used_at {
+                borrow_info.used_at = Some(ident_expr.span);
+            }
+            Some(bc.scopes[len - 1].locals.get(&ident).unwrap().clone())
+        }
+
+        Expr::Lit(lit) => Some(insert_temp_borrow_info(bc, None, lit.span)),
 
         Expr::Return(ret) => {
             if let Some(expr) = &*ret.expr {
-                borrow_check_expr(bc, &expr)
+                let mut borrow_info = borrow_check_expr(bc, &expr);
+                if let Some(info) = &mut borrow_info {
+                    info.from_return = true;
+                }
+                borrow_info
             } else {
                 None
             }
@@ -181,6 +272,8 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                 let owner = bc.scopes[len - 1].locals.get_mut(&info.ident).unwrap();
                 
                 info.borrowed_from = Some(owner.ident);
+                info.declared_at = expr.span;
+                
                 if expr.mutable {
                     owner.mutable_refs += 1;
                 } else {
@@ -192,14 +285,13 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                 let owner_ident = owner.ident;
                 // println!("borrow_info({}) = {:#?}", resolve_symbol(owner.ident), owner);
 
-
                 if expr.mutable {
                     // NOTE(alexander): - One mutable reference, no immutable references
                     if mutable_refs > 1 {
                         let err_msg = create_error_msg(
                             bc, ErrorLevel::Error, expr.span,
                             &format!("cannot borrow `{}` as mutable more than once",
-                                     resolve_symbol(owner_ident)),
+                                     resolve_symbol(owner_ident.symbol)),
                             "immutable borrow occurs here");
                         print_error_msg(&err_msg);
                         bc.error_count += 1;
@@ -208,7 +300,7 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                         let err_msg = create_error_msg(
                             bc, ErrorLevel::Error, expr.span,
                             &format!("cannot borrow `{}` as mutable because it is also borrowed as immutable",
-                                     resolve_symbol(owner_ident)),
+                                     resolve_symbol(owner_ident.symbol)),
                             "immutable borrow occurs here");
                         print_error_msg(&err_msg);
                         bc.error_count += 1;
@@ -220,7 +312,7 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                         let err_msg = create_error_msg(
                             bc, ErrorLevel::Error, expr.span,
                             &format!("cannot borrow `{}` as immutable because it is also borrowed as mutable",
-                                     resolve_symbol(owner_ident)),
+                                     resolve_symbol(owner_ident.symbol)),
                             "immutable borrow occurs here");
                         print_error_msg(&err_msg);
                         bc.error_count += 1;

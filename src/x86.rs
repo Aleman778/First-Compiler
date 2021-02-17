@@ -797,6 +797,28 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             }
 
             IrOpcode::Call => {
+                // Make sure temporary registers are saved to stack
+                let mut arg_moves: Vec<(IrType, X86Operand, X86Operand)> = Vec::new();
+                println!("{:#?}", x86.allocated_registers);
+                for (reg, maybe_ident) in &x86.allocated_registers {
+                    if let Some(ident) = maybe_ident {
+                        let var = x86.local_variables.get(ident);
+                        if let Some((src, ty)) = var {
+                            if let X86Operand::Register(src_reg) = src {
+                                if reg == src_reg {
+                                    x86.curr_stack_offset -= size_of_ir_type(*ty, x86.addr_size);
+                                    let dst = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
+                                    arg_moves.push((*ty, dst, *src));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for (ty, dst, src) in &arg_moves {
+                    push_instruction(x86, X86Opcode::MOV, *ty, *dst, *src);
+                }
+
                 let return_op = match insn.op2 {
                     IrOperand::Ident(ident) => {
                         if ident.symbol == x86.debug_break_symbol {
@@ -814,7 +836,6 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     }
 
                     IrOperand::Value(func_address) => {
-                        // x86.machine_code.push(0xcc); // FIXME: REMOVE THIS
                         let reg = allocate_register(x86, None);
                         let dst = X86Operand::Register(reg);
 
@@ -849,6 +870,14 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     _ => panic!("x86: expected identifier or value as second operand to Call"),
                 };
                 
+                // Restore previous registers
+                for (ty, src, dst) in &arg_moves {
+                    push_instruction(x86, X86Opcode::MOV, *ty, *dst, *src);
+                }
+
+                // TODO(alexander): check if function actually returns anything
+                x86.allocated_registers.push_back((X86Reg::RAX, None));
+                
                 require_stack_frame = true;
                 x86.argument_stack.clear();
                 insert_variable(x86, insn.ty, insn.op1, return_op);
@@ -875,27 +904,10 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             _ => {},
         }
 
-        // Free registers that are nolonger in use
-        for (ident, interval) in &bb.live_intervals {
-            if insn_index == interval.end + 1 {
-                let opt_reg = match x86.local_variables.get(ident) {
-                    Some((operand, _)) => if let X86Operand::Register(reg) = operand {
-                        Some(reg)
-                    } else {
-                        None
-                    }
-
-                    None => None,
-                };
-                if let Some(reg) = opt_reg {
-                    let r = *reg;
-                    // x86.assembly.push_str(&format!("dropped: {} from `{}`\n", reg, ident));
-                    free_register(x86, r);
-                    x86.local_variables.remove(ident);
-                }
-            }
-        }
+        free_dead_registers(x86, insn_index, bb);
     }
+
+        
     // sprint_asm!(x86, "{}:\n", bb.exit_label); // NOTE(alexander): automatically printed from IR
 
     // Setup return label byte pos
@@ -974,6 +986,29 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     // ret
     x86.machine_code.push(0xc3);
     sprint_asm!(x86, "    ret\n");
+}
+
+fn free_dead_registers(x86: &mut X86Assembler, insn_index: usize, bb: &IrBasicBlock) {
+    // NOTE(alexander) Free registers that are nolonger in use
+    for (ident, interval) in &bb.live_intervals {
+        if insn_index == interval.end {
+            let opt_reg = match x86.local_variables.get(ident) {
+                Some((operand, _)) => if let X86Operand::Register(reg) = operand {
+                    Some(reg)
+                } else {
+                    None
+                }
+
+                None => None,
+            };
+            if let Some(reg) = opt_reg {
+                let r = *reg;
+                // x86.assembly.push_str(&format!("dropped: {} from `{}`\n", reg, ident));
+                free_register(x86, r);
+                x86.local_variables.remove(ident);
+            }
+        }
+    }
 }
 
 /***************************************************************************
