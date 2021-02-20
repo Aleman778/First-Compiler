@@ -836,7 +836,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     }
 
                     IrOperand::Value(func_address) => {
-                        let reg = allocate_register(x86, None);
+                        let reg = X86Reg::RAX; // NOTE(alexander): RAX should be safe to use here
                         let dst = X86Operand::Register(reg);
 
                         let return_op = if cfg!(windows) {
@@ -848,7 +848,7 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                         };
 
                         if x86.x64_mode {
-                            x86.machine_code.push(REX_W); // TODO(alexander): is it possible to use higher registers?
+                            x86.machine_code.push(REX_W);
                         }
                         
                         x86.machine_code.push(0xb8 + reg_id(reg));
@@ -906,9 +906,6 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
         free_dead_registers(x86, insn_index, bb);
     }
-
-        
-    // sprint_asm!(x86, "{}:\n", bb.exit_label); // NOTE(alexander): automatically printed from IR
 
     // Setup return label byte pos
     let return_pos = x86.machine_code.len();
@@ -1291,7 +1288,6 @@ fn free_specific_register(x86: &mut X86Assembler, reg: X86Reg, prev_reg: Option<
     }
 }
 
-#[inline]
 fn insert_variable(x86: &mut X86Assembler, ty: IrType, dst: IrOperand, src: X86Operand) {
     let ident = get_ir_ident(dst);
     x86.local_variables.insert(ident, (src, ty));
