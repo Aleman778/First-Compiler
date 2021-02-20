@@ -426,7 +426,7 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
         Expr::Call      (e) => interp_call_expr(ic, e),
         Expr::Ident     (e) => find_local_variable(ic, e.span, e.sym).map(|(v, _)| v),
         Expr::If        (e) => interp_if_expr(ic, e),
-        Expr::Lit       (e) => interp_lit_expr(e),
+        Expr::Lit       (e) => Ok(interp_lit_expr(e)),
         Expr::Paren     (e) => interp_expr(ic, &e.expr),
         Expr::Reference (e) => interp_reference_expr(ic, e),
         Expr::Return    (e) => interp_return_expr(ic, e),
@@ -453,6 +453,13 @@ pub fn interp_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<InterpValue> 
 pub fn interp_addr_of_expr(ic: &mut InterpContext, expr: &Expr) -> IResult<(InterpValue, usize)> {
     match expr {
         Expr::Ident(ident) => find_local_variable(ic, ident.span, ident.sym),
+
+        Expr::Lit(literal) => {
+            let value = interp_lit_expr(literal);
+            let addr = store_local_variable(ic, value.clone(), None);
+            Ok((value, addr))
+        }
+
         Expr::Unary(unary) => {
             match unary.op {
                 UnOp::Deref => {
@@ -680,10 +687,10 @@ pub fn interp_if_expr(ic: &mut InterpContext, if_expr: &ExprIf) -> IResult<Inter
 /**
  * Interprets a literal.
  */
-pub fn interp_lit_expr(literal: &ExprLit) -> IResult<InterpValue> {
+pub fn interp_lit_expr(literal: &ExprLit) -> InterpValue {
     match literal.lit {
-        Lit::Int(val)  => Ok(create_interp_value(Value::Int(val), literal.span, false)),
-        Lit::Bool(val) => Ok(create_interp_value(Value::Bool(val), literal.span, false)),
+        Lit::Int(val)  => create_interp_value(Value::Int(val), literal.span, false),
+        Lit::Bool(val) => create_interp_value(Value::Bool(val), literal.span, false),
     }
 }
 

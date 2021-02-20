@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fmt;
 use crate::ast::*;
 use crate::error::*;
 
@@ -175,7 +176,7 @@ fn borrow_check_block<'a>(bc: &mut BorrowContext<'a>, block: &'a Block) {
         ret_info = borrow_check_stmt(bc, &block.stmts[i]);
         if let Some(info) = ret_info {
             if info.from_return || i == (num_stmts - 1) {
-                if let Some(owner_ident) = info.borrowed_from {
+                if let Some(Owner_ident) = info.borrowed_from {
                     // NOTE(alexander): Cannot return something borrowed from this function, since it
                     // requires lifetime annotation or 'static lifetime which we don't support.
                     let err_msg = create_error_msg(
@@ -222,6 +223,30 @@ fn borrow_check_stmt<'a>(bc: &mut BorrowContext<'a>, stmt: &'a Stmt) -> Option<B
 
 fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<BorrowInfo> {
     match expr {
+        Expr::Assign(assign) => {
+            let lhs_borrow_info = borrow_check_expr(bc, &*assign.left);
+            let rhs_borrow_info = borrow_check_expr(bc, &*assign.right);
+            
+            if let Some(rhs_owner) = rhs_borrow_info {
+                if let Some(rhs_borrowed_ident) = rhs_owner.borrowed_from {
+                    if let Some(lhs_info) = lhs_borrow_info {
+                        let len = bc.scopes.len();
+                        let rhs_borrowed = bc.scopes[len - 1].locals.get(&rhs_borrowed_ident).unwrap();
+                        if lhs_info.lifetime < rhs_borrowed.lifetime {
+                            let err_msg = create_error_msg(
+                                bc, ErrorLevel::Error, rhs_owner.declared_at,
+                                &format!("`{}` does not live long enough", rhs_borrowed_ident),
+                                "borrowed value does not live long enough");
+                            print_error_msg(&err_msg);
+                            bc.error_count += 1;
+                        }
+                    }
+                }
+            }
+            
+            None
+        }
+
         Expr::Block(block) => {
             borrow_check_block(bc, &block.block);
             None
@@ -283,7 +308,6 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                 let mutable_refs = owner.mutable_refs;
                 let immutable_refs = owner.immutable_refs;
                 let owner_ident = owner.ident;
-                // println!("borrow_info({}) = {:#?}", resolve_symbol(owner.ident), owner);
 
                 if expr.mutable {
                     // NOTE(alexander): - One mutable reference, no immutable references
@@ -291,7 +315,7 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                         let err_msg = create_error_msg(
                             bc, ErrorLevel::Error, expr.span,
                             &format!("cannot borrow `{}` as mutable more than once",
-                                     resolve_symbol(owner_ident.symbol)),
+                                     owner_ident),
                             "immutable borrow occurs here");
                         print_error_msg(&err_msg);
                         bc.error_count += 1;
@@ -300,7 +324,7 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                         let err_msg = create_error_msg(
                             bc, ErrorLevel::Error, expr.span,
                             &format!("cannot borrow `{}` as mutable because it is also borrowed as immutable",
-                                     resolve_symbol(owner_ident.symbol)),
+                                     owner_ident),
                             "immutable borrow occurs here");
                         print_error_msg(&err_msg);
                         bc.error_count += 1;
@@ -312,7 +336,7 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                         let err_msg = create_error_msg(
                             bc, ErrorLevel::Error, expr.span,
                             &format!("cannot borrow `{}` as immutable because it is also borrowed as mutable",
-                                     resolve_symbol(owner_ident.symbol)),
+                                     owner_ident),
                             "immutable borrow occurs here");
                         print_error_msg(&err_msg);
                         bc.error_count += 1;
@@ -335,4 +359,15 @@ fn create_error_msg<'a>(
     label: &str
 ) -> ErrorMsg {
     create_error_msg_from_span(level, &bc.file.lines, span, &bc.file.filename, &bc.file.source, message, label)
+}
+
+impl fmt::Display for Ident {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = resolve_symbol(self.symbol);
+        if self.index > 0 || s.len() == 0  {
+            write!(f, "{}{}", s, self.index)
+        } else {
+            write!(f, "{}", s)
+        }
+    }
 }

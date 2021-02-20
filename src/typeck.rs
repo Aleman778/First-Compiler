@@ -252,13 +252,9 @@ pub fn type_check_assign_expr<'a>(tc: &mut TypeContext<'a>, assign_expr: &'a Exp
     fn type_check_locator_expr<'a>(tc: &mut TypeContext<'a>, expr: &'a Expr, span: Span) -> Ty {
         match expr {
             Expr::Ident(ident) => {
-                for table in tc.locals.iter().rev() {
-                    if let Some(ty) = table.types.get(&ident.sym) {
-                        return ty.clone();
-                    }
-                }
+                return type_check_ident_expr(tc, ident);
             }
-
+            
             Expr::Unary(unary_expr) => {
                 if let UnOp::Deref = unary_expr.op {
                     let ty = type_check_locator_expr(tc, &unary_expr.expr, span);
@@ -292,6 +288,11 @@ pub fn type_check_assign_expr<'a>(tc: &mut TypeContext<'a>, assign_expr: &'a Exp
 
     let lhs_ty = type_check_locator_expr(tc, &assign_expr.left, assign_expr.span);
     let rhs_ty = type_check_expr(tc, &assign_expr.right);
+
+    // NOTE(alexander): if lhs is missing type, then we have an undeclared identifier.
+    if let TyKind::Error = lhs_ty.kind {
+        return lhs_ty;
+    }
 
     let inside_loop = is_inside_loop(tc);
     if (lhs_ty.assigned || inside_loop) && !lhs_ty.mutable {
@@ -625,6 +626,8 @@ fn mismatched_types_error<'a>(tc: &mut TypeContext<'a>, span: Span, expected: &T
         &format!("expected `{}`, found `{}`", expected, found),
         ""
     );
+
+    assert!(false);
     print_error_msg(&msg);
     tc.error_count += 1;
 }

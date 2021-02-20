@@ -1,24 +1,39 @@
 
-fn test() -> i32 {
-    let x: i32 = 10;
-    let y: i32 = 20;
-    let z: &mut i32 = &mut x;
-    10 + x + y + *z
+// fn inc(x: &mut i32, y: &mut i32) {
+//     *i = *i + 1;
+//     *j = *j + 1;
+// }
+
+fn main() {
+    let mut a: &mut i32 = &mut 20;
+    let mut b: &mut i32 = &mut 10;
+    *a = 25;
+    *b = 32;
+    print_int(*a);
+    print_int(*b);
 }
 
 
-fn main() -> i32 {
-    let mut x: i32 = 10;
-    {
-        // debug_break();
-        let y: &i32 = &x;
-        print_int(*y);
-    }
-    let z: &mut i32 = &mut x;
+// fn test() -> i32 {
+//     let x: i32 = 10;
+//     let y: i32 = 20;
+//     let z: &mut i32 = &mut x;
+//     10 + x + y + *z
+// }
 
-    *z = 20;
-    return x + *z + test();
-}
+
+// fn main() -> i32 {
+//     let mut x: i32 = 10;
+//     {
+//         // debug_break();
+//         let y: &i32 = &x;
+//         print_int(*y);
+//     }
+//     let z: &mut i32 = &mut x;
+
+//     *z = 20;
+//     return x + *z + test();
+// }
 
 
 // fn main() -> i32 {
