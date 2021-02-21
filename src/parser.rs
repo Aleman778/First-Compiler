@@ -7,41 +7,26 @@ use nom::{
     combinator::{peek, map, opt},
     sequence::{preceded, terminated, pair, tuple},
     branch::alt,
-    multi::{many0, separated_list},
+    multi::{many0, separated_list0},
     error::context,
-    Err,
+    Err::Error,
 };
-use nom_locate::LocatedSpanEx;
+use nom_locate::LocatedSpan;
 use std::collections::HashMap;
 use crate::error::*;
 use crate::ast::*;
 
 /**
- * Type alias of LocatedSpanEx for convenience.
+ * Type alias of LocatedSpan for convenience.
  * First string is the input string, other string is
  * the filename that is being parsed.
  */
-pub type ParseSpan<'a> = LocatedSpanEx<&'a str, u16>;
+pub type ParseSpan<'a> = LocatedSpan<&'a str, u16>;
 
 /**
  * Type aliased IResult from std::Result.
  */
-pub type IResult<I, O> = Result<(I, O), Err<ParseError>>;
-
-/**
- * Parse error struct holds information about the error and location
- */
-pub struct ParseError {
-    errors: Vec<Verbose>,
-}
-
-/**
- * Gives context to an error e.g. location, kind, file etc.
- */
-pub struct Verbose {
-    span: Span,
-    kind: ErrorKind,
-}
+pub type IResult<I, O> = nom::IResult<I, O, ParseError>;
 
 /**
  * Parse a source file containing items such as functions.
@@ -74,7 +59,7 @@ pub fn parse_file(source: String, filename: String) -> File {
         _ => input,
     };
     let mut items = Vec::new();
-    while output.fragment.len() > 0 {
+    while output.fragment().len() > 0 {
         match parse_item(output) {
             Ok((input, item)) => {
                 items.push(item);
@@ -83,7 +68,7 @@ pub fn parse_file(source: String, filename: String) -> File {
                     _ => output,
                 };
             },
-            Err(Err::Error(error)) => {
+            Err(Error(error)) => {
                 error_count += 1;
                 parse_error(error, &source, &filename, &lines);
                 break;
@@ -193,7 +178,7 @@ pub fn parse_fn_decl(input: ParseSpan) -> IResult<ParseSpan, FnDecl> {
         "function declaration",
         map(tuple((
             preceded(multispace0, tag("(")),
-            separated_list(
+            separated_list0(
                 preceded(multispace0, tag(",")),
                 parse_argument
             ),
@@ -509,7 +494,7 @@ fn parse_call_expr(input: ParseSpan) -> IResult<ParseSpan, ExprCall> {
         map(tuple((
             parse_ident_expr,
             preceded(multispace0, tag("(")),
-            separated_list(preceded(multispace0, tag(",")), parse_expr),
+            separated_list0(preceded(multispace0, tag(",")), parse_expr),
             preceded(multispace0, tag(")")),
         )),
             |(id, _, args, end)| {
@@ -552,7 +537,7 @@ pub fn parse_ident_expr(input: ParseSpan) -> IResult<ParseSpan, ExprIdent> {
                 peek(alt((alpha1, tag("_")))),
                 take_while1(|c: char| is_alphanumeric(c as u8) || c == '_')),
             |(_, s): (ParseSpan, ParseSpan)| ExprIdent {
-                sym: intern_string(s.fragment),
+                sym: intern_string(s.fragment()),
                 span: Span::from_parse_span(s)
             })
         )
@@ -686,9 +671,9 @@ pub fn parse_while_expr(input: ParseSpan) -> IResult<ParseSpan, ExprWhile> {
 
 pub fn parse_int(input: ParseSpan) -> IResult<ParseSpan, (i32, Span)> {
     let (input, digits) = preceded(multispace0, digit1)(input)?;
-    match digits.fragment.parse::<i32>() {
+    match digits.fragment().parse::<i32>() {
         Ok(n) => Ok((input, (n, Span::from_parse_span(digits)))),
-        Err(e) => Err(Err::Error(ParseError::new(digits, ErrorKind::ParseIntError(e)))),
+        Err(e) => Err(Error(ParseError::new(digits, ParseErrorKind::ParseIntError(e)))),
     }
 }
 
@@ -705,7 +690,7 @@ pub fn parse_string(input: ParseSpan) -> IResult<ParseSpan, (String, Span)> {
         take_while(|c: char| c != '"'),
         tag("\""),
     )), |(left, s, right): (ParseSpan, ParseSpan, ParseSpan)| {
-        (s.fragment.to_string(), Span::combine(
+        (s.fragment().to_string(), Span::combine(
             Span::from_parse_span(left),
             Span::from_parse_span(right)))
     }))(input)
@@ -744,8 +729,8 @@ pub fn block_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
         let next: IResult<ParseSpan, ParseSpan> = take(1usize)(input);
         match next {
             Ok((inpt, _)) => input = inpt,
-            Err(_) => return Err(Err::Error(ParseError::new(
-                input, ErrorKind::Context("unterminated block comment")))),
+            Err(_) => return Err(Error(ParseError::new(
+                input, ParseErrorKind::Context("unterminated block comment")))),
         };
         let new: IResult<ParseSpan, ParseSpan> = tag("/*")(input);
         let end: IResult<ParseSpan, ParseSpan> = tag("*/")(input);
@@ -770,8 +755,8 @@ fn block_doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
         let next: IResult<ParseSpan, ParseSpan> = take_until("\n")(input);
         match next {
             Ok((inpt, _)) => input = inpt,
-            Err(_) => return Err(Err::Error(ParseError::new(
-                input, ErrorKind::Context("unterminated block doc-comment")))),
+            Err(_) => return Err(Error(ParseError::new(
+                input, ParseErrorKind::Context("unterminated block doc-comment")))),
         };
         input = multispace0(input)?.0;
         let middle: IResult<ParseSpan, ParseSpan> = tag("*")(input);
@@ -787,87 +772,47 @@ fn block_doc_comment(input: ParseSpan) -> IResult<ParseSpan, ()> {
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub enum ParseErrorKind {
+    ParseIntError(std::num::ParseIntError),
+    Context(&'static str),
+    Char(char),
+    Nom(nom::error::ErrorKind),
+}
+
+pub struct ParseError {
+    kind: ParseErrorKind,
+    span: Span,
+    context: Vec<(Span, &'static str)>,
+}
+
 impl<'a> ParseError {
-    pub fn new(input: ParseSpan<'a>, kind: ErrorKind) -> Self {
-        ParseError{
-            errors: vec![Verbose{
-                span: Span::from_parse_span(input),
-                kind: kind,
-            }],
-        }
-    }
-
-    pub fn append(input: ParseSpan<'a>, kind: ErrorKind, mut other: Self) -> Self {
-        other.errors.push(Verbose {
+    pub fn new(input: ParseSpan<'a>, kind: ParseErrorKind) -> Self {
+        ParseError {
+            kind,
             span: Span::from_parse_span(input),
-            kind: kind,
-        });
-        other
-    }
-
-    fn is_important(&self) -> bool {
-        match self.errors.last() {
-            Some(verbose) => {
-                match verbose.kind {
-                    ErrorKind::ParseIntError(_) => true,
-                    _ => false,
-                }
-
-            },
-            None => false,
+            context: vec![],
         }
     }
 }
 
-/**
- * Implementation of nom ParseErrors for my custom ParseError
- */
 impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
     fn from_error_kind(input: ParseSpan<'a>, kind: nom::error::ErrorKind) -> Self {
         ParseError{
-            errors: vec![Verbose{
-                span: Span::from_parse_span(input),
-                kind: ErrorKind::Nom(kind),
-            }],
+            kind: ParseErrorKind::Nom(kind),
+            span: Span::from_parse_span(input),
+            context: vec![],
         }
     }
 
-    fn append(input: ParseSpan<'a>, kind: nom::error::ErrorKind, mut other: Self) -> Self {
-        other.errors.push(Verbose{
-            span: Span::from_parse_span(input),
-            kind: ErrorKind::Nom(kind),
-        });
+    fn append(_: ParseSpan<'a>, _: nom::error::ErrorKind, other: Self) -> Self {
         other
     }
+}
 
-    fn from_char(input: ParseSpan<'a>, c: char) -> Self {
-        ParseError{
-            errors: vec![Verbose{
-                span: Span::from_parse_span(input),
-                kind: ErrorKind::Char(c),
-            }],
-        }
-    }
-
-    fn or(self, other: Self) -> Self {
-        let sim = self.is_important();
-        let oim = other.is_important();
-        if sim && !oim {
-            self
-        } else if !sim && oim {
-            other
-        } else if self.errors.len() > other.errors.len() {
-            self
-        } else {
-            other
-        }
-    }
-
-    fn add_context(input: ParseSpan<'a>, ctx: &'static str, mut other: Self) -> Self {
-        other.errors.push(Verbose{
-            span: Span::from_parse_span(input),
-            kind: ErrorKind::Context(ctx),
-        });
+impl<'a> nom::error::ContextError<ParseSpan<'a>> for ParseError {
+    fn add_context(input: ParseSpan, context: &'static str, mut other: Self) -> Self {
+        other.context.push((Span::from_parse_span(input), context));
         other
     }
 }
@@ -876,43 +821,26 @@ impl<'a> nom::error::ParseError<ParseSpan<'a>> for ParseError {
  * Prints the given errors from the parser using the source, current filename and line number byte offsets.
  */
 fn parse_error<'a>(error: ParseError, source: &str, filename: &str, lines: &Vec<u32>) {
-    match error.errors.first() {
-        Some(err) => {
-            let error_msg = match &err.kind {
-                ErrorKind::ParseIntError(e) => e.to_string(),
-                ErrorKind::Nom(e) => (*e).description().to_string(),
-                ErrorKind::Char(e) => format!("{}", *e),
-                ErrorKind::Context(e) => {
-                    let beg = err.span.base as usize;
-                    let end = err.span.base as usize + err.span.len as usize;
-                    format!("expected `{}`, found `{}`", e, &source[beg..end])
-                },
-            };
+    let error_msg = match &error.kind {
+        ParseErrorKind::ParseIntError(e) => e.to_string(),
+        ParseErrorKind::Nom(e) => (*e).description().to_string(),
+        ParseErrorKind::Char(e) => format!("{}", *e),
+        ParseErrorKind::Context(e) => {
+            let beg = error.span.base as usize;
+            let end = error.span.base as usize + error.span.len as usize;
+            format!("expected `{}`, found `{}`", e, &source[beg..end])
+        },
+    };
 
-            print_error_msg(&create_error_msg_from_span(ErrorLevel::Error,
-                                                        lines,
-                                                        err.span,
-                                                        filename,
-                                                        source,
-                                                        &error_msg,
-                                                        ""))
-        }
-        
-        None => {}
+    for (input, message) in &error.context {
+        println!("{:#?}, {}", input, message);
     }
-}
-
-/**
- * Error kind enum defines different types of parse errors.
- */
-#[derive(Debug)]
-pub enum ErrorKind {
-    /// Failed to parse an int e.g. overflow.
-    ParseIntError(std::num::ParseIntError),
-    /// Error kind given by various nom parsers.
-    Nom(nom::error::ErrorKind),
-    /// Indicates which character was expected by the char function
-    Char(char),
-    /// Static string added by the `context` function
-    Context(&'static str),
+    
+    print_error_msg(&create_error_msg_from_span(ErrorLevel::Error,
+                                                lines,
+                                                error.span,
+                                                filename,
+                                                source,
+                                                &error_msg,
+                                                ""));
 }

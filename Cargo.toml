@@ -8,9 +8,9 @@ publish = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-nom = "5"
+nom = "6.1"
 termcolor = "1"
-nom_locate = "1"
+nom_locate = "3.0"
 string-interner = "0.12.1"
 simple_logger = "1.4.0"
 clap = "2.33.0"

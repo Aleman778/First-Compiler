@@ -732,8 +732,8 @@ impl Span {
 
     pub fn from_parse_span(s: ParseSpan) -> Self {
         Span {
-            base: s.offset as u32,
-            len: s.fragment.len() as u16,
+            base: s.location_offset() as u32,
+            len: s.fragment().len() as u16,
             ctx: s.extra,
         }
     }
