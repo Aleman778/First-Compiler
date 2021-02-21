@@ -2,7 +2,10 @@
 
 use crate::ast::{Span, get_span_location_in_file};
 use std::io::Write;
+use std::cell::RefCell;
 use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
+
+thread_local!(pub static COLOR_CHOICE: RefCell<ColorChoice> = RefCell::new(ColorChoice::Auto));
 
 pub enum ErrorLevel {
     Fatal,
@@ -67,13 +70,20 @@ pub fn print_error_msg(msg: &ErrorMsg) {
     };
 }
 
-fn print_error_msg_fmt(msg: &ErrorMsg, left_spacing: u32, print_header: bool) -> std::io::Result<()> {
-
+fn print_error_msg_fmt(msg: &ErrorMsg,
+                       left_spacing: u32,
+                       print_header: bool
+) -> std::io::Result<()> {
     if let ErrorLevel::Cancelled = msg.level {
         return Ok(());
     }
 
-    let mut stderr = StandardStream::stderr(ColorChoice::Always);
+
+    let mut color_choice = ColorChoice::Auto;
+    COLOR_CHOICE.with(|color_choice_cell| {
+        color_choice = *color_choice_cell.borrow();
+    });
+    let mut stderr = StandardStream::stderr(color_choice);
     let mut color = ColorSpec::new();
 
     if print_header {

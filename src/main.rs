@@ -17,10 +17,12 @@ mod x86;
 mod intrinsics;
 // mod llvm;
 
+use atty;
 use log::{info, error};
 use std::path::{Path, PathBuf};
 use std::{env, fs};
 use clap::{App, Arg, AppSettings};
+use termcolor::ColorChoice;
 use crate::ast::File;
 use crate::parser::parse_file;
 use crate::intrinsics::get_intrinsic_ast_items;
@@ -36,7 +38,7 @@ struct Config {
     input: Option<String>,
     run: Option<String>,
     interpret: bool,
-    nocolor: bool,
+    color_choice: ColorChoice,
     compiletest: bool,
 }
 
@@ -47,7 +49,7 @@ pub fn main() {
             input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
             run: None,
             interpret: false,
-            nocolor: false,
+            color_choice: ColorChoice::Auto,
             compiletest: false,
         };
         run_compiler(config);
@@ -79,9 +81,12 @@ pub fn main() {
              .short("v")
              .long("verbose")
              .help("Enable verbose output"))
-        .arg(Arg::with_name("nocolor")
-             .long("nocolor")
-             .help("Disables colored text in errors"))
+        .arg(Arg::with_name("color")
+             .takes_value(true)
+             .long("color")
+             .help("Color preference \"always\", \"ansi\", \"auto\", \"off\" (default is \"auto\")")
+             .value_name("PREFERENCE")
+             .default_value("auto"))
         .arg(Arg::with_name("Zcompiletest")
              .long("Zcompiletest")
              .help("Runs the compiler in testing mode")
@@ -93,12 +98,29 @@ pub fn main() {
         println!("sqrrl {}", VERSION.unwrap_or("unknown version"));
     }
 
+    let color_choice = match matches.value_of("color").unwrap() {
+        "always" => ColorChoice::Always,
+        "ansi" => ColorChoice::AlwaysAnsi,
+        "auto" => {
+            if atty::is(atty::Stream::Stdout) {
+                ColorChoice::Auto
+            } else {
+                ColorChoice::Never
+            }
+        }
+        "off" => ColorChoice::Never,
+        _ => {
+            println!("\n--color expectes one of these values \"always\", \"ansi\", \"auto\", \"off\".\n");
+            return;
+        }
+    };
+
     let config = Config {
-        input:       matches.value_of("INPUT").map(|s| s.to_string()),
-        run:         matches.value_of("run").map(|s| s.to_string()),
-        interpret:   matches.is_present("interpret"),
-        nocolor:     matches.is_present("nocolor"),
+        input: matches.value_of("INPUT").map(|s| s.to_string()),
+        run: matches.value_of("run").map(|s| s.to_string()),
+        interpret: matches.is_present("interpret"),
         compiletest: matches.is_present("Zcompiletest"),
+        color_choice,
     };
 
     run_compiler(config);
@@ -106,6 +128,11 @@ pub fn main() {
 
 fn run_compiler(config: Config) {
     info!("setting up the compiler");
+
+    error::COLOR_CHOICE.with(|color_choice| {
+        *color_choice.borrow_mut() = config.color_choice;
+    });
+    
     let mut _working_dir = env::current_dir().unwrap_or(PathBuf::new());
     let mut ast_file: Option<File> = None;
 

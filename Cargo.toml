@@ -16,6 +16,7 @@ simple_logger = "1.4.0"
 clap = "2.33.0"
 log = "0.4"
 backtrace = "0.3.55"
+atty = "0.2"
 # inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm11-0"] }
 
 [target.'cfg(windows)'.dependencies]
