@@ -29,7 +29,7 @@ use crate::typeck::{create_type_context, type_check_file};
 use crate::borrowck::borrow_check_file;
 use crate::ir::{create_ir_builder, build_ir_from_ast};
 use crate::x86::{compile_ir_to_x86_machine_code};
-use crate::jit::{allocate_jit_code, finalize_jit_code, free_jit_code, execute_jit_code};
+use crate::jit::{allocate_jit_code, finalize_jit_code, execute_jit_code};
 // use crate::llvm::codegen_test;
 
 struct Config {
@@ -227,5 +227,4 @@ fn run_compiler(config: Config) {
     println!("\nOutput from executing jitted code:\n-----------------------------------------------");
     let ret = execute_jit_code(&jit_code);
     println!("\nProgram exited with code {}", ret);
-    free_jit_code(&jit_code);
 }

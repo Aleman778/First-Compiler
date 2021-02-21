@@ -24,7 +24,7 @@ pub struct InterpScope {
     pub is_block_scope: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct InterpValue {
     pub data: Value,
     pub span: Span,
@@ -135,6 +135,8 @@ fn find_local_variable<'a>(ic: &mut InterpContext<'a>, span: Span, symbol: Symbo
             if addr >= ic.base_pointer && addr < ic.stack_pointer {
                 return Ok((ic.stack[addr].clone(), addr));
             }
+
+            println!("addr = {}, ic.base_pointer = {}, ic.stack_pointer = {}", addr, ic.base_pointer, ic.stack_pointer);
             return Err(interp_error(
                 ic,
                 span,
@@ -147,85 +149,6 @@ fn find_local_variable<'a>(ic: &mut InterpContext<'a>, span: Span, symbol: Symbo
         }
     }
     Err(interp_error(ic, span, &format!("cannot find value `{}` in this scope", resolve_symbol(symbol)), ""))
-}
-
-fn write_str(buf: &mut fmt::Formatter<'_>, mut s: &str, indent: usize) -> fmt::Result {
-    while !s.is_empty() {
-        let newline;
-        let split = match s.find('\n') {
-            Some(pos) => {
-                newline = true;
-                pos + 1
-            },
-            None => {
-                newline = false;
-                s.len()
-            },
-        };
-        buf.write_str(&s[..split])?;
-        s = &s[split..];
-
-        if newline {
-            buf.write_str(&" ".repeat(indent))?;
-        }
-    }
-
-    Ok(())
-}
-
-impl<'a> fmt::Debug for InterpContext<'a> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut indent = 0;
-        write_str(f, "Trace:", 0)?;
-
-        indent += 4;
-        write_str(f, "\nSignatures: [", indent)?;
-        if self.signatures.len() > 8 {
-            write_str(f, "\n", indent)?;
-        }
-        let mut result = String::new();
-        for (sig, _) in &self.signatures {
-            result.push_str(&format!("\"{}\", ", resolve_symbol(*sig)));
-        }
-        result.pop();
-        result.pop();
-        write_str(f, &result, indent)?;
-        if self.signatures.len() > 8 {
-            write_str(f, "\n", indent)?;
-        }
-        indent -= 4;
-        write_str(f, "]", indent)?;
-        indent += 4;
-
-        write_str(f, "\nCall Stack: {", indent)?;
-        for (index, scope) in self.call_stack.iter().rev().enumerate() {
-            fmt_interp_scope(scope, f, self.file.unwrap(), indent + 8, index)?;
-        }
-        write_str(f, "\n}", indent)?;
-        write_str(f, &format!("\nStack: {:#?}", self.stack), 4)
-    }
-}
-
-pub fn fmt_interp_scope(
-    scope: &InterpScope,
-    f: &mut fmt::Formatter<'_>,
-    file: &File,
-    indent: usize,
-    index: usize
-) -> fmt::Result {
-    write_str(f, &format!("\n{}: ", index), indent - 4)?;
-    let (line, _, line_beg, line_end) = get_span_location_in_file(&file.lines, scope.span);
-    let source_line = &file.source[line_beg..line_end];
-    if line > 0 {
-        write_str(f, source_line.trim(), indent)?;
-        write_str(f, &format!("\n at {}:{}", file.filename, line), indent)?;
-    } else {
-        write_str(f, &format!("{}", file.filename), indent)?;
-    }
-    if scope.entities.len() > 0 {
-        write_str(f, &format!("\nSymbols Table: {:#?},", &scope.entities), indent)?;
-    }
-    write_str(f, "\n},", indent - 4)
 }
 
 pub fn interp_file<'a>(ic: &mut InterpContext<'a>, file: &'a File) {
@@ -348,8 +271,11 @@ fn interp_intrinsics<'a>(
 
 pub fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block, is_block_scope: bool) -> IResult<InterpValue> {
     let mut base_pointer = 0usize;
+    let mut stack_pointer = 0usize;
     if is_block_scope {
-        base_pointer = ic.stack_pointer;
+        base_pointer = ic.base_pointer;
+        stack_pointer = ic.stack_pointer;
+        ic.base_pointer = ic.stack_pointer;
         ic.call_stack.push(create_interp_scope(block.span, is_block_scope));
     }
 
@@ -370,7 +296,8 @@ pub fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block, is_block_scop
 
     if is_block_scope {
         ic.call_stack.pop();
-        ic.stack_pointer = base_pointer;
+        ic.base_pointer = base_pointer;
+        ic.stack_pointer = stack_pointer;
     }
     Ok(ret_val)
 }
@@ -602,6 +529,8 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
     match item {
         Item::Fn(func) => {
             let base_pointer = ic.base_pointer;
+            let stack_pointer = ic.stack_pointer;
+            ic.base_pointer = ic.stack_pointer;
             let new_scope = create_interp_scope(call.span, false);
             ic.call_stack.push(new_scope);
 
@@ -632,7 +561,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
             }
 
             let result = interp_block(ic, &func.block, false);
-            ic.stack_pointer = ic.base_pointer;
+            ic.stack_pointer = stack_pointer;
             ic.base_pointer = base_pointer;
             ic.call_stack.pop();
             result
@@ -851,4 +780,100 @@ fn mismatched_types_fatal_error<'a>(ic: &InterpContext<'a>, span: Span, expected
         &format!("expected `{}`, found `{}`", expected, found),
         ""
     )
+}
+fn write_str(buf: &mut fmt::Formatter<'_>, mut s: &str, indent: usize) -> fmt::Result {
+    while !s.is_empty() {
+        let newline;
+        let split = match s.find('\n') {
+            Some(pos) => {
+                newline = true;
+                pos + 1
+            },
+            None => {
+                newline = false;
+                s.len()
+            },
+        };
+        buf.write_str(&s[..split])?;
+        s = &s[split..];
+
+        if newline {
+            buf.write_str(&" ".repeat(indent))?;
+        }
+    }
+
+    Ok(())
+}
+
+impl<'a> fmt::Debug for InterpContext<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut indent = 0;
+        write_str(f, "Trace:", 0)?;
+
+        indent += 4;
+        write_str(f, "\nSignatures: [", indent)?;
+        if self.signatures.len() > 8 {
+            write_str(f, "\n", indent + 4)?;
+        }
+        let mut result = String::new();
+        for (sig, _) in &self.signatures {
+            result.push_str(&format!("\"{}\", ", resolve_symbol(*sig)));
+        }
+        result.pop();
+        result.pop();
+        write_str(f, &result, indent)?;
+        if self.signatures.len() > 8 {
+            write_str(f, "\n", indent)?;
+        }
+        indent -= 4;
+        write_str(f, "]", indent)?;
+        indent += 4;
+
+        write_str(f, "\nCall Stack: {", indent)?;
+        for (index, scope) in self.call_stack.iter().rev().enumerate() {
+            fmt_interp_scope(scope, f, self.file.unwrap(), indent + 4, index)?;
+        }
+        write_str(f, "\n}", indent)?;
+        write_str(f, &format!("\nStack: {:#?}", self.stack), 4)
+    }
+}
+
+impl fmt::Debug for InterpValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.data {
+            Value::Int(val) => write!(f, "{:<6} (i32)", val),
+            Value::Bool(val) => write!(f, "{:<6} (bool)", val),
+            Value::Ref(r) => if r.mutable {
+                write!(f, "{:<6} (&mut {})", r.addr, r.ref_ty)
+            } else {
+                write!(f, "{:<6} (&{})", r.addr, r.ref_ty)
+            }
+            Value::Void => write!(f, "void"),
+            _ => write!(f, ""),
+        }
+    }
+}
+
+pub fn fmt_interp_scope(
+    scope: &InterpScope,
+    f: &mut fmt::Formatter<'_>,
+    file: &File,
+    indent: usize,
+    index: usize
+) -> fmt::Result {
+    write_str(f, &format!("\n{}: ", index), indent)?;
+    let (line, _, _, _) = get_span_location_in_file(&file.lines, scope.span);
+    if line > 0 {
+        write_str(f, &format!("at {}:{}", file.filename, line), indent)?;
+    } else {
+        write_str(f, &format!("{}", file.filename), indent)?;
+    }
+    if scope.entities.len() > 0 {
+        write_str(f, "\nSymbols Table: {", indent + 4)?;
+        for (ident, addr) in &scope.entities {
+            write_str(f, &format!("\n{}: {},", resolve_symbol(*ident), addr), indent + 8)?;
+        }
+        write_str(f, "\n}", indent + 4)?;
+    }
+    Ok(())
 }

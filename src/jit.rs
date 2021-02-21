@@ -49,16 +49,6 @@ pub fn finalize_jit_code(jit: &JitCode) {
     }
 }
 
-#[cfg(target_os="windows")]
-pub fn free_jit_code(jit: &JitCode) {
-    use winapi::um::winnt;
-    use winapi::ctypes;
-
-    unsafe {
-        kernel32::VirtualFree(jit.addr as *mut ctypes::c_void, 0, winnt::MEM_RELEASE);
-    }
-}
-
 #[cfg(any(target_os="linux", target_os="macos"))]
 pub fn allocate_jit_code(size: usize) -> JitCode {
     use libc;
@@ -87,15 +77,6 @@ pub fn finalize_jit_code(jit: &JitCode) {
     
     unsafe {
         libc::mprotect(jit.addr as *mut _, jit.size, libc::PROT_READ | libc::PROT_EXEC);
-    }
-}
-
-#[cfg(any(target_os="linux", target_os="macos"))]
-pub fn free_jit_code(jit: &JitCode) {
-    use libc;
-    
-    unsafe {
-        libc::munmap(jit.addr as *mut _, jit.size);
     }
 }
 

@@ -661,7 +661,8 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 build_ir_if_expr(ib, if_expr, Some(op1));
             } else {
                 let op2 = build_ir_from_expr(ib, &assign.right).0;
-
+                update_ir_live_interval(ib, op1);
+                update_ir_live_interval(ib, op2);
                 ib.instructions.push(IrInstruction {
                     opcode,
                     op1,

@@ -171,12 +171,11 @@ fn borrow_check_block<'a>(bc: &mut BorrowContext<'a>, block: &'a Block) {
     push_borrow_scope(bc);
 
     let num_stmts = block.stmts.len();
-    let mut ret_info: Option<BorrowInfo> = None;
     for i in 0..num_stmts {
-        ret_info = borrow_check_stmt(bc, &block.stmts[i]);
+        let ret_info = borrow_check_stmt(bc, &block.stmts[i]);
         if let Some(info) = ret_info {
             if info.from_return || i == (num_stmts - 1) {
-                if let Some(Owner_ident) = info.borrowed_from {
+                if let Some(_) = info.borrowed_from {
                     // NOTE(alexander): Cannot return something borrowed from this function, since it
                     // requires lifetime annotation or 'static lifetime which we don't support.
                     let err_msg = create_error_msg(
