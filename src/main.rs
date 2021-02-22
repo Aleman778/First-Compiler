@@ -37,9 +37,26 @@ use crate::jit::{allocate_jit_code, finalize_jit_code, execute_jit_code};
 struct Config {
     input: Option<String>,
     run: Option<String>,
-    interpret: bool,
+    backend: Backend,
+    print: Print,
     color_choice: ColorChoice,
+    type_checking: bool,
+    borrow_checking: bool,
     compiletest: bool,
+}
+
+enum Backend {
+    Interpreter,
+    X86,
+    LLVM,
+}
+
+enum Print {
+    Ast,
+    Ir,
+    Assembly,
+    MachineCode,
+    None,
 }
 
 pub fn main() {
@@ -48,8 +65,11 @@ pub fn main() {
         let config = Config {
             input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
             run: None,
-            interpret: false,
+            backend: Backend::X86,
+            print: Print::None,
             color_choice: ColorChoice::Auto,
+            type_checking: true,
+            borrow_checking: true,
             compiletest: false,
         };
         run_compiler(config);
@@ -66,39 +86,50 @@ pub fn main() {
              .short("r")
              .value_name("CODE")
              .help("Code that executes the code before running main"))
-        .arg(Arg::with_name("interpret")
-             .short("i")
-             .help("Runs the interpreter on the given input"))
-        // .arg(Arg::with_name("output")
-             // .short("o")
-             // .value_name("FILE")
-             // .help("Write output to <filename>"))
+        .arg(Arg::with_name("backend")
+             .long("backend")
+             .help(r#"Compiler backend "interp", "x86", "llvm" (default is "interpreter")"#)
+             .value_name("BACKEND")
+             .takes_value(true)
+             .default_value("interpreter"))
+        .arg(Arg::with_name("print")
+             .long("print")
+             .help(r#"Print info "ast", "ir", "asm", "machinecode", "none" (default is "none")"#)
+             .value_name("BACKEND")
+             .takes_value(true)
+             .default_value("none"))
         .arg(Arg::with_name("version")
              .short("V")
              .long("version")
              .help("Print version output and exit"))
-        .arg(Arg::with_name("verbose")
-             .short("v")
-             .long("verbose")
-             .help("Enable verbose output"))
         .arg(Arg::with_name("color")
-             .takes_value(true)
              .long("color")
-             .help("Color preference \"always\", \"ansi\", \"auto\", \"off\" (default is \"auto\")")
+             .help(r#"Color preference "always", "ansi", "auto", "off" (default is "auto")"#)
              .value_name("PREFERENCE")
+             .takes_value(true)
              .default_value("auto"))
+        .arg(Arg::with_name("Znotypecheck")
+             .long("Znotypecheck")
+             .help("Runs the compiler without type checking")
+             .hidden(true))
+        .arg(Arg::with_name("Znoborrowcheck")
+             .long("Znoborrowcheck")
+             .help("Runs the compiler without borrow checking")
+             .hidden(true))
         .arg(Arg::with_name("Zcompiletest")
              .long("Zcompiletest")
              .help("Runs the compiler in testing mode")
              .hidden(true))
         .get_matches();
 
+    let mut skip_compilation = false;
     if matches.is_present("version") {
         const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
         println!("sqrrl {}", VERSION.unwrap_or("unknown version"));
+        skip_compilation = true;
     }
 
-    let color_choice = match matches.value_of("color").unwrap() {
+    let color_choice = match matches.value_of("color").unwrap().to_lowercase().as_str() {
         "always" => ColorChoice::Always,
         "ansi" => ColorChoice::AlwaysAnsi,
         "auto" => {
@@ -111,19 +142,50 @@ pub fn main() {
         "off" => ColorChoice::Never,
         _ => {
             println!("\n--color expectes one of these values \"always\", \"ansi\", \"auto\", \"off\".\n");
-            return;
+            skip_compilation = true;
+            ColorChoice::Never
         }
     };
 
-    let config = Config {
-        input: matches.value_of("INPUT").map(|s| s.to_string()),
-        run: matches.value_of("run").map(|s| s.to_string()),
-        interpret: matches.is_present("interpret"),
-        compiletest: matches.is_present("Zcompiletest"),
-        color_choice,
+    let backend = match matches.value_of("backend").unwrap().to_lowercase().as_str() {
+        "interp" => Backend::Interpreter,
+        "x86" => Backend::X86,
+        "llvm" => Backend::LLVM,
+        _ => {
+            println!("\n--backend expectes one of these values \"interp\", \"x86\", \"llvm\"\n");
+            skip_compilation = true;
+            Backend::Interpreter
+        }
     };
 
-    run_compiler(config);
+    let print = match matches.value_of("print").unwrap().to_lowercase().as_str() {
+        "ast" => Print::Ast,
+        "ir" => Print::Ir,
+        "asm" => Print::Assembly,
+        "machinecode" => Print::MachineCode,
+        "none" => Print::None,
+        _ => {
+            println!("\n--print expectes one of these values \"ast\", \"ir\", \"asm\", \"machinecode\", \"none\"\n");
+            skip_compilation = true;
+            Print::None
+        }
+    };
+    
+    if !skip_compilation {
+        let config = Config {
+            input: matches.value_of("INPUT").map(|s| s.to_string()),
+            run: matches.value_of("run").map(|s| s.to_string()),
+            type_checking: !matches.is_present("Znotypecheck"),
+            borrow_checking: !matches.is_present("Znoborrowcheck"),
+            compiletest: matches.is_present("Zcompiletest"),
+            backend,
+            print,
+            color_choice,
+        };
+
+    
+        run_compiler(config);
+    }
 }
 
 fn run_compiler(config: Config) {
@@ -184,74 +246,90 @@ fn run_compiler(config: Config) {
         eprintln!("\nerror: aborting due to previous error");
         return;
     }
-    // print!("\n\nAbstract Syntax Tree:\n-----------------------------------------------\n{:#?}", ast.items);
+
+    if let Print::Ast = config.print {
+        print!("\n\n{:#?}", ast.items);
+    }
 
     // Type check the current file
-    let mut tc = create_type_context();
-    type_check_file(&mut tc, &ast);
-    if tc.error_count > 0 {
-        error!("type checker reported {} errors, stopping compilation", tc.error_count);
-        eprintln!("\nerror: aborting due to previous error");
-        return;
+    if config.type_checking {
+        let mut tc = create_type_context();
+        type_check_file(&mut tc, &ast);
+        if tc.error_count > 0 {
+            error!("type checker reported {} errors, stopping compilation", tc.error_count);
+            eprintln!("\nerror: aborting due to previous error");
+            return;
+        }
     }
 
     // Borrow check the current file
-    let borrow_error_count = borrow_check_file(&ast);
-    if borrow_error_count > 0 {
-        error!("borrow checker reported {} errors, stopping compilation", borrow_error_count);
-        eprintln!("\nerror: aborting due to previous error");
-        return;
-    }
-
-    // Interpret the current file
-    if config.interpret {
-        let mut ic = create_interp_context();
-        interp_file(&mut ic, &ast);
-        let code = interp_entry_point(&mut ic);
-        println!("\nInterpreter exited with code {}", code);
-        return;
-    }
-
-    // LLVM pass
-    // codegen_test();
-
-    // Build low-level intermediate representation
-    let mut ir_builder = create_ir_builder();
-
-    // build lir
-    build_ir_from_ast(&mut ir_builder, &ast);
-    print!("\n\nIntermediate Representation:\n-----------------------------------------------\n{}", ir_builder);
-
-    // The resulting intermediate representation
-    let ir_instructions = ir_builder.instructions;
-    let ir_functions = ir_builder.functions;
-
-    // Generate code to jit
-    let (machine_code, assembly) = compile_ir_to_x86_machine_code(ir_instructions, ir_functions);
-
-    println!("\n\nX86 Assembler:\n-----------------------------------------------");
-    println!("{}", assembly);
-
-    println!("\n\nX86 Machine Code:\n-----------------------------------------------");
-    for (i, byte) in machine_code.iter().enumerate() {
-        print!("{:02x} ", byte);
-        if i % 16 == 15 {
-            println!("");
+    if config.borrow_checking {
+        let borrow_error_count = borrow_check_file(&ast);
+        if borrow_error_count > 0 {
+            error!("borrow checker reported {} errors, stopping compilation", borrow_error_count);
+            eprintln!("\nerror: aborting due to previous error");
+            return;
         }
     }
-    println!("\nSize of code is {} bytes", machine_code.len());
 
-    let jit_code = allocate_jit_code(machine_code.len());
-    
-    unsafe {
-        let src_len = machine_code.len();
-        let src_ptr = machine_code.as_ptr();
-        std::ptr::copy_nonoverlapping(src_ptr, jit_code.addr, src_len);
+    match config.backend {
+        Backend::Interpreter => {
+            // Interpret the current file
+            let mut ic = create_interp_context();
+            interp_file(&mut ic, &ast);
+            let code = interp_entry_point(&mut ic);
+            println!("\nInterpreter exited with code {}", code);
+            return;
+        }
+
+        Backend::X86 => {
+            // Build low-level intermediate representation
+            let mut ir_builder = create_ir_builder();
+
+            // build lir
+            build_ir_from_ast(&mut ir_builder, &ast);
+            if let Print::Ir = config.print {
+                print!("\n\n{}", ir_builder);
+            }
+
+            // The resulting intermediate representation
+            let ir_instructions = ir_builder.instructions;
+            let ir_functions = ir_builder.functions;
+
+            // Generate code to jit
+            let (machine_code, assembly) = compile_ir_to_x86_machine_code(ir_instructions, ir_functions);
+
+            if let Print::Assembly = config.print {
+                println!("\n\n{}", assembly);
+            }
+
+            if let Print::MachineCode = config.print {
+                println!("\n");
+                for (i, byte) in machine_code.iter().enumerate() {
+                    print!("{:02x} ", byte);
+                    if i % 16 == 15 {
+                        println!("");
+                    }
+                }
+                println!("\n\nSize of code is {} bytes", machine_code.len());
+            }
+
+            let jit_code = allocate_jit_code(machine_code.len());
+            
+            unsafe {
+                let src_len = machine_code.len();
+                let src_ptr = machine_code.as_ptr();
+                std::ptr::copy_nonoverlapping(src_ptr, jit_code.addr, src_len);
+            }
+            
+            finalize_jit_code(&jit_code);
+
+            let ret = execute_jit_code(&jit_code);
+            println!("\nProgram exited with code {}", ret);
+        }
+
+        Backend::LLVM => {
+            unimplemented!()
+        }
     }
-    
-    finalize_jit_code(&jit_code);
-
-    println!("\nOutput from executing jitted code:\n-----------------------------------------------");
-    let ret = execute_jit_code(&jit_code);
-    println!("\nProgram exited with code {}", ret);
 }

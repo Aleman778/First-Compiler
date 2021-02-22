@@ -832,13 +832,12 @@ fn parse_error<'a>(error: ParseError, source: &str, filename: &str, lines: &Vec<
         },
     };
 
-    for (input, message) in &error.context {
-        println!("{:#?}, {}", input, message);
-    }
-    
+    let mut span = error.span;
+    span.len = 1;
+
     print_error_msg(&create_error_msg_from_span(ErrorLevel::Error,
                                                 lines,
-                                                error.span,
+                                                span,
                                                 filename,
                                                 source,
                                                 &error_msg,

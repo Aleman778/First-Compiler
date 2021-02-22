@@ -5,8 +5,8 @@ fn inc(x: &mut i32, y: &mut i32) {
 }
 
 fn main() {
-    let a: &mut i32 = &mut 20
-    let b: &mut i32 = &mut 10;
+    let a: &mut i32 = &mut 20;
+    let b: &mut i32 = &mut 10
     *a = 25;
     *b = 32;
     inc(a, b);
