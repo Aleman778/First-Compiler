@@ -627,7 +627,6 @@ fn mismatched_types_error<'a>(tc: &mut TypeContext<'a>, span: Span, expected: &T
         ""
     );
 
-    assert!(false);
     print_error_msg(&msg);
     tc.error_count += 1;
 }

@@ -190,7 +190,10 @@ pub fn interp_entry_point<'a>(ic: &mut InterpContext<'a>) -> i32 {
             return 1;
         }
     };
-    match interp_block(ic, &main_function.block, true) {
+
+    let new_scope = create_interp_scope(main_function.decl.span, false);
+    ic.call_stack.push(new_scope);
+    let result = match interp_block(ic, &main_function.block) {
         Ok(val) => match val.data {
             Value::Int(out) => out,
             _ => 0, // TODO(alexander): should this be a type error maybe?
@@ -199,7 +202,9 @@ pub fn interp_entry_point<'a>(ic: &mut InterpContext<'a>) -> i32 {
             print_error_msg(&err);
             1
         }
-    }
+    };
+    ic.call_stack.pop();
+    return result;
 }
 
 fn interp_intrinsics<'a>(
@@ -269,16 +274,8 @@ fn interp_intrinsics<'a>(
     Ok(create_interp_value(Value::None, Span::new(), false))
 }
 
-pub fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block, is_block_scope: bool) -> IResult<InterpValue> {
-    let mut base_pointer = 0usize;
-    let mut stack_pointer = 0usize;
-    if is_block_scope {
-        base_pointer = ic.base_pointer;
-        stack_pointer = ic.stack_pointer;
-        ic.base_pointer = ic.stack_pointer;
-        ic.call_stack.push(create_interp_scope(block.span, is_block_scope));
-    }
-
+pub fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block) -> IResult<InterpValue> {
+    let stack_pointer = ic.stack_pointer;
     let mut ret_val = create_interp_value(Value::None, Span::new(), false);
     for stmt in &block.stmts {
         let val = interp_stmt(ic, stmt)?;
@@ -294,11 +291,7 @@ pub fn interp_block<'a>(ic: &mut InterpContext<'a>, block: &Block, is_block_scop
         break;
     }
 
-    if is_block_scope {
-        ic.call_stack.pop();
-        ic.base_pointer = base_pointer;
-        ic.stack_pointer = stack_pointer;
-    }
+    ic.stack_pointer = stack_pointer;
     Ok(ret_val)
 }
 
@@ -504,7 +497,7 @@ pub fn interp_binary_expr<'a>(ic: &mut InterpContext<'a>, expr: &ExprBinary) -> 
  * Interprets a block expression.
  */
 pub fn interp_block_expr(ic: &mut InterpContext, block: &ExprBlock) -> IResult<InterpValue> {
-    interp_block(ic, &block.block, true)
+    interp_block(ic, &block.block)
 }
 
 /**
@@ -531,7 +524,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
             let base_pointer = ic.base_pointer;
             let stack_pointer = ic.stack_pointer;
             ic.base_pointer = ic.stack_pointer;
-            let new_scope = create_interp_scope(call.span, false);
+            let new_scope = create_interp_scope(func.decl.span, false);
             ic.call_stack.push(new_scope);
 
             let inputs = &func.decl.inputs;
@@ -560,7 +553,7 @@ pub fn interp_call_expr(ic: &mut InterpContext, call: &ExprCall) -> IResult<Inte
                 return Err(err);
             }
 
-            let result = interp_block(ic, &func.block, false);
+            let result = interp_block(ic, &func.block);
             ic.stack_pointer = stack_pointer;
             ic.base_pointer = base_pointer;
             ic.call_stack.pop();
@@ -599,11 +592,11 @@ pub fn interp_if_expr(ic: &mut InterpContext, if_expr: &ExprIf) -> IResult<Inter
     match value.data {
         Value::Bool(cond) => {
             if cond {
-                interp_block(ic, &if_expr.then_block, true)
+                interp_block(ic, &if_expr.then_block)
             } else {
                 match if_expr.else_block.clone() {
                     Some(block) => {
-                        interp_block(ic, &block, true)
+                        interp_block(ic, &block)
                     },
                     None => Ok(empty_interp_value()),
                 }
@@ -709,10 +702,10 @@ pub fn interp_while_expr(ic: &mut InterpContext, while_expr: &ExprWhile) -> IRes
         match value.data {
             Value::Bool(cond) => {
                 if cond {
-                    let val = interp_block(ic, &while_expr.block, true)?;
+                    let val = interp_block(ic, &while_expr.block)?;
 
                     if val.from_return {
-                        break;
+                        return Ok(val);
                     }
                     
                     if val.should_continue {

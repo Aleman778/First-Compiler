@@ -14,6 +14,7 @@ struct X86Assembler {
     argument_stack: VecDeque<(IrOperand, IrType)>, // ordered left-to-right
     curr_stack_offset: isize,
     max_stack_requirement: isize,
+    temp_variable_symbol: Symbol,
     debug_break_symbol: Symbol,
     assembly: String,
     print_assembly: bool,
@@ -131,6 +132,7 @@ pub fn compile_ir_to_x86_machine_code(
         argument_stack: VecDeque::new(),
         curr_stack_offset: 0,
         max_stack_requirement: 0,
+        temp_variable_symbol: intern_string(""), // NOTE(alexander): maybe parameterize this?
         debug_break_symbol: intern_string("debug_break"),
         assembly: String::new(),
         print_assembly: true,
@@ -801,9 +803,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
             IrOpcode::Call => {
                 // Make sure temporary registers are saved to stack
                 let mut arg_moves: Vec<(IrType, X86Operand, X86Operand)> = Vec::new();
-                // println!("{:#?}", x86.allocated_registers);
                 for (reg, maybe_ident) in &x86.allocated_registers {
                     if let Some(ident) = maybe_ident {
+                        if ident.symbol == x86.temp_variable_symbol {
+                            continue;
+                        }
+                        
                         let var = x86.local_variables.get(ident);
                         if let Some((src, ty)) = var {
                             if let X86Operand::Register(src_reg) = src {

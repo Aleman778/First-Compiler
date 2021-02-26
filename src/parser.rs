@@ -383,7 +383,6 @@ pub fn parse_expr(input: ParseSpan) -> IResult<ParseSpan, Expr> {
             map(parse_return_expr,    |expr_return|   Expr::Return(expr_return)),
             map(parse_break_expr,     |expr_break|    Expr::Break(expr_break)),
             map(parse_continue_expr,  |expr_continue| Expr::Continue(expr_continue)),
-            map(parse_call_expr,      |expr_call|     Expr::Call(expr_call)),
             preceded(multispace0, parse_binary_expr),
         ))
     )(input)

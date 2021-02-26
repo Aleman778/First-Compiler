@@ -1,0 +1,46 @@
+fn main() {
+    let mut i: i32 = 0;
+    while i <= 1000 {
+        if is_prime(i) {
+            print_int(i);
+        }
+        i = i + 1;
+    }
+
+    let mut x: &mut i32 = &mut 13;
+    let mut y: &mut i32 = &mut 8;
+    let mut z: &mut i32 = &mut 16;
+    sort_3(x, y, z);
+    print_int(*x);
+    print_int(*y);
+    print_int(*z);
+}
+
+fn is_prime(n: i32) -> bool {
+    if n <= 1 {
+        return false;
+    }
+    let mut i: i32 = 2;
+    while i < n {
+        if n % i == 0 {
+            return false;
+        }
+        i = i + 1;
+    }
+    
+    return true;
+}
+
+fn sort_3(a: &mut i32, b: &mut i32, c: &mut i32) {
+    sort_2(a, b);
+    sort_2(b, c);
+    sort_2(a, b);
+}
+
+fn sort_2(a: &mut i32, b: &mut i32) {
+    if *a > *b {
+        let temp: i32 = *b;
+        *b = *a;
+        *a = temp;
+    }
+}

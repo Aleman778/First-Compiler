@@ -7,6 +7,7 @@ use termcolor::{Color, ColorChoice, ColorSpec, StandardStream, WriteColor};
 
 thread_local!(pub static COLOR_CHOICE: RefCell<ColorChoice> = RefCell::new(ColorChoice::Auto));
 
+#[derive(Debug, Clone)]
 pub enum ErrorLevel {
     Fatal,
     Error,
@@ -17,6 +18,7 @@ pub enum ErrorLevel {
     Cancelled
 }
 
+#[derive(Debug, Clone)]
 pub struct ErrorMsg {
     pub level: ErrorLevel,
     pub line_number: u32,

@@ -60,22 +60,21 @@ enum Print {
 }
 
 pub fn main() {
-    if cfg!(debug_assertions) {
-        // NOTE(alexander): used for debugging without arguments
-        let config = Config {
-            input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
-            run: None,
-            backend: Backend::X86,
-            print: Print::None,
-            color_choice: ColorChoice::Auto,
-            type_checking: true,
-            borrow_checking: true,
-            compiletest: false,
-        };
-        run_compiler(config);
-        return;
-    }
-
+    // if cfg!(debug_assertions) {
+    //     // NOTE(alexander): used for debugging without arguments
+    //     let config = Config {
+    //         input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
+    //         run: None,
+    //         backend: Backend::X86,
+    //         print: Print::Assembly,
+    //         color_choice: ColorChoice::Auto,
+    //         type_checking: true,
+    //         borrow_checking: true,
+    //         compiletest: false,
+    //     };
+    //     run_compiler(config);
+    //     return;
+    // }
     let matches = App::new("sqrrl")
         .setting(AppSettings::ArgRequiredElseHelp)
         .arg(Arg::with_name("INPUT")
@@ -91,7 +90,7 @@ pub fn main() {
              .help(r#"Compiler backend "interp", "x86", "llvm" (default is "interpreter")"#)
              .value_name("BACKEND")
              .takes_value(true)
-             .default_value("interpreter"))
+             .default_value("interp"))
         .arg(Arg::with_name("print")
              .long("print")
              .help(r#"Print info "ast", "ir", "asm", "machinecode", "none" (default is "none")"#)
@@ -232,7 +231,7 @@ fn run_compiler(config: Config) {
     }
 
     if ast_file.is_none() {
-        eprintln!("\nerror: failed to parse anything");
+        eprintln!("\nerror: no input file or code");
         return;
     }
 

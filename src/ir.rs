@@ -846,7 +846,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 ..Default::default()
             });
 
-            (op1, ty)
+            (op1, ref_ty)
         }
 
         Expr::Return(return_expr) => {
