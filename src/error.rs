@@ -153,7 +153,10 @@ fn print_error_msg_fmt(msg: &ErrorMsg,
     write!(&mut stderr, "\n")?;
 
     write!(&mut stderr, "{}", msg.line_number)?;
-    write!(&mut stderr, " ")?;
+    let this_spacing = (((msg.line_number as f32).log10()).floor() as u32) + 1;
+    for _i in 0..=(left_spacing - this_spacing) {
+        write!(&mut stderr, " ")?;
+    }
 
     color.set_fg(Some(Color::Blue));
     stderr.set_color(&color)?;

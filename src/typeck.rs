@@ -81,6 +81,7 @@ pub fn type_check_function<'a>(tc: &mut TypeContext<'a>, func: &'a FnItem) -> Ty
     for arg in &func.decl.inputs {
         let mut ty = arg.ty.clone();
         ty.mutable = arg.mutable;
+        ty.sym = Some(arg.ident.sym);
         ty.first_declared_span = arg.span;
         ty.assigned = true;
         tc.locals[len - 1].types.insert(arg.ident.sym, ty);
@@ -302,8 +303,7 @@ pub fn type_check_assign_expr<'a>(tc: &mut TypeContext<'a>, assign_expr: &'a Exp
             ErrorLevel::Error,
             assign_expr.span,
             &format!("cannot assign twice to immutable variable `{}`", var_str),
-            "cannot assign twice to immutable variable",
-        );
+            "cannot assign twice to immutable variable");
 
         if !lhs_ty.first_declared_span.is_empty() {
             let mut msg_decl = create_error_msg(
@@ -460,6 +460,7 @@ pub fn type_check_ident_expr<'a>(tc: &mut TypeContext<'a>, ident: &'a ExprIdent)
                "not found in this scope");
     let mut ty = Ty::default();
     ty.kind = TyKind::Error;
+    ty.sym = Some(ident.sym);
     ty
 }
 

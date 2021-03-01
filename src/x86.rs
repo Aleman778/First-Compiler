@@ -590,12 +590,13 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
             IrOpcode::Div |
             IrOpcode::Mod => {
+                // Make sure RDX and RAX are stored somewhere safe!
+                allocate_specific_register(x86, X86Reg::RAX);
+                allocate_specific_register(x86, X86Reg::RDX);
+
+                let mut dst = to_x86_operand(x86, insn.op1, insn.ty);
                 let lhs = to_x86_operand(x86, insn.op2, insn.ty);
                 let rhs = to_x86_operand(x86, insn.op3, insn.ty);
-
-                // Make sure RDX and RAX is stored somewhere safe!
-                let rax_state = allocate_specific_register(x86, X86Reg::RAX);
-                let rdx_state = allocate_specific_register(x86, X86Reg::RDX);
 
                 // Make sure the left-hand side is stored in RAX
                 let mut lhs_is_rax = false;
@@ -640,12 +641,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 }
 
                 // Save the result to the the destination (first operand)
-                let dst = to_x86_operand(x86, insn.op1, insn.ty);
                 match insn.opcode {
                     IrOpcode::Div => {
                         let mut dst_is_rax = false;
-                        if let X86Operand::Register(reg) = lhs {
-                            if let X86Reg::RAX = reg { dst_is_rax = true; }
+                        if let X86Operand::Register(_) = lhs {
+                            dst = X86Operand::Register(X86Reg::RAX);
+                            dst_is_rax = true;
                         }
                         if !dst_is_rax {
                             push_instruction(x86, X86Opcode::MOV, insn.ty, dst, X86Operand::Register(X86Reg::RAX));
@@ -655,8 +656,9 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     }
                     IrOpcode::Mod => {
                         let mut dst_is_rdx = false;
-                        if let X86Operand::Register(reg) = lhs {
-                            if let X86Reg::RAX = reg { dst_is_rdx = true; }
+                        if let X86Operand::Register(_) = lhs {
+                            dst = X86Operand::Register(X86Reg::RDX);
+                            dst_is_rdx = true;
                         }
                         if !dst_is_rdx {
                             push_instruction(x86, X86Opcode::MOV, insn.ty, dst, X86Operand::Register(X86Reg::RDX));
@@ -667,8 +669,8 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 }
 
                 // Make sure that we give back the original registers, and free the new ones
-                free_specific_register(x86, X86Reg::RAX, rax_state);
-                free_specific_register(x86, X86Reg::RDX, rdx_state);
+                // free_specific_register(x86, X86Reg::RAX, rax_state);
+                // free_specific_register(x86, X86Reg::RDX, rdx_state);
             }
 
             IrOpcode::Pow => {

@@ -63,7 +63,7 @@ pub fn main() {
     // if cfg!(debug_assertions) {
     //     // NOTE(alexander): used for debugging without arguments
     //     let config = Config {
-    //         input: Some(String::from("c:/dev/compiler/examples/sandbox.sq")),
+    //         input: Some(String::from("c:/dev/compiler/examples/demo.sq")),
     //         run: None,
     //         backend: Backend::X86,
     //         print: Print::Assembly,
