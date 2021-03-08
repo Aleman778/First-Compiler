@@ -495,7 +495,7 @@ pub fn type_check_reference_expr<'a>(tc: &mut TypeContext<'a>, reference_expr: &
         type_error(
             tc,
             reference_expr.span,
-            "cannot reference none type",
+            "cannot reference () type",
             "expected a typed value here, got nothing");
         Ty::default()
     } else {
