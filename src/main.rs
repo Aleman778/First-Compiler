@@ -23,8 +23,8 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 use clap::{App, Arg, AppSettings};
 use termcolor::ColorChoice;
-use crate::ast::{Item, intern_string};
-use crate::parser::parse_file;
+use crate::ast::{File, Item, intern_string};
+use crate::parser::{parse_file, parse_run_code};
 use crate::intrinsics::get_intrinsic_ast_items;
 use crate::interp::{create_interp_context, interp_file, interp_entry_point};
 use crate::typeck::{create_type_context, type_check_file};
@@ -64,6 +64,8 @@ pub fn main() {
         // NOTE(alexander): used for debugging without arguments
         let config = Config {
             input: Some(String::from("c:/dev/compiler/examples/borrowing.sq")),
+            // input: None,
+            // run: Some(String::from("print_int(42);")),
             run: None,
             backend: Backend::X86,
             print: Print::Assembly,
@@ -72,11 +74,11 @@ pub fn main() {
             borrow_checking: true,
             compiletest: false,
         };
-        run_compiler(config);
+        run_compiler(&config);
         return;
     }
     
-    let matches = App::new("sqrrl")
+    let matches = App::new("firstc")
         .setting(AppSettings::ArgRequiredElseHelp)
         .arg(Arg::with_name("INPUT")
              .help("The input source file to compile")
@@ -85,7 +87,7 @@ pub fn main() {
         .arg(Arg::with_name("run")
              .short("r")
              .value_name("CODE")
-             .help("Code that gets interpreted before running main"))
+             .help("Runs the code immediately before executing main"))
         .arg(Arg::with_name("backend")
              .long("backend")
              .help(r#"Compiler backend "interp", "x86", "llvm" (default is "interpreter")"#)
@@ -125,7 +127,7 @@ pub fn main() {
     let mut skip_compilation = false;
     if matches.is_present("version") {
         const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-        println!("sqrrl {}", VERSION.unwrap_or("unknown version"));
+        println!("firstc {}", VERSION.unwrap_or("unknown version"));
         skip_compilation = true;
     }
 
@@ -183,11 +185,11 @@ pub fn main() {
             color_choice,
         };
 
-        run_compiler(config);
+        run_compiler(&config);
     }
 }
 
-fn run_compiler(config: Config) {
+fn run_compiler(config: &Config) {
     info!("setting up the compiler");
 
     error::COLOR_CHOICE.with(|color_choice| {
@@ -197,31 +199,23 @@ fn run_compiler(config: Config) {
     let mut _working_dir = env::current_dir().unwrap_or(PathBuf::new());
 
     // Parse optional code directly from the config
-    let has_run_code = if let Some(source) = config.run {
+    let has_run_code = if let Some(source) = &config.run {
         let filename = "<run>";
-        let ast = parse_file(source, String::from(filename));
+        let mut ast = parse_run_code(source.to_string(), String::from(filename));
 
-        // Type check the current file
-        if config.type_checking {
-            let mut tc = create_type_context();
-            type_check_file(&mut tc, &ast);
-            if tc.error_count > 0 {
-                error!("type checker reported {} errors, stopping compilation", tc.error_count);
-                eprintln!("\nerror: aborting due to previous error");
-                return;
-            }
-        }
+        // Include compiler intrinsics in the parsed ast file    
+        let intrinsic_mod = get_intrinsic_ast_items();
+        ast.items.push(intrinsic_mod);
 
-        // TODO(alexander): run the interpreter here!
-        
+        run_parsed_code(ast, &config);
         true
     } else {
         false
     };
 
     // Parse input file provided by config
-    let mut ast = if let Some(input) = config.input {
-        let path = Path::new(&input);
+    let mut ast = if let Some(input) = &config.input {
+        let path = Path::new(input);
         let source;
         match fs::read_to_string(&input) {
             Ok(string) => source = string,
@@ -240,28 +234,11 @@ fn run_compiler(config: Config) {
         // Parse input file
         parse_file(source, filename)
     } else {
-        if has_run_code {
+        if !has_run_code {
             eprintln!("\nerror: no input file or code");
         }
         return;
     };
-
-    // Check if there is a main function
-    let main_symbol = intern_string("main");
-    let mut has_main = false;
-    for item in &ast.items {
-        if let Item::Fn(func) = item {
-            if func.ident.sym == main_symbol {
-                has_main = true;
-                break;
-            }
-        }
-    }
-
-    if !has_main {
-        eprintln!("\nerror: no main function was found");
-        return;
-    }
 
     // Include compiler intrinsics in the parsed ast file    
     let intrinsic_mod = get_intrinsic_ast_items();
@@ -276,6 +253,12 @@ fn run_compiler(config: Config) {
     if let Print::Ast = config.print {
         print!("\n\n{:#?}", ast.items);
     }
+
+    run_parsed_code(ast, config);
+}
+
+
+fn run_parsed_code(ast: File, config: &Config) {
 
     // Type check the current file
     if config.type_checking {
@@ -296,6 +279,23 @@ fn run_compiler(config: Config) {
             eprintln!("\nerror: aborting due to previous error");
             return;
         }
+    }
+
+    // Check if there is a main function
+    let main_symbol = intern_string("main");
+    let mut has_main = false;
+    for item in &ast.items {
+        if let Item::Fn(func) = item {
+            if func.ident.sym == main_symbol {
+                has_main = true;
+                break;
+            }
+        }
+    }
+
+    if !has_main {
+        eprintln!("\nerror: no main function was found");
+        return;
     }
 
     match config.backend {

@@ -15,6 +15,7 @@ use crate::error::*;
  * - Reference counting to ensure memory safety (two cases):
  *   - Multiple immutable references, no mutable references
  *   - One mutable reference, no immutable references
+ * - Owned value cannot be mutated while borrowed.
  * - There is no concept of move semantics in this borrow checker
  *   since all types are primitives they get copied instead of moved.
  ***************************************************************************/
@@ -212,12 +213,13 @@ fn borrow_check_stmt<'a>(bc: &mut BorrowContext<'a>, stmt: &'a Stmt) -> Option<B
         Stmt::Local(local) => {
             if let Some(expr) = &*local.init {
                 let borrow_info = borrow_check_expr(bc, expr);
-                if let Some(info) = borrow_info {
+                if let Some(mut info) = borrow_info {
                     let len = bc.scopes.len();
                     let ident = Ident {
                         symbol: local.ident.sym,
                         index: 0
                     };
+                    info.ident = ident;
                     bc.scopes[len - 1].locals.insert(ident, info);
                 } else {
                     // TODO(alexander): probably better to use local.init span.
@@ -241,9 +243,9 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
             let lhs_borrow_info = borrow_check_expr(bc, &*assign.left);
             let rhs_borrow_info = borrow_check_expr(bc, &*assign.right);
             
-            if let Some(rhs_owner) = rhs_borrow_info {
+            if let Some(rhs_owner) = &rhs_borrow_info {
                 if let Some(rhs_borrowed_ident) = rhs_owner.borrowed_from {
-                    if let Some(lhs_info) = lhs_borrow_info {
+                    if let Some(lhs_info) = &lhs_borrow_info {
                         let len = bc.scopes.len();
                         let rhs_borrowed = bc.scopes[len - 1].locals.get(&rhs_borrowed_ident).unwrap();
                         if lhs_info.lifetime < rhs_borrowed.lifetime {
@@ -257,12 +259,30 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
                     }
                 }
             }
+
+            if let Some(lhs_owner) = &lhs_borrow_info {
+                if lhs_owner.mutable_refs > 0 || lhs_owner.immutable_refs > 0 {
+                    let err_msg = create_error_msg(
+                        bc, ErrorLevel::Error, assign.span,
+                        &format!("cannot assign to `{}` because it is borrowed", lhs_owner.ident),
+                        &format!("assignment to borrowed `{}` occurs heere", lhs_owner.ident));
+                    print_error_msg(&err_msg);
+                    bc.error_count += 1;
+                }
+            }
             
             None
         }
 
         Expr::Block(block) => {
             borrow_check_block(bc, &block.block);
+            None
+        }
+
+        Expr::Call(call_expr) => {
+            for arg in &call_expr.args {
+                borrow_check_expr(bc, arg);
+            }
             None
         }
 
@@ -285,10 +305,12 @@ fn borrow_check_expr<'a>(bc: &mut BorrowContext<'a>, expr: &'a Expr) -> Option<B
             if let None = borrow_info.used_at {
                 borrow_info.used_at = Some(ident_expr.span);
             }
-            Some(bc.scopes[len - 1].locals.get(&ident).unwrap().clone())
+            let result = bc.scopes[len - 1].locals.get(&ident).unwrap().clone();
+            return Some(result);
         }
 
         Expr::Lit(lit) => Some(insert_temp_borrow_info(bc, None, lit.span)),
+        Expr::Paren(paren) => borrow_check_expr(bc, &paren.expr),
 
         Expr::Return(ret) => {
             if let Some(expr) = &*ret.expr {

@@ -83,6 +83,66 @@ pub fn parse_file(source: String, filename: String) -> File {
     File { source, filename, items, span, lines, imported_files, error_count }
 }
 
+
+/**
+ * Parse a source code that is automatically put into main
+ */
+pub fn parse_run_code(source: String, filename: String) -> File {
+    // Calculate the byte position of each line in the source.
+    let mut curr_pos = 0;
+    let mut lines = vec![0];
+    let mut remaining: &str = &source;
+    let mut error_count: u32 = 0;
+    loop {
+        match remaining.find("\n") {
+            Some(pos) => {
+                curr_pos += (pos as u32) + 1;
+                lines.push(curr_pos);
+                remaining = remaining.split_at(pos + 1).1;
+            },
+            None => break,
+        }
+    }
+
+    if lines.last() != Some(&(source.len() as u32)) {
+        lines.push(source.len() as u32);
+    }
+
+    // Parse the source file
+    let input = ParseSpan::new_extra(&source, 0); // TODO(alexander): temporary 0 should be some file id maybe.
+    let stmts = match many0(preceded(multispace0, parse_stmt))(input) {
+        Ok((_, stmts)) => stmts,
+        Err(Error(error)) => {
+            error_count += 1;
+            parse_error(error, &source, &filename, &lines);
+            vec![]
+        }
+        _ => vec![],
+    };
+
+    let mut items = Vec::new();
+    let imported_files = HashMap::new();
+    let span = Span::from_parse_span(input);
+    items.push(Item::Fn(FnItem {
+        ident: ExprIdent {
+            sym: intern_string("main"),
+            span: Span::new(),
+        },
+        decl: FnDecl {
+            inputs: vec![],
+            output: Ty::new(TyKind::None, Span::new()),
+            span: Span::new(),
+        },
+        block: Block {
+            stmts,
+            span,
+        },
+        span,
+    }));
+
+    File { source, filename, items, span, lines, imported_files, error_count }
+}
+
 pub fn parse_item(input: ParseSpan) -> IResult<ParseSpan, Item> {
     context(
         "item",
