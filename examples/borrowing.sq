@@ -1,9 +1,3 @@
-
-/***************************************************************************
- * Some different borrowing tests, some should work and others that
- * yields a fatal error. The borrow checker should catch all these errors.
- ***************************************************************************/
-
 fn inc(x: &mut i32) {
     *x = *x + 1;
 }

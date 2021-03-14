@@ -80,7 +80,6 @@ fn print_error_msg_fmt(msg: &ErrorMsg,
         return Ok(());
     }
 
-
     let mut color_choice = ColorChoice::Auto;
     COLOR_CHOICE.with(|color_choice_cell| {
         color_choice = *color_choice_cell.borrow();
@@ -154,7 +153,7 @@ fn print_error_msg_fmt(msg: &ErrorMsg,
 
     write!(&mut stderr, "{}", msg.line_number)?;
     let this_spacing = (((msg.line_number as f32).log10()).floor() as u32) + 1;
-    for _i in 0..=(left_spacing - this_spacing) {
+    for _i in 0..=left_spacing.saturating_sub(this_spacing) {
         write!(&mut stderr, " ")?;
     }
 
@@ -187,7 +186,7 @@ fn print_error_msg_fmt(msg: &ErrorMsg,
     color.set_fg(Some(Color::Red));
     stderr.set_color(&color)?;
     write!(&mut stderr, "^")?;
-    for _i in 0..(msg.annotation_length - 1) {
+    for _i in 0..msg.annotation_length.saturating_sub(1) {
         write!(&mut stderr, "~")?;
     }
     write!(&mut stderr, " ")?;

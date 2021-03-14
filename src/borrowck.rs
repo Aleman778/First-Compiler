@@ -20,21 +20,6 @@ use crate::error::*;
  *   since all types are primitives they get copied instead of moved.
  ***************************************************************************/
 
-// TODO: This code should not pass the borrow checker, Call exprs are not handled!
-// fn inc(x: &mut i32) {
-//     *x = *x + 1;
-// }
-
-// fn main() {
-//     let mut a: i32 = 5;
-//     let b: &mut i32 = &mut a;
-//     inc(b);
-//     inc(&mut a);
-//     print_int(*b);
-// }
-
-
-
 struct BorrowContext<'a> {
     // tc: TypeContext<'a>,
     file: &'a File,

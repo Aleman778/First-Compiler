@@ -472,6 +472,8 @@ pub fn interp_binary_expr<'a>(ic: &mut InterpContext<'a>, expr: &ExprBinary) -> 
                 Value::Bool(rhs) => match expr.op {
                     BinOp::And => Value::Bool(lhs && rhs),
                     BinOp::Or  => Value::Bool(lhs || rhs),
+                    BinOp::Eq  => Value::Bool(lhs == rhs),
+                    BinOp::Ne  => Value::Bool(lhs != rhs),
                     _ => Value::None,
                 },
                 _ => Value::None,

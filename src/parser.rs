@@ -109,36 +109,64 @@ pub fn parse_run_code(source: String, filename: String) -> File {
     }
 
     // Parse the source file
+    let imported_files = HashMap::new();
     let input = ParseSpan::new_extra(&source, 0); // TODO(alexander): temporary 0 should be some file id maybe.
-    let stmts = match many0(preceded(multispace0, parse_stmt))(input) {
-        Ok((_, stmts)) => stmts,
-        Err(Error(error)) => {
-            error_count += 1;
-            parse_error(error, &source, &filename, &lines);
-            vec![]
-        }
-        _ => vec![],
+    let span = Span::from_parse_span(input);
+    let mut output = match multispace_comment0(input) {
+        Ok((out, _)) => out,
+        _ => input,
     };
 
     let mut items = Vec::new();
-    let imported_files = HashMap::new();
-    let span = Span::from_parse_span(input);
-    items.push(Item::Fn(FnItem {
-        ident: ExprIdent {
-            sym: intern_string("main"),
-            span: Span::new(),
-        },
-        decl: FnDecl {
-            inputs: vec![],
-            output: Ty::new(TyKind::None, Span::new()),
-            span: Span::new(),
-        },
-        block: Block {
-            stmts,
+
+    let fn_output = tag::<&str, ParseSpan, ParseError>("fn")(output);
+    if let Ok(_) = fn_output {
+        while output.fragment().len() > 0 {
+            match parse_item(output) {
+                Ok((input, item)) => {
+                    items.push(item);
+                    output = match multispace_comment0(input) {
+                        Ok((out, _)) => out,
+                        _ => output,
+                    };
+                }
+                Err(Error(error)) => {
+                    error_count += 1;
+                    parse_error(error, &source, &filename, &lines);
+                    break;
+                }
+                _ => break,
+            };
+        }
+    } else {
+        // Try again but just parse statements
+        let stmts = match many0(preceded(multispace0, parse_stmt))(output) {
+            Ok((_, stmts)) => stmts,
+            Err(Error(error)) => {
+                error_count += 1;
+                parse_error(error, &source, &filename, &lines);
+                vec![]
+            }
+            _ => vec![],
+        };
+
+        items.push(Item::Fn(FnItem {
+            ident: ExprIdent {
+                sym: intern_string("main"),
+                span: Span::new(),
+            },
+            decl: FnDecl {
+                inputs: vec![],
+                output: Ty::new(TyKind::None, Span::new()),
+                span: Span::new(),
+            },
+            block: Block {
+                stmts,
+                span,
+            },
             span,
-        },
-        span,
-    }));
+        }));
+    }
 
     File { source, filename, items, span, lines, imported_files, error_count }
 }

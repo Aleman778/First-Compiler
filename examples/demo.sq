@@ -1,43 +1,35 @@
-
-fn main() {
-    let x: i32 = 7070;
-    let y: i32 = next_prime(x);
-    print_int(x);
-    print_int(y);
-    
-    let z: &i32 = test_references(&20);
-    print_int(*z);
+fn main() -> i32 {
+    let x: &mut i32 = &mut 0;
+    let mut i: i32 = 0;
+    while i < 10 {
+        next_prime(x);
+        print_int(*x);
+        i = i + 1;
+    }
+    return *x;
 }
 
-fn next_prime(mut i: i32) -> i32 {
+fn next_prime(n: &mut i32) {
     while true {
-        let mut j: i32 = 1;
-        while j < i - 1 {
-            j = j + 1;
-            if i % j == 0 {
-                break;
-            }
+        *n = *n + 1;
+        if is_prime(*n) {
+            break;
         }
-        if i % j == 0 {
-            i = i + 1;
-            continue;
-        }
-        break;
     }
-    return i;
 }
 
-fn test_references(y: &i32) -> &i32 {
-    let mut x: i32 = *y;
-    print_int(x);
-
-    {
-        let write_x: &mut i32 = &mut x;
-        *write_x = *write_x + 10;
+fn is_prime(n: i32) -> bool {
+    if n < 2 {
+        return false;
     }
 
-    let read_x: &i32 = &x;
-    print_int(*read_x);
-    
-    return y;
+    let mut i: i32 = 2;
+    while i < n {
+        if n % i == 0 {
+            return false;
+        }
+        i = i + 1;
+    }
+
+    true
 }

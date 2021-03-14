@@ -297,41 +297,43 @@ pub fn type_check_assign_expr<'a>(tc: &mut TypeContext<'a>, assign_expr: &'a Exp
 
     let inside_loop = is_inside_loop(tc);
     if (lhs_ty.assigned || inside_loop) && !lhs_ty.mutable {
-        let var_str = resolve_symbol(lhs_ty.sym.unwrap());
-        let mut msg = create_error_msg(
-            tc,
-            ErrorLevel::Error,
-            assign_expr.span,
-            &format!("cannot assign twice to immutable variable `{}`", var_str),
-            "cannot assign twice to immutable variable");
-
-        if !lhs_ty.first_declared_span.is_empty() {
-            let mut msg_decl = create_error_msg(
+        if let Some(lhs_sym) = lhs_ty.sym {
+            let var_str = resolve_symbol(lhs_sym);
+            let mut msg = create_error_msg(
                 tc,
-                ErrorLevel::Note,
-                lhs_ty.first_declared_span,
-                "",
-                &format!("help: make variable mutable `mut {}`", var_str),
-            );
+                ErrorLevel::Error,
+                assign_expr.span,
+                &format!("cannot assign twice to immutable variable `{}`", var_str),
+                "cannot assign twice to immutable variable");
 
-            let is_assigned_elsewhere = lhs_ty.first_assigned_span.is_inside(lhs_ty.first_declared_span);
-            if !lhs_ty.first_assigned_span.is_empty() && is_assigned_elsewhere {
-                let msg_assigned = create_error_msg(
+            if !lhs_ty.first_declared_span.is_empty() {
+                let mut msg_decl = create_error_msg(
                     tc,
                     ErrorLevel::Note,
-                    lhs_ty.first_assigned_span,
+                    lhs_ty.first_declared_span,
                     "",
-                    "variable is first assigned here",
+                    &format!("help: make variable mutable `mut {}`", var_str),
                 );
 
-                msg_decl.next = Some(Box::new(msg_assigned));
-            }
-            
-            msg.next = Some(Box::new(msg_decl));            
-        }
+                let is_assigned_elsewhere = lhs_ty.first_assigned_span.is_inside(lhs_ty.first_declared_span);
+                if !lhs_ty.first_assigned_span.is_empty() && is_assigned_elsewhere {
+                    let msg_assigned = create_error_msg(
+                        tc,
+                        ErrorLevel::Note,
+                        lhs_ty.first_assigned_span,
+                        "",
+                        "variable is first assigned here",
+                    );
 
-        print_error_msg(&msg);
-        tc.error_count += 1;
+                    msg_decl.next = Some(Box::new(msg_assigned));
+                }
+                
+                msg.next = Some(Box::new(msg_decl));            
+            }
+
+            print_error_msg(&msg);
+            tc.error_count += 1;
+        }
     }
 
     if !lhs_ty.assigned {
@@ -469,7 +471,7 @@ pub fn type_check_if_expr<'a>(tc: &mut TypeContext<'a>, if_expr: &'a ExprIf) -> 
     if cond_type.kind != TyKind::Bool {
         mismatched_types_error(tc, cond_type.span, &TyKind::Bool, &cond_type);
     }
-    let then_ty = type_check_block(tc, &if_expr.then_block, false);
+    let mut then_ty = type_check_block(tc, &if_expr.then_block, false);
     match &if_expr.else_block {
         Some(block) => {
             let else_ty = type_check_block(tc, block, false);
@@ -479,6 +481,7 @@ pub fn type_check_if_expr<'a>(tc: &mut TypeContext<'a>, if_expr: &'a ExprIf) -> 
         },
         None => { },
     };
+    then_ty.span = if_expr.span;
     then_ty
 }
 

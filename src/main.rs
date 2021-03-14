@@ -20,7 +20,7 @@ mod intrinsics;
 use atty;
 use log::{info, error};
 use std::path::{Path, PathBuf};
-use std::{env, fs};
+use std::{env, fs, time};
 use clap::{App, Arg, AppSettings};
 use termcolor::ColorChoice;
 use crate::ast::{File, Item, intern_string};
@@ -40,6 +40,7 @@ struct Config {
     backend: Backend,
     print: Print,
     color_choice: ColorChoice,
+    profile: bool,
     type_checking: bool,
     borrow_checking: bool,
     compiletest: bool,
@@ -63,13 +64,15 @@ pub fn main() {
     if cfg!(debug_assertions) {
         // NOTE(alexander): used for debugging without arguments
         let config = Config {
-            input: Some(String::from("c:/dev/compiler/examples/borrowing.sq")),
+            input: Some(String::from("c:/dev/compiler/examples/fib.sq")),
             // input: None,
-            // run: Some(String::from("print_int(42);")),
+            // run: Some(String::from("let x: i32 = if true { false } else { 20 };")),
             run: None,
             backend: Backend::X86,
             print: Print::Assembly,
+            // print: Print::None,
             color_choice: ColorChoice::Auto,
+            profile: false,
             type_checking: true,
             borrow_checking: true,
             compiletest: false,
@@ -100,6 +103,9 @@ pub fn main() {
              .value_name("BACKEND")
              .takes_value(true)
              .default_value("none"))
+        .arg(Arg::with_name("profile")
+             .long("profile")
+             .help("Timer for the entire execution of the program"))
         .arg(Arg::with_name("version")
              .short("V")
              .long("version")
@@ -177,6 +183,7 @@ pub fn main() {
         let config = Config {
             input: matches.value_of("INPUT").map(|s| s.to_string()),
             run: matches.value_of("run").map(|s| s.to_string()),
+            profile: matches.is_present("profile"),
             type_checking: !matches.is_present("Znotypecheck"),
             borrow_checking: !matches.is_present("Znoborrowcheck"),
             compiletest: matches.is_present("Zcompiletest"),
@@ -301,10 +308,15 @@ fn run_parsed_code(ast: File, config: &Config) {
     match config.backend {
         Backend::Interpreter => {
             // Interpret the current file
+            let now = time::Instant::now();
             let mut ic = create_interp_context();
             interp_file(&mut ic, &ast);
             let code = interp_entry_point(&mut ic);
+            let execution_time = now.elapsed().as_secs_f32();
             println!("\nInterpreter exited with code {}", code);
+            if config.profile {
+                println!("Interpreter execution time: {} seconds", execution_time)
+            }
             return;
         }
 
@@ -349,9 +361,14 @@ fn run_parsed_code(ast: File, config: &Config) {
             }
             
             finalize_jit_code(&jit_code);
-
+            
+            let now = time::Instant::now();
             let ret = execute_jit_code(&jit_code);
+            let execution_time = now.elapsed().as_secs_f32();
             println!("\nProgram exited with code {}", ret);
+            if config.profile {
+                println!("Program execution time: {} seconds", execution_time)
+            }
         }
 
         Backend::LLVM => {

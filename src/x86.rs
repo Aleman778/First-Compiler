@@ -804,28 +804,34 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
             IrOpcode::Call => {
                 // Make sure temporary registers are saved to stack
-                let mut arg_moves: Vec<(IrType, X86Operand, X86Operand)> = Vec::new();
+                let mut arg_moves: Vec<(IrType, IrIdent, X86Operand, X86Operand)> = Vec::new();
+                let mut reg_alloc_moved_to_stack: Vec<bool> = Vec::new();
                 for (reg, maybe_ident) in &x86.allocated_registers {
                     if let Some(ident) = maybe_ident {
-                        if ident.symbol == x86.temp_variable_symbol {
-                            continue;
-                        }
-                        
                         let var = x86.local_variables.get(ident);
                         if let Some((src, ty)) = var {
                             if let X86Operand::Register(src_reg) = src {
                                 if reg == src_reg {
                                     x86.curr_stack_offset -= size_of_ir_type(*ty, x86.addr_size);
                                     let dst = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
-                                    arg_moves.push((*ty, dst, *src));
+                                    arg_moves.push((*ty, *ident, dst, *src));
+                                    reg_alloc_moved_to_stack.push(true);
+                                    continue;
                                 }
                             }
                         }
                     }
+                    
+                    reg_alloc_moved_to_stack.push(false);
                 }
 
-                for (ty, dst, src) in &arg_moves {
+                // Remove any register allocations that moved to stack
+                let mut i = 0;
+                x86.allocated_registers.retain(|_| (!reg_alloc_moved_to_stack[i], i += 1).0);
+
+                for (ty, ident, dst, src) in &arg_moves {
                     push_instruction(x86, X86Opcode::MOV, *ty, *dst, *src);
+                    x86.local_variables.insert(*ident, (*dst, *ty));
                 }
 
                 let return_op = match insn.op2 {
@@ -880,12 +886,9 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 };
 
                 // Restore previous registers
-                for (ty, src, dst) in &arg_moves {
-                    push_instruction(x86, X86Opcode::MOV, *ty, *dst, *src);
-                }
-
-                // TODO(alexander): check if function actually returns anything
-                x86.allocated_registers.push_back((X86Reg::RAX, None));
+                // for (ty, src, dst) in &arg_moves {
+                    // push_instruction(x86, X86Opcode::MOV, *ty, *dst, *src);
+                // }
 
                 require_stack_frame = true;
                 x86.argument_stack.clear();
