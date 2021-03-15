@@ -1,8 +1,0 @@
-// ignore
-
-// Test assign a new value to immutable variable.
-
-fn main() {
-    let a: i32 = 5;
-    a = a + a * 2; //~ error: cannot assign twice to immutable variable
-}

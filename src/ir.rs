@@ -83,10 +83,10 @@ pub struct IrInstruction {
 pub enum IrOpcode {
     Nop,
     Alloca, // op1 = alloca ty
-    AllocParams, // (no operands) allocates all defined parameters
+    AllocParams, // allocates all defined parameters
     Copy, // op1 = op2
     CopyFromDeref, // op1 = *op2
-    CopyFromRef, // op1 = &op2 (these are always mutable refs)
+    CopyFromRef, // op1 = &op2 (always mutable)
     CopyToDeref, // *op1 = op2
     Clear, // op1 = 0
     Add, // op1 = op2 + op3
@@ -112,10 +112,10 @@ pub enum IrOpcode {
     IfNe,
     Jump,     // jump op1
     Label,    // label op1
-    Param,    // param op1 (each param are insn. ordered left-to-right)
-    Call,     // op1 := op2(...) (with number of parameter stored in op3)
-    Return,   // return op1 (where op1 is optional, may be None)
-    Prologue, // marks beginning of function, op1 holds the required stack space
+    Param,    // param op1 (ordered left-to-right)
+    Call,     // op1 := op2(...) (#parameter stored in op3)
+    Return,   // return op1 (where op1 is optional)
+    Prologue, // marks beginning of function
     Epilogue, // marks end of function
 }
 

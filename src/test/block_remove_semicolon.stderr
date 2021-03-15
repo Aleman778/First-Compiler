@@ -1,9 +1,0 @@
-error: mismatched types
-  --> $DIR/block_remove_semicolon.sq:7:18
-   |
-LL |       let x: i32 = {
-   |  __________________^
-LL | |
-LL | |         foo(); //~ error: mismatched types, remove semicolon
-LL | |     };
-   | |_____^ expected `i32`, found `()`

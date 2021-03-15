@@ -1,5 +1,0 @@
-error: mismatched types
-  --> $DIR/let_infer_type.sq:5:13
-   |
-LL |     let a = 5;
-   |             ^ expected `()`, found `i32`

@@ -1,6 +1,0 @@
-error: cannot assign twice to immutable variable `a`
-  --> $DIR/assign_immutable.sq:6:5
-   |
-LL |     let a: i32 = 5;
-LL |     a = a + a * 2; //~ error: cannot assign twice to immutable variable
-   |     ^^^^^^^^^^^^^ cannot assign twice to immutable variable

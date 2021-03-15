@@ -1,8 +1,0 @@
-error: cannot borrow `a` as mutable because it is also borrowed as immutable
-  --> src/test/borrowck/borrowck_nested_calls_free.sq:16:20
-   |
-LL |     add(&a, mutate(&mut a));
-   |     --- --         ^^^^^^ mutable borrow occurs here
-   |     |   |
-   |     |   immutable borrow occurs here
-   |     immutable borrow later used by call
