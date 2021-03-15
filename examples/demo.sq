@@ -2,9 +2,9 @@ fn main() -> i32 {
     let x: &mut i32 = &mut 0;
     let mut i: i32 = 0;
     while i < 10 {
+        i = i + 1;
         next_prime(x);
         print_int(*x);
-        i = i + 1;
     }
     return *x;
 }
