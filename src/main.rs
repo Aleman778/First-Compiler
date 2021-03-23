@@ -15,7 +15,6 @@ mod ir;
 mod jit;
 mod x86;
 mod intrinsics;
-// mod llvm;
 
 use atty;
 use log::{info, error};
@@ -32,7 +31,6 @@ use crate::borrowck::borrow_check_file;
 use crate::ir::{create_ir_builder, build_ir_from_ast};
 use crate::x86::{compile_ir_to_x86_machine_code};
 use crate::jit::{allocate_jit_code, finalize_jit_code, execute_jit_code};
-// use crate::llvm::codegen_test;
 
 struct Config {
     input: Option<String>,
@@ -49,7 +47,6 @@ struct Config {
 enum Backend {
     Interpreter,
     X86,
-    LLVM,
 }
 
 enum Print {
@@ -66,7 +63,7 @@ pub fn main() {
         let config = Config {
             input: Some(String::from("c:/dev/compiler/examples/fib.sq")),
             // input: None,
-            // run: Some(String::from("let x: i32 = if true { false } else { 20 };")),
+            // run: Some(String::from("fn main() -> i32 { let x: i32 = 1 + 1 + 1 + 1 + 1; x }")),
             run: None,
             backend: Backend::X86,
             print: Print::Assembly,
@@ -158,9 +155,8 @@ pub fn main() {
     let backend = match matches.value_of("backend").unwrap().to_lowercase().as_str() {
         "interp" => Backend::Interpreter,
         "x86" => Backend::X86,
-        "llvm" => Backend::LLVM,
         _ => {
-            println!("\n--backend expectes one of these values \"interp\", \"x86\", \"llvm\"\n");
+            println!("\n--backend expectes one of these values \"interp\", \"x86\"");
             skip_compilation = true;
             Backend::Interpreter
         }
@@ -266,7 +262,6 @@ fn run_compiler(config: &Config) {
 
 
 fn run_parsed_code(ast: File, config: &Config) {
-
     // Type check the current file
     if config.type_checking {
         let mut tc = create_type_context();
@@ -369,10 +364,6 @@ fn run_parsed_code(ast: File, config: &Config) {
             if config.profile {
                 println!("Program execution time: {} seconds", execution_time)
             }
-        }
-
-        Backend::LLVM => {
-            unimplemented!()
         }
     }
 }

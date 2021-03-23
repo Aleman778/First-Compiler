@@ -149,7 +149,7 @@ pub enum IrType {
     U64,
     PtrI8(usize), // NOTE(alexander): argument defines the numbers of indirections
     PtrI32(usize),
-    None,
+    Unit,
 }
 
 pub fn create_ir_builder<'a>() -> IrBuilder<'a> {
@@ -202,7 +202,7 @@ fn create_ir_basic_block<'a>(
         epilogue_index: 0,
         enter_label: enter.unwrap_or(unique_bb_label(ib)),
         exit_label: exit.unwrap_or(unique_bb_label(ib)),
-        return_type: IrType::None,
+        return_type: IrType::Unit,
         func_address: None,
         is_foreign,
         live_intervals: HashMap::new(),
@@ -259,8 +259,8 @@ fn to_ir_type(ty: &Ty) -> IrType {
         TyKind::Int => IrType::I32,
         TyKind::Bool => IrType::I8,
         TyKind::Ref(type_ref) => to_ir_ptr_type(&type_ref.elem, &mut 1),
-        TyKind::Error => IrType::None,
-        TyKind::None => IrType::None,
+        TyKind::Error => IrType::Unit,
+        TyKind::Unit => IrType::Unit,
     }
 }
 
@@ -273,7 +273,7 @@ pub fn size_of_ir_type(ty: IrType, addr_size: isize) -> isize {
         IrType::U64 => 8,
         IrType::PtrI8(_) |
         IrType::PtrI32(_) => addr_size,
-        IrType::None => 0,
+        IrType::Unit => 0,
     }
 }
 
@@ -446,7 +446,7 @@ pub fn build_ir_from_block<'a>(
     ib.scopes.push(scope);
 
     let mut last_op = IrOperand::None;
-    let mut last_ty = IrType::None;
+    let mut last_ty = IrType::Unit;
     for stmt in &block.stmts {
         let (op, ty) = build_ir_from_stmt(ib, &stmt);
         last_op = op;
@@ -455,7 +455,7 @@ pub fn build_ir_from_block<'a>(
 
     let ret = if let Some(Stmt::Expr(_)) = block.stmts.last() {
         if let IrOperand::None = last_op {
-            (IrOperand::None, IrType::None)
+            (IrOperand::None, IrType::Unit)
         } else {
             if ib.scopes.len() <= 2 { // Outermost scope, safe to return
                 ib.instructions.push(IrInstruction {
@@ -477,11 +477,11 @@ pub fn build_ir_from_block<'a>(
                 });
                 (op1, last_ty)
             } else {
-                (IrOperand::None, IrType::None)
+                (IrOperand::None, IrType::Unit)
             }
         }
     } else {
-        (IrOperand::None, IrType::None)
+        (IrOperand::None, IrType::Unit)
     };
 
     ib.scopes.pop();
@@ -520,17 +520,17 @@ pub fn build_ir_from_stmt<'a>(ib: &mut IrBuilder<'a>, stmt: &Stmt) -> (IrOperand
                         });
                     }
                 }
-                None => return (IrOperand::None, IrType::None)
+                None => return (IrOperand::None, IrType::Unit)
             };
 
             ib.scopes[0].locals.insert(ident, init_type);
             ib.live_intervals.insert(ident, create_ir_live_interval(ib.instructions.len()));
 
-            (IrOperand::None, IrType::None)
+            (IrOperand::None, IrType::Unit)
         }
 
-        Stmt::Item(_)    => (IrOperand::None, IrType::None),
-        Stmt::Semi(expr) => (build_ir_from_expr(ib, expr).0, IrType::None),
+        Stmt::Item(_)    => (IrOperand::None, IrType::Unit),
+        Stmt::Semi(expr) => (build_ir_from_expr(ib, expr).0, IrType::Unit),
         Stmt::Expr(expr) => build_ir_from_expr(ib, expr),
     }
 }
@@ -551,7 +551,7 @@ fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, 
                 };
 
                 if let IrOpcode::Nop = opcode {
-                    (IrOpcode::Nop, IrOperand::None, IrOperand::None, IrType::None)
+                    (IrOpcode::Nop, IrOperand::None, IrOperand::None, IrType::Unit)
                 } else {
                     let (lhs, ty) = build_ir_from_expr(ib, &binary.left);
                     let rhs = build_ir_from_expr(ib, &binary.right).0;
@@ -560,7 +560,7 @@ fn build_ir_conditional_if<'a>(ib: &mut IrBuilder<'a>, cond: &Expr, span: Span, 
             }
 
             Expr::Paren(paren) => binary_if_condition(ib, &paren.expr),
-            _ => (IrOpcode::Nop, IrOperand::None, IrOperand::None, IrType::None),
+            _ => (IrOpcode::Nop, IrOperand::None, IrOperand::None, IrType::Unit),
         }
     }
 
@@ -739,7 +739,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 }
             }
 
-            (IrOperand::None, IrType::None)
+            (IrOperand::None, IrType::Unit)
         }
 
         Expr::Call(call) => {
@@ -786,7 +786,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                     }
                 }
 
-                None => (IrOperand::Ident(function_label), IrType::None),
+                None => (IrOperand::Ident(function_label), IrType::Unit),
             };
 
             ib.instructions.push(IrInstruction {
@@ -812,7 +812,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
 
         Expr::If(if_expr) => {
             build_ir_if_expr(ib, if_expr, None);
-            (IrOperand::None, IrType::None)
+            (IrOperand::None, IrType::Unit)
         }
 
         Expr::Lit(literal) => match literal.lit {
@@ -831,7 +831,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 IrType::I32       => IrType::PtrI32(1),
                 IrType::PtrI8(i)  => IrType::PtrI8(i + 1),
                 IrType::PtrI32(i) => IrType::PtrI32(i + 1),
-                IrType::None      => panic!("missing type info"),
+                IrType::Unit      => panic!("missing type info"),
                 _                 => panic!("unsupported type"),
             };
 
@@ -852,7 +852,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
         Expr::Return(return_expr) => {
             let (op1, ty) = match &*return_expr.expr {
                 Some(expr) => build_ir_from_expr(ib, expr),
-                None => (IrOperand::None, IrType::None),
+                None => (IrOperand::None, IrType::Unit),
             };
 
             update_ir_live_interval(ib, op1);
@@ -865,7 +865,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 ..Default::default()
             });
 
-            (IrOperand::None, IrType::None)
+            (IrOperand::None, IrType::Unit)
         }
 
         Expr::Unary(unary) => {
@@ -935,7 +935,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                             IrType::I32
                         }
 
-                        IrType::None => panic!("missing type info"),
+                        IrType::Unit => panic!("missing type info"),
                     };
 
                     update_ir_live_interval(ib, op2);
@@ -982,7 +982,7 @@ pub fn build_ir_from_expr<'a>(ib: &mut IrBuilder<'a>, expr: &Expr) -> (IrOperand
                 ..Default::default()
             });
 
-            (IrOperand::None, IrType::None)
+            (IrOperand::None, IrType::Unit)
         }
     }
 }
@@ -994,7 +994,7 @@ impl Default for IrInstruction {
             op1: IrOperand::None,
             op2: IrOperand::None,
             op3: IrOperand::None,
-            ty: IrType::None,
+            ty: IrType::Unit,
             span: Span::new(),
         }
     }
@@ -1035,7 +1035,7 @@ impl fmt::Display for IrInstruction {
             IrOpcode::Prologue    |
             IrOpcode::Epilogue    => {
                 write!(f, "{}", self.opcode)?;
-                if let IrType::None = self.ty {
+                if let IrType::Unit = self.ty {
                 } else {
                     write!(f, " {}", self.ty)?;
                 }
@@ -1052,7 +1052,7 @@ impl fmt::Display for IrInstruction {
 
             _ => {
                 write!(f, "{} = {}", self.op1, self.opcode)?;
-                if let IrType::None = self.ty {
+                if let IrType::Unit = self.ty {
                 } else {
                     write!(f, " {}", self.ty)?;
                 }
@@ -1081,7 +1081,7 @@ impl fmt::Display for IrType {
             IrType::U64       => write!(f, "u64"),
             IrType::PtrI8(i)  => write!(f, "i8{}", "*".repeat(*i as usize)),
             IrType::PtrI32(i) => write!(f, "i32{}", "*".repeat(*i as usize)),
-            IrType::None      => write!(f, ""),
+            IrType::Unit      => write!(f, ""),
         }
     }
 }

@@ -1,23 +1,30 @@
 
-fn inc(x: &mut i32, y: &mut i32) {
-    *x = *x + 1;
-    *y = *y + 1;
-}
-
-fn test() -> i32 {
-    10
-}
 
 fn main() -> i32 {
-    let a: &mut i32 = &mut 20;
-    let b: &mut i32 = &mut 10;
-    *a = 25;
-    *b = 32;
-    inc(a, b);
-    print_int(*a);
-    print_int(*b);
-    return test() + 10;
+    let x: i32 = 10;
+    return (1 + 10) - (x + x);
 }
+
+
+// fn inc(x: &mut i32, y: &mut i32) {
+//     *x = *x + 1;
+//     *y = *y + 1;
+// }
+
+// fn test() -> i32 {
+//     10
+// }
+
+// fn main() -> i32 {
+//     let a: &mut i32 = &mut 20;
+//     let b: &mut i32 = &mut 10;
+//     *a = 25;
+//     *b = 32;
+//     inc(a, b);
+//     print_int(*a);
+//     print_int(*b);
+//     return test() + 10;
+// }
 
 // fn test() -> i32 {
 //     let x: i32 = 10;

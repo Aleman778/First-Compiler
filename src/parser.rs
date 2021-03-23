@@ -157,7 +157,7 @@ pub fn parse_run_code(source: String, filename: String) -> File {
             },
             decl: FnDecl {
                 inputs: vec![],
-                output: Ty::new(TyKind::None, Span::new()),
+                output: Ty::new(TyKind::Unit, Span::new()),
                 span: Span::new(),
             },
             block: Block {

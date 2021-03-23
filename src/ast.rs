@@ -160,7 +160,7 @@ pub enum TyKind {
     Bool,
     Ref(TypeRef),
     Error, // used by type checker
-    None,
+    Unit, // aka. () in Rust
 }
 
 /**
@@ -178,7 +178,7 @@ pub struct TypeRef {
  */
 impl Ty {
     /**
-     * Creates an empty type with kind `TyKind::None` and empty span.
+     * Creates an empty type with kind `TyKind::Unit` and empty span.
      */
     pub fn new(kind: TyKind, span: Span) -> Self {
         Ty {
@@ -235,9 +235,9 @@ impl Ty {
     /**
      * Returns true if this has no type.
      */
-    pub fn is_none(&self) -> bool {
+    pub fn is_unit(&self) -> bool {
         match self.kind {
-            TyKind::None => true,
+            TyKind::Unit => true,
             _ => false,
         }
     }
@@ -246,7 +246,7 @@ impl Ty {
 impl Default for Ty {
     fn default() -> Self {
         Ty {
-            kind: TyKind::None,
+            kind: TyKind::Unit,
             mutable: false,
             assigned: false,
             span: Span::new(),
@@ -276,7 +276,7 @@ impl fmt::Display for TyKind {
             TyKind::Bool => write!(f, "bool"),
             TyKind::Ref(r) => write!(f, "{}", r),
             TyKind::Error => write!(f, "()"),
-            TyKind::None => write!(f, "()"),
+            TyKind::Unit => write!(f, "()"),
         }
     }
 }

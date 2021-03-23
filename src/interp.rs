@@ -102,7 +102,7 @@ pub fn to_type_kind(value: &Value) -> TyKind {
                 elem: Box::new(r.ref_ty.clone()),
             }
         ),
-        _ => TyKind::None,
+        _ => TyKind::Unit,
     }
 }
 

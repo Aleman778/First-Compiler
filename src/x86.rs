@@ -298,13 +298,11 @@ pub fn compile_ir_to_x86_machine_code(
     // Now write the calculated jump distances, from highest index to lowest
     calculated_jumps.sort_by(|a, b| b.0.cmp(&a.0));
     for (index, bytes, pre_allocated_bytes) in calculated_jumps {
-        // println!("index = {}, bytes = {:#?}, pre_allocated_bytes = {}", index, bytes, pre_allocated_bytes);
         let mut i = 0;
         for b in &bytes[..pre_allocated_bytes as usize] {
             x86.machine_code[index + i] = *b;
             i += 1;
         }
-        // println!("i = {} => {:#?}", i, &bytes[pre_allocated_bytes as usize..]);
 
         for b in &bytes[pre_allocated_bytes as usize..] {
             x86.machine_code.insert(index + i, *b);
@@ -340,8 +338,6 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
     // Set enter label pos
     let base_pos = x86.machine_code.len();
     x86.label_byte_pos.insert(bb.enter_label, base_pos);
-
-    // x86.machine_code.push(0xcc); // FIXME: debugging remove this
 
     // Prologue
     sprint_asm!(x86, "{}:\n", bb.enter_label);
@@ -538,8 +534,16 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 let rhs = to_x86_operand(x86, insn.op3, insn.ty);
                 if dst != lhs {
                     push_instruction(x86, X86Opcode::MOV, insn.ty, dst, lhs);
+                } else {
+                    if let X86Operand::Register(reg) = lhs {
+                        for (areg, aident) in x86.allocated_registers.iter_mut() {
+                            if *areg == reg {
+                                *aident = maybe_get_ir_ident(insn.op1);
+                            }
+                        }
+                    }
                 }
-
+                
                 let opcode = match insn.opcode {
                     IrOpcode::Add => X86Opcode::ADD,
                     IrOpcode::Sub => X86Opcode::SUB,
@@ -590,11 +594,12 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
 
             IrOpcode::Div |
             IrOpcode::Mod => {
-                // Make sure RDX and RAX are stored somewhere safe!
-                allocate_specific_register(x86, X86Reg::RAX);
-                allocate_specific_register(x86, X86Reg::RDX);
 
-                let mut dst = to_x86_operand(x86, insn.op1, insn.ty);
+                // Make sure RDX and RAX are stored somewhere safe!
+                let result_ident = maybe_get_ir_ident(insn.op1);
+                allocate_specific_register(x86, X86Reg::RAX, result_ident);
+                allocate_specific_register(x86, X86Reg::RDX, result_ident);
+
                 let lhs = to_x86_operand(x86, insn.op2, insn.ty);
                 let rhs = to_x86_operand(x86, insn.op3, insn.ty);
 
@@ -643,34 +648,17 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 // Save the result to the the destination (first operand)
                 match insn.opcode {
                     IrOpcode::Div => {
-                        let mut dst_is_rax = false;
-                        if let X86Operand::Register(_) = lhs {
-                            dst = X86Operand::Register(X86Reg::RAX);
-                            dst_is_rax = true;
-                        }
-                        if !dst_is_rax {
-                            push_instruction(x86, X86Opcode::MOV, insn.ty, dst, X86Operand::Register(X86Reg::RAX));
-                            insert_variable(x86, insn.ty, insn.op1, dst);
-                        }
-
+                        let dst = X86Operand::Register(X86Reg::RAX);
+                        free_register(x86, X86Reg::RDX); // NOTE(alexander): RDX is remainder which is useless here
+                        insert_variable(x86, insn.ty, insn.op1, dst);
                     }
                     IrOpcode::Mod => {
-                        let mut dst_is_rdx = false;
-                        if let X86Operand::Register(_) = lhs {
-                            dst = X86Operand::Register(X86Reg::RDX);
-                            dst_is_rdx = true;
-                        }
-                        if !dst_is_rdx {
-                            push_instruction(x86, X86Opcode::MOV, insn.ty, dst, X86Operand::Register(X86Reg::RDX));
-                            insert_variable(x86, insn.ty, insn.op1, dst);
-                        }
+                        let dst = X86Operand::Register(X86Reg::RDX);
+                        free_register(x86, X86Reg::RAX); // NOTE(alexander): RAX is quotient which is useless here
+                        insert_variable(x86, insn.ty, insn.op1, dst);
                     }
                     _ => unreachable!(),
                 }
-
-                // Make sure that we give back the original registers, and free the new ones
-                // free_specific_register(x86, X86Reg::RAX, rax_state);
-                // free_specific_register(x86, X86Reg::RDX, rdx_state);
             }
 
             IrOpcode::Pow => {
@@ -885,6 +873,8 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                     _ => panic!("x86: expected identifier or value as second operand to Call"),
                 };
 
+                // Remove any register allocations that moved to stack
+                
                 // Restore previous registers
                 // for (ty, src, dst) in &arg_moves {
                     // push_instruction(x86, X86Opcode::MOV, *ty, *dst, *src);
@@ -893,6 +883,9 @@ fn push_function(x86: &mut X86Assembler, insns: &[IrInstruction], bb: &IrBasicBl
                 require_stack_frame = true;
                 x86.argument_stack.clear();
                 insert_variable(x86, insn.ty, insn.op1, return_op);
+                if let X86Operand::Register(reg) = return_op {
+                    allocate_specific_register(x86, reg, maybe_get_ir_ident(insn.op1));
+                }
             }
 
             IrOpcode::Return => {
@@ -1012,8 +1005,19 @@ fn free_dead_registers(x86: &mut X86Assembler, insn_index: usize, bb: &IrBasicBl
             };
             if let Some(reg) = opt_reg {
                 let r = *reg;
-                // x86.assembly.push_str(&format!("dropped: {} from `{}`\n", reg, ident));
-                free_register(x86, r);
+                let mut is_reg_owner = false;
+                for (areg, opt_aident) in &x86.allocated_registers {
+                    if let Some(aident) = *opt_aident {
+                        if r == *areg && aident == *ident {
+                            is_reg_owner = true;
+                        }
+                    }
+                }
+
+                if is_reg_owner {
+                    free_register(x86, r);
+                    // x86.assembly.push_str(&format!("dropped: {:?} from `%{}`\n", r, ident));
+                }
                 x86.local_variables.remove(ident);
             }
         }
@@ -1225,6 +1229,7 @@ fn allocate_register(x86: &mut X86Assembler, ident: Option<IrIdent>) -> X86Reg {
             match x86.local_variables.get(&prev_ident) {
                 Some(prev_variable) => {
                     // Spill out to stack
+                    // sprint_asm!(x86, "spill: {}\n", reg);
                     let (prev_operand, prev_ty) = *prev_variable;
                     x86.curr_stack_offset -= size_of_ir_type(prev_ty, x86.addr_size);
                     let stack_op = X86Operand::Stack(X86Reg::RBP, x86.curr_stack_offset);
@@ -1246,6 +1251,42 @@ fn allocate_register(x86: &mut X86Assembler, ident: Option<IrIdent>) -> X86Reg {
     }
 }
 
+fn allocate_specific_register(x86: &mut X86Assembler, reg: X86Reg, ident: Option<IrIdent>) {
+    // Remove the free register if it was not already allocated.
+    let mut i = 0;
+    x86.free_registers.retain(|r| (*r != reg , i += 1).0);
+    
+    let mut is_occupied = false;
+    let mut prev_ident: Option<IrIdent> = None;
+    for (areg, aident) in x86.allocated_registers.iter_mut() {
+        if *areg == reg {
+            prev_ident = *aident;
+            *aident = ident;
+            is_occupied = true;
+            break;
+        }
+    }
+
+    if !is_occupied {
+        x86.allocated_registers.push_back((reg, ident));
+        return;
+    }
+
+    let new_reg = allocate_register(x86, prev_ident);
+    let src = X86Operand::Register(reg);
+    let dst = X86Operand::Register(new_reg);
+    if let Some(ident) = prev_ident {
+        match x86.local_variables.get_mut(&ident) {
+            Some(var) => {
+                var.0 = dst;
+            }
+            None => {},
+        }
+    }
+    push_instruction(x86, X86Opcode::MOV, IrType::PtrI32(1), dst, src);
+    
+}
+
 #[inline]
 fn free_register(x86: &mut X86Assembler, reg: X86Reg) {
     x86.free_registers.push_front(reg);
@@ -1256,47 +1297,6 @@ fn free_register(x86: &mut X86Assembler, reg: X86Reg) {
             x86.allocated_registers.remove(i);
             break;
         }
-    }
-}
-
-fn allocate_specific_register(x86: &mut X86Assembler, reg: X86Reg) -> Option<X86Reg> {
-    let mut is_occupied = false;
-    let mut prev_ident: Option<IrIdent> = None;
-    for (areg, ident) in x86.allocated_registers.iter() {
-        if *areg == reg {
-            prev_ident = *ident;
-            is_occupied = true;
-            break;
-        }
-    }
-
-    if !is_occupied {
-        return None;
-    }
-
-    let temp_reg = allocate_register(x86, prev_ident);
-    if temp_reg != reg {
-        let src = X86Operand::Register(reg);
-        let dst = X86Operand::Register(temp_reg);
-        if let Some(ident) = prev_ident {
-            match x86.local_variables.get_mut(&ident) {
-                Some(var) => {
-                    var.0 = dst;
-                }
-                None => {},
-            }
-        }
-        push_instruction(x86, X86Opcode::MOV, IrType::PtrI32(1), dst, src);
-    }
-    Some(temp_reg)
-}
-
-fn free_specific_register(x86: &mut X86Assembler, reg: X86Reg, prev_reg: Option<X86Reg>) {
-    if let Some(src_reg) = prev_reg {
-        let src = X86Operand::Register(src_reg);
-        let dst = X86Operand::Register(reg);
-        push_instruction(x86, X86Opcode::MOV, IrType::PtrI32(1), dst, src);
-        free_register(x86, src_reg);
     }
 }
 
@@ -1564,7 +1564,7 @@ fn print_instruction(
             IrType::U64       => "qword ptr",
             IrType::PtrI8(_)  => "byte ptr",
             IrType::PtrI32(_) => "dword ptr",
-            IrType::None      => "dword ptr", // NOTE(alexander): default type.
+            IrType::Unit      => "dword ptr", // NOTE(alexander): default type.
         };
 
         x86.assembly.push_str(&format!("    {:<6}", format!("{}", opcode)));

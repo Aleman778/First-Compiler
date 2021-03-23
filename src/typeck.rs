@@ -90,7 +90,7 @@ pub fn type_check_function<'a>(tc: &mut TypeContext<'a>, func: &'a FnItem) -> Ty
     let ret_ty = type_check_block(tc, &func.block, false);
     
     if func.decl.output != ret_ty {
-        if ret_ty.is_none() {
+        if ret_ty.is_unit() {
             let mut msg = create_error_msg(
                 tc,
                 ErrorLevel::Error,
@@ -143,9 +143,9 @@ pub fn type_check_block<'a>(tc: &mut TypeContext<'a>, block: &'a Block, inside_l
             _ => false,
         };
 
-        if !ret_ty.is_none() && !is_return {
+        if !ret_ty.is_unit() && !is_return {
             if i < block.stmts.len() - 1 {
-                mismatched_types_error(tc, ret_ty.span, &TyKind::None, &ret_ty);
+                mismatched_types_error(tc, ret_ty.span, &TyKind::Unit, &ret_ty);
             }
         }
     }
@@ -168,7 +168,7 @@ pub fn type_check_stmt<'a>(tc: &mut TypeContext<'a>, stmt: &'a Stmt) -> Ty {
 
                 None => {
                     match local.ty.kind {
-                        TyKind::None => {
+                        TyKind::Unit => {
                             type_error(
                                 tc,
                                 local.ty.span,
@@ -494,7 +494,7 @@ pub fn type_check_literal_expr<'a>(literal: &'a ExprLit) -> Ty {
 
 pub fn type_check_reference_expr<'a>(tc: &mut TypeContext<'a>, reference_expr: &'a ExprReference) -> Ty {
     let ty = type_check_expr(tc, &reference_expr.expr);
-    if ty.is_none() {
+    if ty.is_unit() {
         type_error(
             tc,
             reference_expr.span,
